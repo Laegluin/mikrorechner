@@ -4,12 +4,14 @@ extern crate structopt;
 extern crate num_enum;
 
 mod simulator;
+mod memory;
 
-use simulator::Word;
+use memory::Word;
 
 enum Error {
     IllegalInstruction(Word),
     IllegalRegister(u8),
+    UninitializedMemoryAccess(Word),
 }
 
 fn main() {

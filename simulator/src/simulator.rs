@@ -1,14 +1,9 @@
+use memory::Word;
+use memory::{OP_CODE_BITS, REG_REF_BITS, WORD_BITS, WORD_BYTES};
 use num_enum::CustomTryInto;
 use rand;
-use std::mem;
 use std::ops::{Index, IndexMut};
 use Error;
-
-pub type Word = u32;
-const WORD_BYTES: Word = mem::size_of::<Word>() as Word;
-const WORD_BITS: Word = WORD_BYTES * 8;
-const OP_CODE_BITS: Word = 5;
-const REG_REF_BITS: Word = 6;
 
 struct RegBank {
     next_instr_addr: Word,
