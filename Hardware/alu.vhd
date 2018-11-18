@@ -19,7 +19,7 @@ entity ALU is
         A, B        : in    unsigned(bit_Width-1 downto 0);    -- Operanden
         opcode      : in    unsigned(opcode_Width-1 downto 0); -- Opcode
         ALU_Out     : out   unsigned(bit_Width-1 downto 0);    -- Ausgang
-        ALU_Flag    : out   std_logic                        -- Flag
+        ALU_Flag    : out   std_logic                          -- Flag
      );
 end entity ALU;
 
@@ -71,7 +71,7 @@ begin
                 -- Schiebeoperationen
             -- SHIFTL
                 -- A wird um 1 Bit nach links geshiftet;
-                -- sein höchstes Bit wird um niedrigtes Bit von B aufgefuellt.
+                -- sein höchstes Bit wird um niedrigstes Bit von B aufgefuellt.
             when "10100" => 
                 ALU_Reslut <= A(bit_Width-1 downto 1) & B(1 downto 0);
                 -- A wird um 1 Bit nach rechts geshiftet;
@@ -82,7 +82,7 @@ begin
                 -- A wird um 1 Bit nach rechts geshiftet;
                 -- sein zweitniedrigstes Bit wird um höchstes Bit von B aufgefuellt;
                 -- behaelt somit Vorzeichenbit von A bei;
-                -- Vorrausgesetzt, das Vorzeichen ist im niedrigtsen Bit codiert.
+                -- Vorrausgesetzt, das Vorzeichen ist im niedrigsten Bit codiert.
             -- SIGNED_SHIFTR
             when "10110" => 
                 ALU_Result <= B(bit_Width-1 downto bit_Width-2) & A(bit_Width-2 downto 1) & A(1 downto 0);

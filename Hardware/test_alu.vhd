@@ -1,0 +1,102 @@
+-- testbench for 32-Bit-ALU
+
+-- entity tb_ALU
+
+-- architecture behavior
+
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+
+entity tb_ALU is
+    -- Unit Under Test (UUT)
+    component ALU
+    generic
+    (
+        bit_Width   : integer := 32; -- Wortbreite
+        opcode_Bits : integer := 5;  -- Opcode-Bitumfang
+    );
+
+    port
+    (
+        A, B        : in    unsigned(bit_Width-1 downto 0);    -- Operanden
+        opcode      : in    unsigned(opcode_Width-1 downto 0); -- Opcode
+        ALU_Out     : out   unsigned(bit_Width-1 downto 0);    -- Ausgang
+        ALU_Flag    : out   std_logic                          -- Flag
+    );
+    end component;
+
+    -- inputs
+    signal A, B     : unsigned(bit_Width-1 downto 0);
+    signal opcode   : unsigned(opcode_Width-1 downto 0)
+
+    -- outputs
+    signal ALU_Out  : unsigned(bit_Width-1 downto 0);
+    signal ALU_Flag : std_logic;
+
+begin
+    -- instanziiere UUT
+    uut: ALU PORT MAP 
+    (
+        A => A,
+        B => B,
+        opcode => opcode,
+        ALU_Out => ALU_Out,
+        ALU_Flag => ALU_Flag
+    );
+
+    -- Stimulus process
+    stim_proc: process
+    begin
+
+-- erstmal manuell eingeben
+
+--    -- test addition
+--    opcode <= 00000;
+--    wait for 100 ns;
+
+--    -- test subtraction
+--    opcode <= 10111;
+--    wait for 100 ns;
+
+--    -- test multiplication
+--    opcode <= 01110;
+--    wait for 100 ns;
+
+--    -- test division
+--    opcode <= 01111;
+--    wait for 100 ns;
+
+--    -- test and
+--    opcode <= 10000;
+--    wait for 100 ns;
+
+--    -- test or
+--    opcode <= 10001;
+--    wait for 100 ns;
+
+--    -- test not
+--    opcode <= 10010;
+--    wait for 100 ns;
+
+--    -- test xor
+--    opcode <= 10011;
+--    wait for 100 ns;
+
+--    -- test shiftl
+--    opcode <= 10100;
+--    wait for 100 ns;
+
+--    -- test shiftr
+--    opcode <= 10101;
+--    wait for 100 ns;
+
+--    -- test signed_shiftr
+--    opcode <= 10110;
+--    wait for 100 ns;
+
+
+
+
+    end process;
+end;
