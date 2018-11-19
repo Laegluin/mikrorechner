@@ -1,18 +1,19 @@
 use memory::Word;
-use memory::{OP_CODE_BITS, REG_REF_BITS, WORD_BITS, WORD_BYTES};
+use memory::{Memory, OP_CODE_BITS, REG_REF_BITS, WORD_BITS, WORD_BYTES};
 use num_enum::CustomTryInto;
 use rand;
-use std::ops::{Index, IndexMut};
-use Error;
+use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Index, IndexMut, Mul, Shl, Shr, Sub};
+use std::sync::atomic::{AtomicBool, Ordering};
+use {Error, ErrorContext, ErrorKind};
 
-struct RegBank {
+pub struct RegBank {
     next_instr_addr: Word,
     regs: [Word; 34],
     cmp_flag: bool,
 }
 
 impl RegBank {
-    fn new() -> RegBank {
+    pub fn new() -> RegBank {
         // initialize with random values to simulate undefined values
         let mut regs = [0; 34];
 
@@ -104,7 +105,7 @@ enum RegPos {
 
 impl Reg {
     #[inline]
-    fn from_word(word: Word, pos: RegPos) -> Result<Reg, Error> {
+    fn from_word(word: Word, pos: RegPos) -> Result<Reg, ErrorKind> {
         // shift to right so the register is in the lowest bits
         let shift_by = WORD_BITS - (OP_CODE_BITS + (pos as Word + 1 * REG_REF_BITS));
         let rest = word >> shift_by;
@@ -114,7 +115,7 @@ impl Reg {
 
         match reg.try_into_Reg() {
             Ok(reg) => Ok(reg),
-            Err(_) => Err(Error::IllegalRegister(reg)),
+            Err(_) => Err(ErrorKind::IllegalRegister(reg)),
         }
     }
 }
@@ -151,20 +152,184 @@ enum Op {
 
 impl Op {
     #[inline]
-    fn from_word(word: Word) -> Result<Op, Error> {
+    fn from_word(word: Word) -> Result<Op, ErrorKind> {
         let code = word >> (WORD_BITS - OP_CODE_BITS);
 
         match (code as u8).try_into_Op() {
+            // TODO: mul and div are not implemented yet
             Ok(op) => match op {
-                Op::Mul | Op::Div => Err(Error::IllegalInstruction(word)),
+                Op::Mul | Op::Div => Err(ErrorKind::IllegalInstruction(word)),
                 op => Ok(op),
             },
-            Err(_) => Err(Error::IllegalInstruction(word)),
+            Err(_) => Err(ErrorKind::IllegalInstruction(word)),
         }
     }
 }
 
-fn immediate_from_word(word: Word, num_args: Word) -> Word {
-    let mask = Word::max_value() >> (OP_CODE_BITS + (num_args * REG_REF_BITS));
+fn immediate_from_word(word: Word, num_reg_refs: Word) -> Word {
+    let mask = Word::max_value() >> (OP_CODE_BITS + (num_reg_refs * REG_REF_BITS));
     word & mask
+}
+
+pub struct Breakpoints(Vec<Word>);
+
+impl Breakpoints {
+    pub fn new() -> Breakpoints {
+        Breakpoints(Vec::new())
+    }
+
+    pub fn push(&mut self, addr: Word) {
+        self.0
+            .binary_search(&addr)
+            .map_err(|idx| self.0.insert(idx, addr));
+    }
+
+    pub fn is_breakpoint(&self, addr: Word) -> bool {
+        self.0.binary_search(&addr).is_ok()
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Status {
+    Ready,
+    Halt,
+}
+
+pub fn run(
+    regs: &mut RegBank,
+    mem: &mut Memory,
+    breakpoints: &Breakpoints,
+    pause: &AtomicBool,
+) -> Result<Status, Error> {
+    while !pause.load(Ordering::Acquire) {
+        if breakpoints.is_breakpoint(regs.next_instr_addr()) {
+            return Ok(Status::Ready);
+        }
+
+        if run_next(regs, mem)? == Status::Halt {
+            return Ok(Status::Halt);
+        }
+    }
+
+    Ok(Status::Ready)
+}
+
+fn run_next(regs: &mut RegBank, mem: &mut Memory) -> Result<Status, Error> {
+    use self::Op::*;
+
+    let instr_addr = regs.next_instr_addr();
+    regs.incr_instr_addr();
+    let err_ctx = ErrorContext::at(instr_addr);
+
+    let instr = err_ctx.map_err(mem.load_word(instr_addr))?;
+
+    match err_ctx.map_err(Op::from_word(instr))? {
+        Add => err_ctx.map_err(binary_op(instr, Word::add, regs)),
+        Sub => err_ctx.map_err(binary_op(instr, Word::sub, regs)),
+        Mul => err_ctx.map_err(binary_op(instr, Word::mul, regs)),
+        Div => err_ctx.map_err(binary_op(instr, Word::div, regs)),
+        And => err_ctx.map_err(binary_op(instr, Word::bitand, regs)),
+        Or => err_ctx.map_err(binary_op(instr, Word::bitor, regs)),
+        Not => err_ctx.map_err(not(instr, regs)),
+        Xor => err_ctx.map_err(binary_op(instr, Word::bitxor, regs)),
+        ShiftL => err_ctx.map_err(binary_op(instr, Word::shl, regs)),
+        ShiftR => err_ctx.map_err(binary_op(instr, Word::shr, regs)),
+        SignedShiftR => err_ctx.map_err(binary_op(instr, |l, r| (l as i32 >> r) as Word, regs)),
+        Copy => err_ctx.map_err(copy(instr, regs)),
+        Set => err_ctx.map_err(set(instr, regs)),
+        CmpEq => err_ctx.map_err(cmp(instr, |l, r| l == r, regs)),
+        CmpGt => err_ctx.map_err(cmp(instr, |l, r| l > r, regs)),
+        CmpGe => err_ctx.map_err(cmp(instr, |l, r| l >= r, regs)),
+        Jmp => err_ctx.map_err(jmp(instr, regs)),
+        JmpRel => err_ctx.map_err(jmp_rel(instr, regs)),
+        JmpIf => if regs.is_cmp_set() {
+            err_ctx.map_err(jmp(instr, regs))
+        } else {
+            Ok(Status::Ready)
+        },
+        JmpRelIf => if regs.is_cmp_set() {
+            err_ctx.map_err(jmp_rel(instr, regs))
+        } else {
+            Ok(Status::Ready)
+        },
+        Load => err_ctx.map_err(load(instr, regs, mem)),
+        Store => err_ctx.map_err(store(instr, regs, mem)),
+        NoOp => Ok(Status::Ready),
+        Halt => Ok(Status::Halt),
+    }
+}
+
+fn binary_op<F>(instr: Word, op: F, regs: &mut RegBank) -> Result<Status, ErrorKind>
+where
+    F: FnOnce(Word, Word) -> Word,
+{
+    let dst = Reg::from_word(instr, RegPos::Dst)?;
+    let lhs = Reg::from_word(instr, RegPos::Arg1)?;
+    let rhs = Reg::from_word(instr, RegPos::Arg2)?;
+
+    regs[dst] = op(regs[lhs], regs[rhs]);
+    Ok(Status::Ready)
+}
+
+fn not(instr: Word, regs: &mut RegBank) -> Result<Status, ErrorKind> {
+    let dst = Reg::from_word(instr, RegPos::Dst)?;
+    let src = Reg::from_word(instr, RegPos::Arg1)?;
+    regs[dst] = !regs[src];
+    Ok(Status::Ready)
+}
+
+fn copy(instr: Word, regs: &mut RegBank) -> Result<Status, ErrorKind> {
+    let dst = Reg::from_word(instr, RegPos::Dst)?;
+    let src = Reg::from_word(instr, RegPos::Arg1)?;
+    regs[dst] = regs[src];
+    Ok(Status::Ready)
+}
+
+fn set(instr: Word, regs: &mut RegBank) -> Result<Status, ErrorKind> {
+    let dst = Reg::from_word(instr, RegPos::Dst)?;
+    regs[dst] = immediate_from_word(instr, 1);
+    Ok(Status::Ready)
+}
+
+fn cmp<F>(instr: Word, op: F, regs: &mut RegBank) -> Result<Status, ErrorKind>
+where
+    F: FnOnce(Word, Word) -> bool,
+{
+    let lhs = Reg::from_word(instr, RegPos::Arg1)?;
+    let rhs = Reg::from_word(instr, RegPos::Arg2)?;
+
+    regs.cmp_flag = op(regs[lhs], regs[rhs]);
+    Ok(Status::Ready)
+}
+
+fn jmp(instr: Word, regs: &mut RegBank) -> Result<Status, ErrorKind> {
+    let addr = regs[Reg::from_word(instr, RegPos::Dst)?];
+    regs.next_instr_addr = addr;
+    Ok(Status::Ready)
+}
+
+fn jmp_rel(instr: Word, regs: &mut RegBank) -> Result<Status, ErrorKind> {
+    let offset = immediate_from_word(instr, 0);
+    // subtract the word len, because the instr_addr already points at the next instruction
+    // TODO: allow negative offsets?
+    regs.next_instr_addr = regs.next_instr_addr + offset - WORD_BYTES;
+    Ok(Status::Ready)
+}
+
+fn load(instr: Word, regs: &mut RegBank, mem: &mut Memory) -> Result<Status, ErrorKind> {
+    let dst = Reg::from_word(instr, RegPos::Dst)?;
+    let src_addr_reg = Reg::from_word(instr, RegPos::Arg1)?;
+    let offset = immediate_from_word(instr, 2);
+
+    regs[dst] = mem.load_word(regs[src_addr_reg] + offset)?;
+    Ok(Status::Ready)
+}
+
+fn store(instr: Word, regs: &mut RegBank, mem: &mut Memory) -> Result<Status, ErrorKind> {
+    let dst_addr_reg = Reg::from_word(instr, RegPos::Dst)?;
+    let src = Reg::from_word(instr, RegPos::Arg1)?;
+    let offset = immediate_from_word(instr, 2);
+
+    mem.store_word(regs[dst_addr_reg] + offset, regs[src]);
+    Ok(Status::Ready)
 }

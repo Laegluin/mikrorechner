@@ -3,6 +3,7 @@ use rand;
 use std::cmp::min;
 use std::mem;
 use std::ptr;
+use ErrorKind;
 
 pub type Word = u32;
 pub const WORD_BYTES: Word = mem::size_of::<Word>() as Word;
@@ -15,7 +16,7 @@ const LEVEL_1_TABLE_LEN: usize = 1024;
 const LEVEL_2_TABLE_LEN: usize = 1024;
 
 /// Paged memory for a 32-bit address space, using a 2-level page table.
-/// 
+///
 /// The first 10 bits are used as an index into the top level table, the next
 /// 10 bits as an index for the first level page table, and the last 12 bits
 /// as the address within a page.
@@ -55,7 +56,7 @@ impl Memory {
         }
     }
 
-    pub fn load_word(&mut self, addr: Word) -> Result<Word, Word> {
+    pub fn load_word(&mut self, addr: Word) -> Result<Word, ErrorKind> {
         let mut bytes = [0; WORD_BYTES as usize];
         self.load(addr, WORD_BYTES, &mut bytes)?;
         Ok(LittleEndian::read_u32(&bytes))
@@ -70,14 +71,14 @@ impl Memory {
     ///
     /// ## Panics
     /// Panics if `len != buf.len()`.
-    fn load(&mut self, addr: Word, len: Word, buf: &mut [u8]) -> Result<(), Word> {
+    fn load(&mut self, addr: Word, len: Word, buf: &mut [u8]) -> Result<(), ErrorKind> {
         assert!(len as usize == buf.len());
         let mut ptr = addr;
         let mut bytes_read = 0;
 
         while bytes_read < len as usize {
             match self.mem_ref(ptr, len - bytes_read as Word) {
-                (_, true) => return Err(ptr),
+                (_, true) => return Err(ErrorKind::UninitializedMemoryAccess(ptr)),
                 (memory, _) => {
                     let memory_len = memory.len();
                     buf[bytes_read..bytes_read + memory_len].copy_from_slice(&memory);
