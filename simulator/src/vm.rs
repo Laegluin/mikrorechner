@@ -359,7 +359,7 @@ where
 
 fn jmp(instr: Word, regs: &mut RegBank) -> Result<Status, ErrorKind> {
     let addr = regs[Reg::from_word(instr, RegPos::Dst)?];
-    regs.next_instr_addr = addr;
+    regs.next_instr_addr = addr + regs[Reg::AddrOffset];
     Ok(Status::Ready)
 }
 
@@ -376,7 +376,7 @@ fn load(instr: Word, regs: &mut RegBank, mem: &mut Memory) -> Result<Status, Err
     let src_addr_reg = Reg::from_word(instr, RegPos::Arg1)?;
     let offset = immediate_from_word(instr, 2);
 
-    let value = mem.load_word(regs[src_addr_reg] + offset)?;
+    let value = mem.load_word(regs[src_addr_reg] + offset + regs[Reg::AddrOffset])?;
     regs.set(dst, value);
     Ok(Status::Ready)
 }
@@ -386,6 +386,9 @@ fn store(instr: Word, regs: &mut RegBank, mem: &mut Memory) -> Result<Status, Er
     let src = Reg::from_word(instr, RegPos::Arg1)?;
     let offset = immediate_from_word(instr, 2);
 
-    mem.store_word(regs[dst_addr_reg] + offset, regs[src]);
+    mem.store_word(
+        regs[dst_addr_reg] + offset + regs[Reg::AddrOffset],
+        regs[src],
+    );
     Ok(Status::Ready)
 }
