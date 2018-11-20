@@ -2,8 +2,11 @@ use memory::Word;
 use memory::{Memory, OP_CODE_BITS, REG_REF_BITS, WORD_BITS, WORD_BYTES};
 use num_enum::CustomTryInto;
 use rand;
+use std::fmt::{self, Display};
 use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Index, IndexMut, Mul, Shl, Shr, Sub};
 use std::sync::atomic::{AtomicBool, Ordering};
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 use {Error, ErrorContext, ErrorKind};
 
 pub struct RegBank {
@@ -55,9 +58,23 @@ impl IndexMut<Reg> for RegBank {
     }
 }
 
-#[derive(CustomTryInto)]
+impl Display for RegBank {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "next instruction: {:#x}", self.next_instr_addr)?;
+        writeln!(f, "comparison flag: {}", self.cmp_flag)?;
+
+        for reg in Reg::iter() {
+            writeln!(f, "{}: {val:#x} ({val})", reg, val = self[reg])?;
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(strum_macros::Display, EnumIter, CustomTryInto, Clone, Copy)]
 #[repr(u8)]
 #[rustfmt::skip]
+#[strum(serialize_all = "snake_case")]
 enum Reg {
     R0          = 0b_000000,
     R1          = 0b_000001,
@@ -186,6 +203,20 @@ impl Breakpoints {
 
     pub fn is_breakpoint(&self, addr: Word) -> bool {
         self.0.binary_search(&addr).is_ok()
+    }
+}
+
+impl Display for Breakpoints {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.0.is_empty() {
+            return write!(f, "<none>");
+        }
+
+        for breakpoint in &self.0 {
+            writeln!(f, "{:#x}", breakpoint)?;
+        }
+
+        Ok(())
     }
 }
 

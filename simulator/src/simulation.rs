@@ -9,7 +9,7 @@ use Error;
 pub struct Simulation {
     state: Arc<Mutex<State>>,
     pause: Arc<AtomicBool>,
-    start: Sender<Message>,
+    sender: Sender<Message>,
 }
 
 impl Simulation {
@@ -32,7 +32,7 @@ impl Simulation {
                 breakpoints,
             })),
             pause: Arc::new(AtomicBool::new(false)),
-            start: sender,
+            sender,
         };
 
         let pause = Arc::clone(&simulation.pause);
@@ -70,6 +70,21 @@ impl Simulation {
         });
 
         simulation
+    }
+
+    pub fn start(&self) {
+        self.sender
+            .send(Message::Start)
+            .expect("available simulation");
+    }
+
+    pub fn pause(&self) {
+        self.pause.store(true, Ordering::Release);
+    }
+
+    pub fn stop(&self) {
+        // if there's no receiver, it's already stopped
+        let _ = self.sender.send(Message::Stop);
     }
 }
 
