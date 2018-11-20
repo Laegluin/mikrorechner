@@ -118,6 +118,16 @@ cmp_ge: 0010 1*** ***A AAAA ABBB BBB* **** ****
 
 ### Jumps
 
+There are two types of jumps:
+
+- absolute: jump to the given absolute address
+- relative: jump relative to the current instruction. The offset is added to the current
+            instruction address (e.g. a relative jump with an offset of `0` jumps to the jump
+            instruction itself, causing in infinite loop)
+
+Both types come with a conditional variant. Conditional jumps jump only if the comparison flag is set;
+otherwise they simply continue with the next instruction.
+
 ```text
 jmp: 0011 0TTT TTT* **** **** **** **** ****
      └────┘└─────┘
@@ -129,8 +139,6 @@ jmp_rel: 0011 1III IIII IIII IIII IIII IIII IIII
          └────┘└───────────────────────────────┘
            op             offset
 ```
-
-Conditional jumps jump to the target address if the comparison flag is set or continue execution otherwise.
 
 ```text
 jmp_if: 0100 0TTT TTT* **** **** **** **** ****
