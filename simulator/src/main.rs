@@ -67,7 +67,7 @@ pub enum ErrorKind {
 struct Args {
     #[structopt(parse(from_os_str))]
     /// The image that is loaded into memory before startup. Addressing
-    /// starts at 0x00000000.
+    /// starts at 0x00000000
     image: PathBuf,
 }
 
