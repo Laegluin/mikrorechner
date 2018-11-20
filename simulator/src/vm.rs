@@ -1,9 +1,9 @@
 use memory::Word;
-use memory::{Memory, OP_CODE_BITS, REG_REF_BITS, WORD_BITS, WORD_BYTES};
+use memory::{Memory, OP_CODE_BITS, REG_REF_BITS, WORD_BITS, WORD_BYTES, WORD_HEX_FMT_WIDTH};
 use num_enum::CustomTryInto;
 use rand;
 use std::fmt::{self, Display};
-use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Index, IndexMut, Mul, Shl, Shr, Sub};
+use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Index, Mul, Shl, Shr, Sub};
 use std::sync::atomic::{AtomicBool, Ordering};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
@@ -60,11 +60,23 @@ impl Index<Reg> for RegBank {
 
 impl Display for RegBank {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "next instruction: {:#x}", self.next_instr_addr)?;
+        writeln!(
+            f,
+            "next instruction: {:#0width$x}",
+            self.next_instr_addr,
+            width = WORD_HEX_FMT_WIDTH
+        )?;
+
         writeln!(f, "comparison flag: {}", self.cmp_flag)?;
 
         for reg in Reg::iter() {
-            writeln!(f, "{}: {val:#x} ({val})", reg, val = self[reg])?;
+            writeln!(
+                f,
+                "{}: {val:#0width$x} ({val})",
+                reg,
+                val = self[reg],
+                width = WORD_HEX_FMT_WIDTH
+            )?;
         }
 
         Ok(())
@@ -124,7 +136,7 @@ impl Reg {
     #[inline]
     fn from_word(word: Word, pos: RegPos) -> Result<Reg, ErrorKind> {
         // shift to right so the register is in the lowest bits
-        let shift_by = WORD_BITS - (OP_CODE_BITS + (pos as Word + 1 * REG_REF_BITS));
+        let shift_by = WORD_BITS - (OP_CODE_BITS + ((pos as Word + 1) * REG_REF_BITS));
         let rest = word >> shift_by;
 
         let mask = Word::max_value() >> (WORD_BITS - REG_REF_BITS);
@@ -196,9 +208,9 @@ impl Breakpoints {
     }
 
     pub fn push(&mut self, addr: Word) {
-        self.0
-            .binary_search(&addr)
-            .map_err(|idx| self.0.insert(idx, addr));
+        if let Err(idx) = self.0.binary_search(&addr) {
+            self.0.insert(idx, addr);
+        }
     }
 
     pub fn is_breakpoint(&self, addr: Word) -> bool {
@@ -213,7 +225,7 @@ impl Display for Breakpoints {
         }
 
         for breakpoint in &self.0 {
-            writeln!(f, "{:#x}", breakpoint)?;
+            writeln!(f, "{:#0width$x}", breakpoint, width = WORD_HEX_FMT_WIDTH)?;
         }
 
         Ok(())
