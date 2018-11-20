@@ -42,6 +42,12 @@ impl RegBank {
     fn is_cmp_set(&self) -> bool {
         self.cmp_flag
     }
+
+    fn set(&mut self, reg: Reg, value: Word) {
+        // always reset the null register
+        self.regs[reg as usize] = value;
+        self.regs[Reg::Null as usize] = 0;
+    }
 }
 
 impl Index<Reg> for RegBank {
@@ -49,12 +55,6 @@ impl Index<Reg> for RegBank {
 
     fn index(&self, idx: Reg) -> &Word {
         &self.regs[idx as usize]
-    }
-}
-
-impl IndexMut<Reg> for RegBank {
-    fn index_mut(&mut self, idx: Reg) -> &mut Word {
-        &mut self.regs[idx as usize]
     }
 }
 
@@ -298,27 +298,34 @@ where
     let lhs = Reg::from_word(instr, RegPos::Arg1)?;
     let rhs = Reg::from_word(instr, RegPos::Arg2)?;
 
-    regs[dst] = op(regs[lhs], regs[rhs]);
+    let value = op(regs[lhs], regs[rhs]);
+    regs.set(dst, value);
     Ok(Status::Ready)
 }
 
 fn not(instr: Word, regs: &mut RegBank) -> Result<Status, ErrorKind> {
     let dst = Reg::from_word(instr, RegPos::Dst)?;
     let src = Reg::from_word(instr, RegPos::Arg1)?;
-    regs[dst] = !regs[src];
+
+    let value = !regs[src];
+    regs.set(dst, value);
     Ok(Status::Ready)
 }
 
 fn copy(instr: Word, regs: &mut RegBank) -> Result<Status, ErrorKind> {
     let dst = Reg::from_word(instr, RegPos::Dst)?;
     let src = Reg::from_word(instr, RegPos::Arg1)?;
-    regs[dst] = regs[src];
+
+    let value = regs[src];
+    regs.set(dst, value);
     Ok(Status::Ready)
 }
 
 fn set(instr: Word, regs: &mut RegBank) -> Result<Status, ErrorKind> {
     let dst = Reg::from_word(instr, RegPos::Dst)?;
-    regs[dst] = immediate_from_word(instr, 1);
+
+    let value = immediate_from_word(instr, 1);
+    regs.set(dst, value);
     Ok(Status::Ready)
 }
 
@@ -352,7 +359,8 @@ fn load(instr: Word, regs: &mut RegBank, mem: &mut Memory) -> Result<Status, Err
     let src_addr_reg = Reg::from_word(instr, RegPos::Arg1)?;
     let offset = immediate_from_word(instr, 2);
 
-    regs[dst] = mem.load_word(regs[src_addr_reg] + offset)?;
+    let value = mem.load_word(regs[src_addr_reg] + offset)?;
+    regs.set(dst, value);
     Ok(Status::Ready)
 }
 
