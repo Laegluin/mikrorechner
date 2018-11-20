@@ -1,0 +1,12 @@
+[package]
+name = "simulator"
+version = "0.1.0"
+authors = ["Robin Mirow <robinmirow@live.com>"]
+
+[dependencies]
+byteorder = "1.2.7"
+structopt = "0.2.13"
+rand = "0.6.0"
+num_enum = "0.1.1"
+strum = "0.11.0"
+strum_macros = "0.11.0"
