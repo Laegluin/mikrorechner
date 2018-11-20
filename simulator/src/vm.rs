@@ -7,7 +7,7 @@ use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Index, Mul, Shl, Shr, Sub};
 use std::sync::atomic::{AtomicBool, Ordering};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
-use {Error, ErrorContext, ErrorKind};
+use {Error, ErrorKind};
 
 pub struct RegBank {
     next_instr_addr: Word,
@@ -262,44 +262,49 @@ fn run_next(regs: &mut RegBank, mem: &mut Memory) -> Result<Status, Error> {
 
     let instr_addr = regs.next_instr_addr();
     regs.incr_instr_addr();
-    let err_ctx = ErrorContext::at(instr_addr);
 
-    let instr = err_ctx.map_err(mem.load_word(instr_addr))?;
+    let instr = mem
+        .load_word(instr_addr)
+        .map_err(|kind| Error::new(instr_addr, kind))?;
 
-    match err_ctx.map_err(Op::from_word(instr))? {
-        Add => err_ctx.map_err(binary_op(instr, Word::add, regs)),
-        Sub => err_ctx.map_err(binary_op(instr, Word::sub, regs)),
-        Mul => err_ctx.map_err(binary_op(instr, Word::mul, regs)),
-        Div => err_ctx.map_err(binary_op(instr, Word::div, regs)),
-        And => err_ctx.map_err(binary_op(instr, Word::bitand, regs)),
-        Or => err_ctx.map_err(binary_op(instr, Word::bitor, regs)),
-        Not => err_ctx.map_err(not(instr, regs)),
-        Xor => err_ctx.map_err(binary_op(instr, Word::bitxor, regs)),
-        ShiftL => err_ctx.map_err(binary_op(instr, Word::shl, regs)),
-        ShiftR => err_ctx.map_err(binary_op(instr, Word::shr, regs)),
-        SignedShiftR => err_ctx.map_err(binary_op(instr, |l, r| (l as i32 >> r) as Word, regs)),
-        Copy => err_ctx.map_err(copy(instr, regs)),
-        Set => err_ctx.map_err(set(instr, regs)),
-        CmpEq => err_ctx.map_err(cmp(instr, |l, r| l == r, regs)),
-        CmpGt => err_ctx.map_err(cmp(instr, |l, r| l > r, regs)),
-        CmpGe => err_ctx.map_err(cmp(instr, |l, r| l >= r, regs)),
-        Jmp => err_ctx.map_err(jmp(instr, regs)),
-        JmpRel => err_ctx.map_err(jmp_rel(instr, regs)),
+    let op = Op::from_word(instr).map_err(|kind| Error::new(instr_addr, kind))?;
+
+    let result = match op {
+        Add => binary_op(instr, Word::add, regs),
+        Sub => binary_op(instr, Word::sub, regs),
+        Mul => binary_op(instr, Word::mul, regs),
+        Div => binary_op(instr, Word::div, regs),
+        And => binary_op(instr, Word::bitand, regs),
+        Or => binary_op(instr, Word::bitor, regs),
+        Not => not(instr, regs),
+        Xor => binary_op(instr, Word::bitxor, regs),
+        ShiftL => binary_op(instr, Word::shl, regs),
+        ShiftR => binary_op(instr, Word::shr, regs),
+        SignedShiftR => binary_op(instr, |l, r| (l as i32 >> r) as Word, regs),
+        Copy => copy(instr, regs),
+        Set => set(instr, regs),
+        CmpEq => cmp(instr, |l, r| l == r, regs),
+        CmpGt => cmp(instr, |l, r| l > r, regs),
+        CmpGe => cmp(instr, |l, r| l >= r, regs),
+        Jmp => jmp(instr, regs),
+        JmpRel => jmp_rel(instr, regs),
         JmpIf => if regs.is_cmp_set() {
-            err_ctx.map_err(jmp(instr, regs))
+            jmp(instr, regs)
         } else {
             Ok(Status::Ready)
         },
         JmpRelIf => if regs.is_cmp_set() {
-            err_ctx.map_err(jmp_rel(instr, regs))
+            jmp_rel(instr, regs)
         } else {
             Ok(Status::Ready)
         },
-        Load => err_ctx.map_err(load(instr, regs, mem)),
-        Store => err_ctx.map_err(store(instr, regs, mem)),
+        Load => load(instr, regs, mem),
+        Store => store(instr, regs, mem),
         NoOp => Ok(Status::Ready),
         Halt => Ok(Status::Halt),
-    }
+    };
+
+    result.map_err(|kind| Error::new(instr_addr, kind))
 }
 
 fn binary_op<F>(instr: Word, op: F, regs: &mut RegBank) -> Result<Status, ErrorKind>

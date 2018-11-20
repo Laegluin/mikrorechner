@@ -56,20 +56,6 @@ impl Display for Error {
     }
 }
 
-struct ErrorContext {
-    at: Word,
-}
-
-impl ErrorContext {
-    fn at(at: Word) -> ErrorContext {
-        ErrorContext { at }
-    }
-
-    fn map_err<T>(&self, res: Result<T, ErrorKind>) -> Result<T, Error> {
-        res.map_err(|kind| Error::new(self.at, kind))
-    }
-}
-
 #[derive(Debug)]
 pub enum ErrorKind {
     IllegalInstruction(Word),
