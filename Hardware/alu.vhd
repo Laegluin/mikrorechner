@@ -76,16 +76,16 @@ begin
 --                -- sein höchstes Bit wird um niedrigstes Bit von B aufgefuellt.
 --            when "10100" => 
 --                ALU_Result <= A(bit_Width-1 downto 1) & B(1 downto 0);
+--            -- SHIFTR
 --                -- A wird um 1 Bit nach rechts geshiftet;
 --                -- sein niedrigstes Bit wird um höchstes Bit von B aufgefuellt.
---            -- SHIFTR
---           when "10101" => 
+--            when "10101" => 
 --                ALU_Result <= B(bit_Width-1 downto bit_Width-2) & A(bit_Width-2 downto 0);
+--            -- SIGNED_SHIFTR
 --                -- A wird um 1 Bit nach rechts geshiftet;
 --                -- sein zweitniedrigstes Bit wird um höchstes Bit von B aufgefuellt;
 --                -- behaelt somit Vorzeichenbit von A bei;
 --                -- Vorrausgesetzt, das Vorzeichen ist im niedrigsten Bit codiert.
---            -- SIGNED_SHIFTR
 --            when "10110" => 
 --                ALU_Result <= B(bit_Width-1 downto bit_Width-2) & A(bit_Width-2 downto 1) & A(1 downto 0);
 
@@ -96,21 +96,18 @@ begin
                 -- seine höchsten Bits werden mit 1en aufgefuellt.
             when "10100" => 
                 ALU_Result <= A(bit_Width-1 downto to_integer(B)) & shift_Ones(to_integer(B) downto 0);
+            --SHIFTR
                 -- A wird um B Bit nach rechts geshiftet;
                 -- B muss zwischen 0 und 32 sein.
                 -- seine niedrigsten Bits werden mit 1en aufgefuellt.
-                ALU_Result <= A(bit_Width-1 downto 1) & B(1 downto 0);
-                -- A wird um 1 Bit nach rechts geshiftet;
-                -- sein niedrigstes Bit wird um höchstes Bit von B aufgefuellt.
-            -- SHIFTR
             when "10101" => 
                 ALU_Result <= shift_Ones(bit_Width-to_integer(B) downto 0) & A(bit_Width-to_integer(B) downto 0);
+            -- SIGNED_SHIFTR
                 -- A wird um B Bit nach rechts geshiftet;
                 -- B muss zwischen 0 und 31 sein.
                 -- seine Bits angefangen mit dem zweitniedrigsten Bit werden mit 1en aufgefuellt;
                 -- behaelt somit Vorzeichenbit von A bei;
                 -- Vorrausgesetzt, das Vorzeichen ist im niedrigsten Bit codiert.
-            -- SIGNED_SHIFTR
             when "10110" =>
                 ALU_Result <= unsigned(shift_Ones(bit_Width-to_integer(B) downto 0) & signed(A)(bit_Width-1 downto bit_Width-to_integer(B)) & signed(A)(1 downto 0));
 
