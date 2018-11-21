@@ -16,7 +16,7 @@ entity decoder is
         register_Bits       : integer   := 6;  -- Register-Adressbreite
         reg_offset_Bits     : integer   := 21; -- Register Offset Bitumfang
         jump_offset_Bits    : integer   := 27; -- Jump Offset Bitumfang
-        mem_offset_Bits     : integer   := 15; -- Speicher Offset Bitumfang
+        mem_offset_Bits     : integer   := 15  -- Speicher Offset Bitumfang
     );
     port
     (
