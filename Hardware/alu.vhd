@@ -13,7 +13,7 @@ entity ALU is
     (
         bit_Width   : integer                        := 32; -- Wortbreite
         opcode_Bits : integer                        := 5;  -- Opcode-Bitumfang
---        shift_Zeros : unsigned(bit_Width-1 downto 0) := "00000000000000000000000000000000" -- Nullen, die beim Shiften aufgefuellt werden
+        shift_Zeros : unsigned(bit_Width-1 downto 0) := "00000000000000000000000000000000" -- Nullen, die beim Shiften aufgefuellt werden
         shift_Ones  : unsigned(bit_Width-1 downto 0) := "11111111111111111111111111111111" -- Einsen, die beim Shiften aufgefuellt werden
     );
     port
@@ -133,6 +133,10 @@ begin
                 else
                     ALU_Flag <= 0;
                 end if;
+
+            -- absturz vermeidung, falls fehler im opcode
+            when others => 
+                ALU_Result <= shift_Zeros;
 
         end case;
 
