@@ -111,8 +111,8 @@ begin
                 -- behaelt somit Vorzeichenbit von A bei;
                 -- Vorrausgesetzt, das Vorzeichen ist im niedrigsten Bit codiert.
             -- SIGNED_SHIFTR
-            when "10110" => 
-                ALU_Result <= shift_Ones(bit_Width-to_integer(B) downto 0) & A(bit_Width-to_integer(B) downto 1) & A(1 downto 0);
+            when "10110" =>
+                ALU_Result <= unsigned(shift_Ones(bit_Width-to_integer(B) downto 0) & signed(A)(bit_Width-1 downto bit_Width-to_integer(B)) & signed(A)(1 downto 0));
 
                 -- Vergleiche
             -- CMP_EQ
