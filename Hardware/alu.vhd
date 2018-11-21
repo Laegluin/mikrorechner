@@ -11,8 +11,10 @@ use ieee.numeric_std.all;
 entity ALU is
     generic
     (
-        bit_Width   : integer := 32; -- Wortbreite
-        opcode_Bits : integer := 5;  -- Opcode-Bitumfang
+        bit_Width   : integer                        := 32; -- Wortbreite
+        opcode_Bits : integer                        := 5;  -- Opcode-Bitumfang
+--        shift_Zeros : unsigned(bit_Width-1 downto 0) := "00000000000000000000000000000000" -- Nullen, die beim Shiften aufgefuellt werden
+        shift_Ones  : unsigned(dit_Width-1 downto 0) := "11111111111111111111111111111111" -- Einsen, die beim Shiften aufgefuellt werden
     );
     port
     (
@@ -68,24 +70,46 @@ begin
             when "10011" => 
                 ALU_Result <= A xor B;
 
-                -- Schiebeoperationen
+--                -- Schiebeoperationen
+--            -- SHIFTL
+--                -- A wird um 1 Bit nach links geshiftet;
+--                -- sein höchstes Bit wird um niedrigstes Bit von B aufgefuellt.
+--            when "10100" => 
+--                ALU_Result <= A(bit_Width-1 downto 1) & B(1 downto 0);
+--                -- A wird um 1 Bit nach rechts geshiftet;
+--                -- sein niedrigstes Bit wird um höchstes Bit von B aufgefuellt.
+--            -- SHIFTR
+--           when "10101" => 
+--                ALU_Result <= B(bit_Width-1 downto bit_Width-2) & A(bit_Width-2 downto 0);
+--                -- A wird um 1 Bit nach rechts geshiftet;
+--                -- sein zweitniedrigstes Bit wird um höchstes Bit von B aufgefuellt;
+--                -- behaelt somit Vorzeichenbit von A bei;
+--                -- Vorrausgesetzt, das Vorzeichen ist im niedrigsten Bit codiert.
+--            -- SIGNED_SHIFTR
+--            when "10110" => 
+--                ALU_Result <= B(bit_Width-1 downto bit_Width-2) & A(bit_Width-2 downto 1) & A(1 downto 0);
+
+                -- Schiebeoperationen (die wohl bessere Alternative)
             -- SHIFTL
-                -- A wird um 1 Bit nach links geshiftet;
-                -- sein höchstes Bit wird um niedrigstes Bit von B aufgefuellt.
+                -- A wird um B Bits nach links geshiftet;
+                -- B muss zwischen 0 und 32 sein.
+                -- seine höchsten Bits werden mit 1en aufgefuellt.
             when "10100" => 
-                ALU_Reslut <= A(bit_Width-1 downto 1) & B(1 downto 0);
-                -- A wird um 1 Bit nach rechts geshiftet;
-                -- sein niedrigstes Bit wird um höchstes Bit von B aufgefuellt.
+                ALU_Result <= A(bit_Width-1 downto to_integer(B)) & shift_Ones(to_integer(B) downto 0);
+                -- A wird um B Bit nach rechts geshiftet;
+                -- B muss zwischen 0 und 32 sein.
+                -- seine niedrigsten Bits werden mit 1en aufgefuellt.
             -- SHIFTR
             when "10101" => 
-                ALU_Result <= B(bit_Width-1 downto bit_Width-2) & A(bit_Width-2 downto 0);
-                -- A wird um 1 Bit nach rechts geshiftet;
-                -- sein zweitniedrigstes Bit wird um höchstes Bit von B aufgefuellt;
+                ALU_Result <= shift_Ones(bit_Width-to_integer(B) downto 0) & A(bit_Width-to_integer(B) downto 0);
+                -- A wird um B Bit nach rechts geshiftet;
+                -- B muss zwischen 0 und 31 sein.
+                -- seine Bits angefangen mit dem zweitniedrigsten Bit werden mit 1en aufgefuellt;
                 -- behaelt somit Vorzeichenbit von A bei;
                 -- Vorrausgesetzt, das Vorzeichen ist im niedrigsten Bit codiert.
             -- SIGNED_SHIFTR
             when "10110" => 
-                ALU_Result <= B(bit_Width-1 downto bit_Width-2) & A(bit_Width-2 downto 1) & A(1 downto 0);
+                ALU_Result <= shift_Ones(bit_Width-to_integer(B) downto 0) & A(bit_Width-to_integer(B) downto 1) & A(1 downto 0);
 
                 -- Vergleiche
             -- CMP_EQ
