@@ -99,6 +99,9 @@ begin
                 -- A wird um B Bit nach rechts geshiftet;
                 -- B muss zwischen 0 und 32 sein.
                 -- seine niedrigsten Bits werden mit 1en aufgefuellt.
+                ALU_Result <= A(bit_Width-1 downto 1) & B(1 downto 0);
+                -- A wird um 1 Bit nach rechts geshiftet;
+                -- sein niedrigstes Bit wird um höchstes Bit von B aufgefuellt.
             -- SHIFTR
             when "10101" => 
                 ALU_Result <= shift_Ones(bit_Width-to_integer(B) downto 0) & A(bit_Width-to_integer(B) downto 0);
