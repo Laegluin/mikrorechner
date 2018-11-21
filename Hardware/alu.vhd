@@ -73,7 +73,7 @@ begin
                 -- A wird um 1 Bit nach links geshiftet;
                 -- sein höchstes Bit wird um niedrigstes Bit von B aufgefuellt.
             when "10100" => 
-                ALU_Reslut <= A(bit_Width-1 downto 1) & B(1 downto 0);
+                ALU_Result <= A(bit_Width-1 downto 1) & B(1 downto 0);
                 -- A wird um 1 Bit nach rechts geshiftet;
                 -- sein niedrigstes Bit wird um höchstes Bit von B aufgefuellt.
             -- SHIFTR
