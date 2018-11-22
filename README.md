@@ -123,7 +123,8 @@ There are two types of jumps:
 - absolute: jump to the given absolute address
 - relative: jump relative to the current instruction. The offset is added to the current
             instruction address (e.g. a relative jump with an offset of `0` jumps to the jump
-            instruction itself, causing in infinite loop)
+            instruction itself, causing in infinite loop). Offsets are interpreted as a signed
+            number in two's complement.
 
 Both types come with a conditional variant. Conditional jumps jump only if the comparison flag is set;
 otherwise they simply continue with the next instruction.

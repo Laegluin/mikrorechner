@@ -195,11 +195,6 @@ impl Op {
     }
 }
 
-fn immediate_from_word(word: Word, num_reg_refs: Word) -> Word {
-    let mask = Word::max_value() >> (OP_CODE_BITS + (num_reg_refs * REG_REF_BITS));
-    word & mask
-}
-
 pub struct Breakpoints(Vec<Word>);
 
 impl Breakpoints {
@@ -341,7 +336,7 @@ fn copy(instr: Word, regs: &mut RegBank) -> Result<Status, ErrorKind> {
 fn set(instr: Word, regs: &mut RegBank) -> Result<Status, ErrorKind> {
     let dst = Reg::from_word(instr, RegPos::Dst)?;
 
-    let value = immediate_from_word(instr, 1);
+    let value = immediate_from_instr(instr, 1);
     regs.set(dst, value);
     Ok(Status::Ready)
 }
@@ -364,17 +359,16 @@ fn jmp(instr: Word, regs: &mut RegBank) -> Result<Status, ErrorKind> {
 }
 
 fn jmp_rel(instr: Word, regs: &mut RegBank) -> Result<Status, ErrorKind> {
-    let offset = immediate_from_word(instr, 0);
+    let offset = immediate_from_instr_signed(instr, 0);
     // subtract the word len, because the instr_addr already points at the next instruction
-    // TODO: allow negative offsets?
-    regs.next_instr_addr = regs.next_instr_addr + offset - WORD_BYTES;
+    regs.next_instr_addr = regs.next_instr_addr.wrapping_add(offset) - WORD_BYTES;
     Ok(Status::Ready)
 }
 
 fn load(instr: Word, regs: &mut RegBank, mem: &mut Memory) -> Result<Status, ErrorKind> {
     let dst = Reg::from_word(instr, RegPos::Dst)?;
     let src_addr_reg = Reg::from_word(instr, RegPos::Arg1)?;
-    let offset = immediate_from_word(instr, 2);
+    let offset = immediate_from_instr(instr, 2);
 
     let value = mem.load_word(regs[src_addr_reg] + offset + regs[Reg::AddrOffset])?;
     regs.set(dst, value);
@@ -384,7 +378,7 @@ fn load(instr: Word, regs: &mut RegBank, mem: &mut Memory) -> Result<Status, Err
 fn store(instr: Word, regs: &mut RegBank, mem: &mut Memory) -> Result<Status, ErrorKind> {
     let dst_addr_reg = Reg::from_word(instr, RegPos::Dst)?;
     let src = Reg::from_word(instr, RegPos::Arg1)?;
-    let offset = immediate_from_word(instr, 2);
+    let offset = immediate_from_instr(instr, 2);
 
     mem.store_word(
         regs[dst_addr_reg] + offset + regs[Reg::AddrOffset],
@@ -392,6 +386,32 @@ fn store(instr: Word, regs: &mut RegBank, mem: &mut Memory) -> Result<Status, Er
     );
 
     Ok(Status::Ready)
+}
+
+/// Extracts an unsigned immediate from an `instr` with `num_reg_refs` number of
+/// register references in the instruction (including don't care registers like in
+/// `Op::Cmp`).
+fn immediate_from_instr(instr: Word, num_reg_refs: Word) -> Word {
+    let ignored_bits = OP_CODE_BITS + (num_reg_refs * REG_REF_BITS);
+    let mask = Word::max_value() >> ignored_bits;
+    instr & mask
+}
+
+/// Like `immediate_from_word`, but the immediate is interpreted as a signed two's
+/// complement number.
+fn immediate_from_instr_signed(instr: Word, num_reg_refs: Word) -> Word {
+    let ignored_bits = OP_CODE_BITS + (num_reg_refs * REG_REF_BITS);
+    let mask = Word::max_value() >> ignored_bits;
+
+    let imm_bits = WORD_BITS - ignored_bits;
+    let sign = instr & (1 << (imm_bits - 1));
+
+    if sign == 0 {
+        instr & mask
+    } else {
+        let abs = ((!instr) + 1) & mask;
+        (-(abs as i32)) as Word
+    }
 }
 
 #[cfg(test)]
@@ -422,5 +442,43 @@ mod test {
 
         let word = 0b_01101_000000_000000_000000_000000000;
         assert_eq!(Op::Halt, Op::from_word(word).unwrap());
+    }
+
+    #[test]
+    fn immediate_from_instr_() {
+        let instr = 0b_00000_000000_000000_000000000000000;
+        let imm = immediate_from_instr(instr, 2);
+        assert_eq!(0, imm);
+
+        let instr = 0b_00000_000000_000000_000000000000111;
+        let imm = immediate_from_instr(instr, 0);
+        assert_eq!(7, imm);
+
+        let instr = 0b_00000_000000_000000_000000000001001;
+        let imm = immediate_from_instr(instr, 0);
+        assert_eq!(9, imm);
+
+        let instr = 0b_00000_000000_000000_000000000000100;
+        let imm = immediate_from_instr(instr, 0);
+        assert_eq!(4, imm);
+    }
+
+    #[test]
+    fn immediate_from_instr_signed_() {
+        let instr = 0b_00000_000000_000000_000000_000000000;
+        let imm = immediate_from_instr_signed(instr, 3);
+        assert_eq!(0, imm);
+
+        let instr = 0b_00000_000000_000000_000000_000000111;
+        let imm = immediate_from_instr_signed(instr, 3);
+        assert_eq!(7, imm);
+
+        let instr = 0b_00000_000000_000000_000000_111111111;
+        let imm = immediate_from_instr_signed(instr, 3);
+        assert_eq!(-1, imm as i32);
+
+        let instr = 0b_00000_000000_000000_000000_111111001;
+        let imm = immediate_from_instr_signed(instr, 3);
+        assert_eq!(-7, imm as i32);
     }
 }
