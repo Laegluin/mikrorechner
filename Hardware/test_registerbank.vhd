@@ -22,12 +22,12 @@ architecture test_rb of test_registerbank is
     (
         clk, rst: in std_logic;
         reg_write_on: in std_logic;
-        reg_write_addr: in std_logic_vector(address_width-1 downto 0);
-        reg_write_data: in std_logic_vector(bit_width-1 downto 0);
-        reg_read_addr_A: in std_logic_vector(5 downto 0);
-        reg_read_data_A: out std_logic_vector(bit_width-1 downto 0);
-        reg_read_addr_B: in std_logic_vector(5 downto 0);
-        reg_read_data_B: out std_logic_vector(bit_width-1 downto 0)
+        reg_write_addr: in unsigned(address_width-1 downto 0);
+        reg_write_data: in unsigned(bit_width-1 downto 0);
+        reg_read_addr_A: in unsigned(5 downto 0);
+        reg_read_data_A: out unsigned(bit_width-1 downto 0);
+        reg_read_addr_B: in unsigned(5 downto 0);
+        reg_read_data_B: out unsigned(bit_width-1 downto 0)
     );
     end component;
     
@@ -36,9 +36,9 @@ architecture test_rb of test_registerbank is
    
     signal clk, rst: std_logic;
     signal reg_write_on: std_logic;
-    signal reg_write_addr, reg_read_addr_A, reg_read_addr_B: std_logic_vector(address_width-1 downto 0);
-    signal reg_write_data: std_logic_vector(bit_width-1 downto 0);
-    signal reg_read_data_A, reg_read_data_B: std_logic_vector(bit_width-1 downto 0);
+    signal reg_write_addr, reg_read_addr_A, reg_read_addr_B: unsigned(address_width-1 downto 0);
+    signal reg_write_data: unsigned(bit_width-1 downto 0);
+    signal reg_read_data_A, reg_read_data_B: unsigned(bit_width-1 downto 0);
 
     begin 
         uut: registerbank port map
@@ -67,13 +67,18 @@ architecture test_rb of test_registerbank is
 	process
         begin
             reg_write_on <= '1';
-            reg_write_addr <= "000000";
-            reg_write_data <= std_logic_vector(to_signed(64, bit_width));
-            wait for 100 ns;
-                --register r0 sollte Wert beinhalten
+            reg_write_addr <= "000100";
+            reg_write_data <= to_unsigned(64, bit_width);
             
-            reg_read_addr_A <= "000000";
-            wait for 100 ns;
+	    wait for 100 ns;
+                --register r0 sollte Wert beinhalten
+            reg_write_on <= '1';
+	    reg_write_addr <= "000010";
+	    reg_write_data <= to_unsigned(1, bit_width);
+
+            reg_read_addr_A <= "000100";
+            reg_read_addr_B <= "000010";
+	    wait for 100 ns;
 		--sollte den Wert ausgeben
         end process;
 end test_rb;
