@@ -9,6 +9,11 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 entity test_registerbank is
+    generic
+    (
+	bit_width : integer := 32;
+	address_width : integer := 6
+    );
 end test_registerbank;
 
 architecture test_rb of test_registerbank is
@@ -30,9 +35,6 @@ architecture test_rb of test_registerbank is
         reg_read_data_B: out unsigned(bit_width-1 downto 0)
     );
     end component;
-    
-    constant bit_width: integer := 32;	--generic declaration somehow not in scope here
-    constant address_width: integer := 6;
    
     signal clk, rst: std_logic;
     signal reg_write_on: std_logic;

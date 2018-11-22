@@ -26,7 +26,7 @@ port(
 end registerbank;
 
 architecture behavior of registerbank is
-type reg_type is array (0 to bit_width-1) of unsigned(bit_width-1 downto 0);
+type reg_type is array (0 to (2**(address_width-1))-1) of unsigned(bit_width-1 downto 0);
 signal reg_array : reg_type;
 signal data_a : unsigned(bit_width-1 downto 0);
 signal data_b : unsigned(bit_width-1 downto 0);
