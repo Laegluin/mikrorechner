@@ -30,15 +30,16 @@ type reg_type is array (0 to bit_width-1) of std_logic_vector(bit_width-1 downto
 signal reg_array : reg_type;
 signal data_a : std_logic_vector(bit_width-1 downto 0);
 signal data_b : std_logic_vector(bit_width-1 downto 0);
-variable offset_register : std_logic_vector(bit_width-1 downto 0) := std_logic_vector(to_signed(0, bit_width));
+
 begin
     process(clk, rst, reg_read_addr_A, reg_read_addr_B)
-        begin
+	variable offset_register : std_logic_vector(bit_width-1 downto 0) := std_logic_vector(to_signed(0, bit_width)); --not sure if this is smart...
+    begin
         if(rst='1') then
             --maybe do something
         elsif(rising_edge(clk)) then
             if(reg_write_on='1') then
-                if(reg_write_addr='100001') then
+                if(reg_write_addr="100001") then
                     offset_register := reg_write_data;
                 else    
                     reg_array(to_integer(unsigned(reg_write_addr(address_width-2 downto 0)))) <= reg_write_data;
@@ -47,9 +48,9 @@ begin
         end if;
 
 	case(reg_read_addr_A) is
-        	when '100000' =>
-            		data_a <= std_logic_vector(to_unsigned('0', data_a'length));
-        	when '100001' =>
+        	when "100000" =>
+            		data_a <= std_logic_vector(to_unsigned(0, data_a'length));
+        	when "100001" =>
             		data_a <= offset_register;
         	when "------" => --don't care or U uninitialized?
             		--do something here maybe?
@@ -58,14 +59,14 @@ begin
     	end case;
 
     	case(reg_read_addr_B) is
-        	when '100000' =>
-            		data_b <= std_logic_vector(to_unsigned('0', data_b'length));
-        	when '100001' =>
+        	when "100000" =>
+            		data_b <= std_logic_vector(to_unsigned(0, data_b'length));
+        	when "100001" =>
             		data_b <= offset_register;
         	when "------" => --don't care or U uninitialized?
             		--do something here maybe?
         	when others =>
-            		data_b <= reg_array(to_integer(unsigned(reg_read_addr_B(address_width-2 downto 0)))); --only 5 bit for all-purpose-registers
+            		data_b <= reg_array(to_integer(unsigned(reg_read_addr_B(address_width-2 downto 0)))); --only 5 bit for allpurpose registers
     	end case;
     end process;
     
