@@ -45,8 +45,13 @@ impl Memory {
         self.store(addr, &bytes);
     }
 
+    /// Stores the contents of `buf` into memory, starting at `addr`.
+    ///
+    /// ## Panics
+    /// Panics if `addr + buf.len()` would cause an overflow.
     pub fn store(&mut self, addr: Word, buf: &[u8]) {
-        assert!(buf.len() - 1 <= (Word::max_value()) as usize);
+        // make sure the address does not overflow
+        assert!(buf.len() <= (Word::max_value() - addr) as usize);
 
         let mut ptr = addr;
         let mut remaining = buf;
@@ -63,11 +68,11 @@ impl Memory {
 
     pub fn load_word(&mut self, addr: Word) -> Result<Word, ErrorKind> {
         let mut bytes = [0; WORD_BYTES as usize];
-        self.load(addr, WORD_BYTES, &mut bytes)?;
+        self.load(addr, &mut bytes)?;
         Ok(LittleEndian::read_u32(&bytes))
     }
 
-    /// Load `len` bytes starting from `addr` into `buf`.
+    /// Load all bytes starting from `addr` into `buf`.
     ///
     /// ## Errors
     /// Returns an error if the load resulted in an access of unintialized memory. The error
@@ -75,14 +80,17 @@ impl Memory {
     /// if the load accesses an unallocated page.
     ///
     /// ## Panics
-    /// Panics if `len != buf.len()`.
-    fn load(&mut self, addr: Word, len: Word, buf: &mut [u8]) -> Result<(), ErrorKind> {
-        assert!(len as usize == buf.len());
+    /// Panics if `addr + buf.len()` would cause an overflow.
+    fn load(&mut self, addr: Word, buf: &mut [u8]) -> Result<(), ErrorKind> {
+        // make sure the address does not overflow
+        assert!(buf.len() <= (Word::max_value() - addr) as usize);
+
+        let buf_len = buf.len() as Word;
         let mut ptr = addr;
         let mut bytes_read = 0;
 
-        while bytes_read < len as usize {
-            match self.mem_ref(ptr, len - bytes_read as Word) {
+        while bytes_read < buf_len as usize {
+            match self.mem_ref(ptr, buf_len - bytes_read as Word) {
                 (_, true) => return Err(ErrorKind::UninitializedMemoryAccess(ptr)),
                 (memory, _) => {
                     let memory_len = memory.len();
@@ -155,5 +163,70 @@ impl Level1Table {
 
             Level1Table { pages }
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn mem_ref() {
+        // first access always page fault
+        let mut mem = Memory::new();
+        assert!(mem.mem_ref(0, 100).1);
+
+        let mut mem = Memory::new();
+        mem.store(0, &[0; 10]);
+        mem.store(10, &[1; 10]);
+        assert_eq!(mem.mem_ref(0, 10), (&mut *vec![0; 10], false));
+        assert_eq!(mem.mem_ref(10, 10), (&mut *vec![1; 10], false));
+
+        assert_eq!(
+            mem.mem_ref(0, 20),
+            (
+                &mut *vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                false
+            )
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn store_panic_on_overflow() {
+        let mut mem = Memory::new();
+        mem.store(Word::max_value(), &[1, 2, 3, 4]);
+    }
+
+    #[test]
+    #[should_panic]
+    fn load_panic_on_overflow() {
+        let mut mem = Memory::new();
+        mem.load(Word::max_value(), &mut vec![0; 11]).unwrap();
+    }
+
+    #[test]
+    fn load_and_store() {
+        // page fault
+        let mut mem = Memory::new();
+        mem.load(0, &mut vec![0; 42]).unwrap_err();
+
+        // simple load and store
+        let mut mem = Memory::new();
+        mem.store(0, &[1, 2, 3, 4]);
+
+        let mut buf = vec![0; 4];
+        mem.load(0, &mut buf).unwrap();
+        assert_eq!(vec![1, 2, 3, 4], buf);
+        let mut buf = vec![0; 2];
+        mem.load(2, &mut buf).unwrap();
+        assert_eq!(vec![3, 4], buf);
+
+        // load and store across page boundaries
+        let mut mem = Memory::new();
+        mem.store(PAGE_LEN as Word - 3, &[1, 2, 3, 4, 5, 6]);
+        let mut buf = vec![0; 6];
+        mem.load(PAGE_LEN as Word - 3, &mut buf).unwrap();
+        assert_eq!(vec![1, 2, 3, 4, 5, 6], buf);
     }
 }

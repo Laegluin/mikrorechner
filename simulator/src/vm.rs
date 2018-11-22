@@ -83,7 +83,7 @@ impl Display for RegBank {
     }
 }
 
-#[derive(strum_macros::Display, EnumIter, CustomTryInto, Clone, Copy)]
+#[derive(strum_macros::Display, EnumIter, CustomTryInto, Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u8)]
 #[rustfmt::skip]
 #[strum(serialize_all = "snake_case")]
@@ -149,7 +149,7 @@ impl Reg {
     }
 }
 
-#[derive(CustomTryInto)]
+#[derive(CustomTryInto, Debug, PartialEq, Eq)]
 #[repr(u8)]
 #[rustfmt::skip]
 enum Op {
@@ -390,5 +390,37 @@ fn store(instr: Word, regs: &mut RegBank, mem: &mut Memory) -> Result<Status, Er
         regs[dst_addr_reg] + offset + regs[Reg::AddrOffset],
         regs[src],
     );
+
     Ok(Status::Ready)
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn reg_from_word() {
+        let word = 0b_00000_000010_000001_011111_000000000;
+        assert_eq!(Reg::R2, Reg::from_word(word, RegPos::Dst).unwrap());
+        assert_eq!(Reg::R1, Reg::from_word(word, RegPos::Arg1).unwrap());
+        assert_eq!(Reg::R31, Reg::from_word(word, RegPos::Arg2).unwrap());
+
+        let word = 0b_00000_111111_000000_000000_000000000;
+        assert!(Reg::from_word(word, RegPos::Dst).is_err());
+    }
+
+    #[test]
+    fn op_from_word() {
+        let word = 0b_00000_000000_000000_000000_000000000;
+        assert_eq!(Op::Add, Op::from_word(word).unwrap());
+
+        let word = 0b_10111_000000_000000_000000_000000000;
+        assert_eq!(Op::Sub, Op::from_word(word).unwrap());
+
+        let word = 0b_00011_000000_000000_000000_000000000;
+        assert_eq!(Op::CmpEq, Op::from_word(word).unwrap());
+
+        let word = 0b_01101_000000_000000_000000_000000000;
+        assert_eq!(Op::Halt, Op::from_word(word).unwrap());
+    }
 }
