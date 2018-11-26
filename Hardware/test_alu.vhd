@@ -9,7 +9,16 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 entity test_ALU is
+
+    generic
+    (
+        bit_Width   : integer := 32; -- Wortbreite
+        opcode_Bits : integer := 5  -- Opcode-Bitumfan
+    );
+
 end test_ALU;
+
+architecture behavior of test_ALU is
     -- Unit Under Test (UUT)
     component ALU
     generic
@@ -20,16 +29,15 @@ end test_ALU;
 
     port
     (
-        A, B        : in    unsigned(bit_Width-1 downto 0);    -- Operanden
-        opcode      : in    unsigned(opcode_Width-1 downto 0); -- Opcode
-        ALU_Out     : out   unsigned(bit_Width-1 downto 0);    -- Ausgang
+        A, B        : in    unsigned(31 downto 0);    -- Operanden
+        opcode      : in    unsigned(4 downto 0);  -- Opcode
+        ALU_Out     : out   unsigned(31 downto 0);    -- Ausgang
         ALU_Flag    : out   std_logic                          -- Flag
     );
-    end component;
-
+    end component ALU;
     -- inputs
     signal A, B     : unsigned(bit_Width-1 downto 0);
-    signal opcode   : unsigned(opcode_Width-1 downto 0);
+    signal opcode   : unsigned(opcode_Bits-1 downto 0);
 
     -- outputs
     signal ALU_Out  : unsigned(bit_Width-1 downto 0);
@@ -51,65 +59,87 @@ begin
     begin
 
     -- Testwerte
-    A <= "00000000000000000000000000001000" -- 8
-    B <= "00000000000000000000000000000010" -- 2
+    A <= "00000000000000000000000000001000"; -- 8
+    B <= "00000000000000000000000000000010"; -- 2
 
     -- test addition
-    opcode <= 00000;
+    opcode <= "00000";
     wait for 100 ns;
         -- expected: "00000000000000000000000000001010" = 10
 
     -- test subtraction
-    opcode <= 10111;
+    opcode <= "10111";
     wait for 100 ns;
         -- expected: "00000000000000000000000000000110" = 6
 
     -- test multiplication
-    opcode <= 01110;
+    opcode <= "01110";
     wait for 100 ns;
         -- expected: "00000000000000000000000000010000" = 16
 
     -- test division
-    opcode <= 01111;
+    opcode <= "01111";
     wait for 100 ns;
         -- expected: "00000000000000000000000000000100" = 4
 
     -- test and
-    opcode <= 10000;
+    opcode <= "10000";
     wait for 100 ns;
-        -- expected: "00000000000000000000000000001010" = 10
+        -- expected: "00000000000000000000000000000000" = 0
 
     -- test or
-    opcode <= 10001;
+    opcode <= "10001";
     wait for 100 ns;
         -- expected: "00000000000000000000000000001010" = 10
 
     -- test not
-    opcode <= 10010;
+    opcode <= "10010";
     wait for 100 ns;
         -- expected: "11111111111111111111111111110111" = 4294967287
 
     -- test xor
-    opcode <= 10011;
+    opcode <= "10011";
     wait for 100 ns;
         -- expected: "00000000000000000000000000001010" = 10
 
     -- test shiftl
-    opcode <= 10100;
+    opcode <= "10100";
     wait for 100 ns;
-        -- expected: "00000000000000000000000000101011" = 43
+        -- expected: "00000000000000000000000000100000" = 32
 
     -- test shiftr
-    opcode <= 10101;
+    opcode <= "10101";
     wait for 100 ns;
-        -- expected: "11000000000000000000000000000010" = 3221225474
+        -- expected: "00000000000000000000000000000010" = 2
+
+    -- test undefined opcode
+    opcode <= "11111";
+    wait for 100 ns;
+        -- expected: "00000000000000000000000000000000" = 0
 
     -- test signed_shiftr
-    opcode <= 10110;
+    opcode <= "10110";
     wait for 100 ns;
-        -- expected: ???
+        -- expected: "00000000000000000000000000000010" = 2
 
 
+    opcode <= "00011";
+    wait for 100 ns;
+        -- expected: '0'
+
+    opcode <= "00100";
+    wait for 100 ns;
+        -- expected: '1'
+
+    opcode <= "00101";
+    wait for 100 ns;
+        -- expected: '1'
+
+    assert False report "Ende des Tests erreicht.";
+    wait;
 
     end process;
-end;
+
+
+end architecture behavior;
+
