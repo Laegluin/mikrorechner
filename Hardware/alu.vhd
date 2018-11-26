@@ -7,13 +7,10 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
+use work.universal_constants.all;
 
 entity ALU is
-    generic
-    (
-        bit_Width   : integer                        := 32; -- Wortbreite
-        opcode_Bits : integer                        := 5   -- Opcode-Bitumfang
-    );
+
     port
     (
         A, B        : in    unsigned(bit_Width-1 downto 0);    -- Operanden
@@ -26,7 +23,6 @@ end entity ALU;
 architecture behavior of ALU is
 
 signal ALU_Result   : unsigned(bit_Width-1 downto 0);    -- Zwischenergebnis
-signal ALU_Mul_Res  : unsigned((2*bit_Width)-1 downto 0); -- Zwischenergebnis fuer die Multiplikation
 
 begin
     process(A,B,opcode)
@@ -45,7 +41,7 @@ begin
             when "01110" =>
                 -- wandelt A und B in Dezimalzahlen um, multipliziert diese,
                 -- und wandelt 32 Bits des Ergebnisses wieder in unsiged array um.
-                ALU_Result <= to_unsigned((to_integer(A) * to_integer(B)),32) ;
+                ALU_Result <= to_unsigned((to_integer(A) * to_integer(B)), 32) ;
             -- DIV
             when "01111" =>
                 ALU_Result <= A / B;
@@ -127,5 +123,5 @@ begin
 
     -- update ALU_Out Port
     ALU_Out <= ALU_Result;
-        
+
 end architecture behavior;

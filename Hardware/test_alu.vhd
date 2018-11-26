@@ -7,25 +7,15 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
+use work.universal_constants.all;
 
 entity test_ALU is
-
-    generic
-    (
-        bit_Width   : integer := 32; -- Wortbreite
-        opcode_Bits : integer := 5  -- Opcode-Bitumfan
-    );
 
 end test_ALU;
 
 architecture behavior of test_ALU is
     -- Unit Under Test (UUT)
     component ALU
-    generic
-    (
-        bit_Width   : integer := 32; -- Wortbreite
-        opcode_Bits : integer := 5  -- Opcode-Bitumfang
-    );
 
     port
     (
