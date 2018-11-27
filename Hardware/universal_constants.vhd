@@ -8,4 +8,5 @@ package universal_constants is
 
     constant bit_Width   : integer                        := 32; -- Wortbreite
     constant opcode_Bits : integer                        := 5;  -- Opcode-Bitumfang
+    constant adr_Width   : integer                        := 6;  -- Bitumfang der Registeradressen
 end universal_constants;

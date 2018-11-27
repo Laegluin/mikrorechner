@@ -7,40 +7,31 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
+use work.universal_constants.all;
 
 entity test_registerbank is
-    generic
-    (
-	bit_width : integer := 32;
-	address_width : integer := 6
-    );
 end test_registerbank;
 
 architecture test_rb of test_registerbank is
     component registerbank
-    generic
-    (
-        bit_width : integer := 32;
-        address_width : integer := 6
-    );
     port
     (
         clk, rst: in std_logic;
         reg_write_on: in std_logic;
-        reg_write_addr: in unsigned(address_width-1 downto 0);
-        reg_write_data: in unsigned(bit_width-1 downto 0);
+        reg_write_addr: in unsigned(adr_Width-1 downto 0);
+        reg_write_data: in unsigned(bit_Width-1 downto 0);
         reg_read_addr_A: in unsigned(5 downto 0);
-        reg_read_data_A: out unsigned(bit_width-1 downto 0);
+        reg_read_data_A: out unsigned(bit_Width-1 downto 0);
         reg_read_addr_B: in unsigned(5 downto 0);
-        reg_read_data_B: out unsigned(bit_width-1 downto 0)
+        reg_read_data_B: out unsigned(bit_Width-1 downto 0)
     );
     end component;
    
     signal clk, rst: std_logic;
     signal reg_write_on: std_logic;
-    signal reg_write_addr, reg_read_addr_A, reg_read_addr_B: unsigned(address_width-1 downto 0);
-    signal reg_write_data: unsigned(bit_width-1 downto 0);
-    signal reg_read_data_A, reg_read_data_B: unsigned(bit_width-1 downto 0);
+    signal reg_write_addr, reg_read_addr_A, reg_read_addr_B: unsigned(adr_Width-1 downto 0);
+    signal reg_write_data: unsigned(bit_Width-1 downto 0);
+    signal reg_read_data_A, reg_read_data_B: unsigned(bit_Width-1 downto 0);
 
     begin 
         uut: registerbank port map
@@ -70,17 +61,17 @@ architecture test_rb of test_registerbank is
         begin
             reg_write_on <= '1';
             reg_write_addr <= "000100";
-            reg_write_data <= to_unsigned(64, bit_width);
+            reg_write_data <= to_unsigned(64, bit_Width);
             
-	    wait for 100 ns;
+	        wait for 100 ns;
                 --register r0 sollte Wert beinhalten
             reg_write_on <= '1';
-	    reg_write_addr <= "000010";
-	    reg_write_data <= to_unsigned(1, bit_width);
+	        reg_write_addr <= "000010";
+	        reg_write_data <= to_unsigned(1, bit_Width);
 
             reg_read_addr_A <= "000100";
             reg_read_addr_B <= "000010";
-	    wait for 100 ns;
-		--sollte den Wert ausgeben
+	        wait for 100 ns;
+		        --sollte den Wert ausgeben
         end process;
 end test_rb;
