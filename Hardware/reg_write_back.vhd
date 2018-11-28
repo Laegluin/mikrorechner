@@ -18,6 +18,7 @@ port
     wb_control: in unsigned(1 downto 0); --mem wb, alu wb or no wb (maybe copy?)
     ALU_Out: in unsigned(bit_Width-1 downto 0);
     mem_out: in unsigned(bit_Width-1 downto 0);
+    reg_read_data_A: in unsigned(bit_Width-1 downto 0);
     reg_write_on: out std_logic;
     reg_write_data: out unsigned(bit_Width-1 downto 0)
 );
@@ -30,15 +31,18 @@ signal wb_on : std_logic;
 begin
     process(clk, rst, wb_control)
     begin
-        case(wb_on) is
+        case(wb_control) is
+	    when "11" => --Write back Register (Copy)
+		write_data <= reg_read_data_A;
+                wb_on <= '1';
             when "10" => --Write back ALU result (Arithmetic & Logic Ops)
-                write_data = ALU_Out;
-                wb_on = '1';
+                write_data <= ALU_Out;
+                wb_on <= '1';
             when "01" => --Write back data from memory (Load Operation)
-                write_data = mem_Out;
-                wb_on = '1';
+                write_data <= mem_Out;
+                wb_on <= '1';
             when others => --assume no write back (Jumps, Comparisons, Noop, etc.)
-                wb_on = '0';
+                wb_on <= '0';
         end case;
     end process;
 
