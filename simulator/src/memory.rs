@@ -3,7 +3,7 @@ use rand;
 use std::cmp::min;
 use std::mem;
 use std::ptr;
-use ErrorKind;
+use vm;
 
 pub type Word = u32;
 pub const WORD_BYTES: Word = mem::size_of::<Word>() as Word;
@@ -63,7 +63,7 @@ impl Memory {
         }
     }
 
-    pub fn load_word(&mut self, addr: Word) -> Result<Word, ErrorKind> {
+    pub fn load_word(&mut self, addr: Word) -> Result<Word, vm::ErrorKind> {
         let mut bytes = [0; WORD_BYTES as usize];
         self.load(addr, &mut bytes)?;
         Ok(LittleEndian::read_u32(&bytes))
@@ -78,7 +78,7 @@ impl Memory {
     ///
     /// ## Panics
     /// Panics if `addr + buf.len()` would cause an overflow.
-    fn load(&mut self, addr: Word, buf: &mut [u8]) -> Result<(), ErrorKind> {
+    fn load(&mut self, addr: Word, buf: &mut [u8]) -> Result<(), vm::ErrorKind> {
         // make sure the address does not overflow
         assert!(buf.len() <= (Word::max_value() - addr) as usize);
 
@@ -88,7 +88,7 @@ impl Memory {
 
         while bytes_read < buf_len as usize {
             match self.mem_ref(ptr, buf_len - bytes_read as Word) {
-                (_, true) => return Err(ErrorKind::UninitializedMemoryAccess(ptr)),
+                (_, true) => return Err(vm::ErrorKind::UninitializedMemoryAccess(ptr)),
                 (memory, _) => {
                     let memory_len = memory.len();
                     buf[bytes_read..bytes_read + memory_len].copy_from_slice(&memory);

@@ -25,46 +25,6 @@ use support::to_hex;
 use vm::Breakpoints;
 
 #[derive(Debug)]
-pub struct Error {
-    at: Word,
-    kind: ErrorKind,
-}
-
-impl Error {
-    fn new(at: Word, kind: ErrorKind) -> Error {
-        Error { at, kind }
-    }
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "at: {}", to_hex(self.at))?;
-        write!(f, "error: ")?;
-
-        match self.kind {
-            ErrorKind::IllegalInstruction(instr) => {
-                write!(f, "illegal instruction: {}", to_hex(instr),)
-            }
-            ErrorKind::IllegalRegister(reg) => {
-                write!(f, "illegal register: {:#0width$b}", reg, width = 8)
-            }
-            ErrorKind::UninitializedMemoryAccess(addr) => write!(
-                f,
-                "attempt to read from uninitialized memory at {}",
-                to_hex(addr),
-            ),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum ErrorKind {
-    IllegalInstruction(Word),
-    IllegalRegister(u8),
-    UninitializedMemoryAccess(Word),
-}
-
-#[derive(Debug)]
 pub enum CliError {
     Io(io::Error),
     Asm(AsmError),

@@ -9,7 +9,46 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use support::to_hex;
-use {Error, ErrorKind};
+
+#[derive(Debug)]
+pub struct VmError {
+    at: Word,
+    kind: ErrorKind,
+}
+
+impl VmError {
+    fn new(at: Word, kind: ErrorKind) -> VmError {
+        VmError { at, kind }
+    }
+}
+
+impl Display for VmError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "at: {}", to_hex(self.at))?;
+        write!(f, "error: ")?;
+
+        match self.kind {
+            ErrorKind::IllegalInstruction(instr) => {
+                write!(f, "illegal instruction: {}", to_hex(instr),)
+            }
+            ErrorKind::IllegalRegister(reg) => {
+                write!(f, "illegal register: {:#0width$b}", reg, width = 8)
+            }
+            ErrorKind::UninitializedMemoryAccess(addr) => write!(
+                f,
+                "attempt to read from uninitialized memory at {}",
+                to_hex(addr),
+            ),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum ErrorKind {
+    IllegalInstruction(Word),
+    IllegalRegister(u8),
+    UninitializedMemoryAccess(Word),
+}
 
 pub struct RegBank {
     next_instr_addr: Word,
@@ -228,7 +267,7 @@ pub fn run(
     mem: &mut Memory,
     breakpoints: &Breakpoints,
     pause: &AtomicBool,
-) -> Result<Status, Error> {
+) -> Result<Status, VmError> {
     while !pause.load(Ordering::Acquire) {
         if breakpoints.is_breakpoint(regs.next_instr_addr()) {
             return Ok(Status::Ready);
@@ -242,7 +281,7 @@ pub fn run(
     Ok(Status::Ready)
 }
 
-fn run_next(regs: &mut RegBank, mem: &mut Memory) -> Result<Status, Error> {
+fn run_next(regs: &mut RegBank, mem: &mut Memory) -> Result<Status, VmError> {
     use self::Op::*;
 
     let instr_addr = regs.next_instr_addr();
@@ -251,9 +290,9 @@ fn run_next(regs: &mut RegBank, mem: &mut Memory) -> Result<Status, Error> {
 
     let instr = mem
         .load_word(instr_addr)
-        .map_err(|kind| Error::new(instr_addr, kind))?;
+        .map_err(|kind| VmError::new(instr_addr, kind))?;
 
-    let op = Op::from_word(instr).map_err(|kind| Error::new(instr_addr, kind))?;
+    let op = Op::from_word(instr).map_err(|kind| VmError::new(instr_addr, kind))?;
 
     let result = match op {
         Add => binary_op(instr, Word::add, regs),
@@ -290,7 +329,7 @@ fn run_next(regs: &mut RegBank, mem: &mut Memory) -> Result<Status, Error> {
         Halt => Ok(Status::Halt),
     };
 
-    result.map_err(|kind| Error::new(instr_addr, kind))
+    result.map_err(|kind| VmError::new(instr_addr, kind))
 }
 
 fn binary_op<F>(instr: Word, op: F, regs: &mut RegBank) -> Result<Status, ErrorKind>

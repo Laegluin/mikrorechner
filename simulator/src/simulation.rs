@@ -5,8 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Sender};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::{self, JoinHandle};
-use vm::{self, Breakpoints, RegBank, Status};
-use Error;
+use vm::{self, Breakpoints, RegBank, Status, VmError};
 
 const SIM_THREAD_NAME: &str = "simulation";
 const CONTROLLER_THREAD_NAME: &str = "controller";
@@ -14,7 +13,7 @@ const CONTROLLER_THREAD_NAME: &str = "controller";
 pub enum SimError {
     Io(io::Error),
     ThreadPanicked(&'static str),
-    Vm(Error),
+    Vm(VmError),
 }
 
 impl From<io::Error> for SimError {
@@ -23,8 +22,8 @@ impl From<io::Error> for SimError {
     }
 }
 
-impl From<Error> for SimError {
-    fn from(err: Error) -> SimError {
+impl From<VmError> for SimError {
+    fn from(err: VmError) -> SimError {
         SimError::Vm(err)
     }
 }
@@ -33,8 +32,7 @@ impl From<Error> for SimError {
 pub fn run(mem: Memory, breakpoints: Breakpoints) -> Result<(RegBank, Memory), SimError> {
     let handle = start(mem, breakpoints, false)?;
 
-    /// FIXME: exit on halt
-
+    // FIXME: exit on halt
     handle.join()
 }
 
@@ -145,7 +143,7 @@ impl Simulation {
 }
 
 struct Controller {
-    handle: JoinHandle<Result<(), Error>>,
+    handle: JoinHandle<Result<(), VmError>>,
     sender: Sender<Message>,
 }
 
