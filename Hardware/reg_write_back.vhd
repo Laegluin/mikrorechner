@@ -31,19 +31,25 @@ signal wb_on : std_logic;
 begin
     process(clk, rst, wb_control)
     begin
-        case(wb_control) is
-	    when "11" => --Write back Register (Copy)
-		write_data <= reg_read_data_A;
-                wb_on <= '1';
-            when "10" => --Write back ALU result (Arithmetic & Logic Ops)
-                write_data <= ALU_Out;
-                wb_on <= '1';
-            when "01" => --Write back data from memory (Load Operation)
-                write_data <= mem_Out;
-                wb_on <= '1';
-            when others => --assume no write back (Jumps, Comparisons, Noop, etc.)
-                wb_on <= '0';
-        end case;
+	if(rst = '1') then
+	    --nothing yet
+	else
+	    if(rising_edge(clk)) then
+		case(wb_control) is
+		    when "11" => --Write back Register (Copy)
+			write_data <= reg_read_data_A;
+		        wb_on <= '1';
+		    when "10" => --Write back ALU result (Arithmetic & Logic Ops)
+		        write_data <= ALU_Out;
+		        wb_on <= '1';
+		    when "01" => --Write back data from memory (Load Operation)
+		        write_data <= mem_Out;
+		        wb_on <= '1';
+		    when others => --Assume no write back (Jumps, Comparisons, Noop, etc.)
+		        wb_on <= '0';
+		end case;
+	    end if;
+	end if;
     end process;
 
     reg_write_on <= wb_on;
