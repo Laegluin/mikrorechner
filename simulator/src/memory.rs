@@ -11,9 +11,6 @@ pub const WORD_BITS: Word = WORD_BYTES * 8;
 pub const OP_CODE_BITS: Word = 5;
 pub const REG_REF_BITS: Word = 6;
 
-/// Width for a format string argument that is a word formatted as hex with leading `0x`.
-pub const WORD_HEX_FMT_WIDTH: usize = WORD_BYTES as usize * 2 + 2;
-
 const PAGE_LEN: usize = 4096;
 const LEVEL_1_TABLE_LEN: usize = 1024;
 const LEVEL_2_TABLE_LEN: usize = 1024;

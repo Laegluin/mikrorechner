@@ -1,5 +1,6 @@
+use log::trace;
 use memory::Word;
-use memory::{Memory, OP_CODE_BITS, REG_REF_BITS, WORD_BITS, WORD_BYTES, WORD_HEX_FMT_WIDTH};
+use memory::{Memory, OP_CODE_BITS, REG_REF_BITS, WORD_BITS, WORD_BYTES};
 use num_enum::CustomTryInto;
 use rand;
 use std::fmt::{self, Display};
@@ -7,6 +8,7 @@ use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Index, Mul, Shl, Shr, Sub};
 use std::sync::atomic::{AtomicBool, Ordering};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
+use support::to_hex;
 use {Error, ErrorKind};
 
 pub struct RegBank {
@@ -60,23 +62,11 @@ impl Index<Reg> for RegBank {
 
 impl Display for RegBank {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(
-            f,
-            "next instruction: {:#0width$x}",
-            self.next_instr_addr,
-            width = WORD_HEX_FMT_WIDTH
-        )?;
-
+        writeln!(f, "next instruction: {}", to_hex(self.next_instr_addr),)?;
         writeln!(f, "comparison flag: {}", self.cmp_flag)?;
 
         for reg in Reg::iter() {
-            writeln!(
-                f,
-                "{}: {val:#0width$x} ({val})",
-                reg,
-                val = self[reg],
-                width = WORD_HEX_FMT_WIDTH
-            )?;
+            writeln!(f, "{}: {} ({})", reg, to_hex(self[reg]), self[reg],)?;
         }
 
         Ok(())
@@ -220,7 +210,7 @@ impl Display for Breakpoints {
         }
 
         for breakpoint in &self.0 {
-            writeln!(f, "{:#0width$x}", breakpoint, width = WORD_HEX_FMT_WIDTH)?;
+            writeln!(f, "{}", to_hex(*breakpoint),)?;
         }
 
         Ok(())
@@ -257,6 +247,7 @@ fn run_next(regs: &mut RegBank, mem: &mut Memory) -> Result<Status, Error> {
 
     let instr_addr = regs.next_instr_addr();
     regs.incr_instr_addr();
+    trace!("fetching {}", to_hex(instr_addr));
 
     let instr = mem
         .load_word(instr_addr)

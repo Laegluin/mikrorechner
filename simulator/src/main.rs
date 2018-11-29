@@ -1,4 +1,6 @@
 extern crate byteorder;
+extern crate env_logger;
+extern crate log;
 extern crate num_enum;
 extern crate rand;
 extern crate structopt;
@@ -8,10 +10,11 @@ extern crate strum_macros;
 mod asm;
 mod memory;
 mod simulation;
+mod support;
 mod vm;
 
 use asm::AsmError;
-use memory::{Memory, Word, WORD_HEX_FMT_WIDTH};
+use memory::{Memory, Word};
 use simulation::Simulation;
 use std::fmt::{self, Display};
 use std::fs::{self, File};
@@ -19,6 +22,7 @@ use std::io::{self, BufReader};
 use std::path::PathBuf;
 use std::process;
 use structopt::StructOpt;
+use support::to_hex;
 use vm::Breakpoints;
 
 #[derive(Debug)]
@@ -35,24 +39,20 @@ impl Error {
 
 impl Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "at: {:#0width$x}", self.at, width = WORD_HEX_FMT_WIDTH)?;
+        writeln!(f, "at: {}", to_hex(self.at))?;
         write!(f, "error: ")?;
 
         match self.kind {
-            ErrorKind::IllegalInstruction(instr) => write!(
-                f,
-                "illegal instruction: {:#0width$x}",
-                instr,
-                width = WORD_HEX_FMT_WIDTH
-            ),
+            ErrorKind::IllegalInstruction(instr) => {
+                write!(f, "illegal instruction: {}", to_hex(instr),)
+            }
             ErrorKind::IllegalRegister(reg) => {
                 write!(f, "illegal register: {:#0width$b}", reg, width = 8)
             }
             ErrorKind::UninitializedMemoryAccess(addr) => write!(
                 f,
-                "attempt to read from uninitialized memory at {:#0width$x}",
-                addr,
-                width = WORD_HEX_FMT_WIDTH
+                "attempt to read from uninitialized memory at {}",
+                to_hex(addr),
             ),
         }
     }
@@ -96,6 +96,8 @@ struct Args {
 }
 
 fn main() {
+    env_logger::init();
+
     match run(Args::from_args()) {
         Ok(_) => process::exit(0),
         Err(why) => {
