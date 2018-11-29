@@ -15,7 +15,6 @@ mod vm;
 
 use asm::AsmError;
 use memory::{Memory, Word};
-use simulation::Simulation;
 use std::fmt::{self, Display};
 use std::fs::{self, File};
 use std::io::{self, BufReader};
@@ -66,7 +65,7 @@ pub enum ErrorKind {
 }
 
 #[derive(Debug)]
-enum CliError {
+pub enum CliError {
     Io(io::Error),
     Asm(AsmError),
 }
@@ -119,34 +118,6 @@ fn run(args: Args) -> Result<(), CliError> {
 
     let mut mem = Memory::new();
     mem.store(0, &img);
-
-    let simulation = Simulation::new(
-        mem,
-        Breakpoints::new(),
-        |state, err| {
-            if let Some(err) = err {
-                println!("{}", err);
-                println!("");
-            }
-
-            println!("{}", state.lock().unwrap());
-        },
-        |state| println!("{}", state.lock().unwrap()),
-    );
-
-    let mut buf = String::new();
-    while io::stdin().read_line(&mut buf)? > 0 {
-        match buf.trim() {
-            "s" => if let Err(_) = simulation.start() {
-                eprintln!("error: simulation has been halted")
-            },
-            "p" => simulation.pause(),
-            "q" => simulation.stop(),
-            _ => eprintln!("error: unknown command"),
-        }
-
-        buf.clear();
-    }
 
     Ok(())
 }

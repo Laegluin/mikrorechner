@@ -1,101 +1,188 @@
 use memory::Memory;
 use std::fmt::{self, Display};
+use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Sender};
-use std::sync::{Arc, Mutex};
-use std::thread;
+use std::sync::{Arc, Condvar, Mutex};
+use std::thread::{self, JoinHandle};
 use vm::{self, Breakpoints, RegBank, Status};
 use Error;
 
-pub struct Simulation {
-    pause: Arc<AtomicBool>,
-    sender: Sender<Message>,
+const SIM_THREAD_NAME: &str = "simulation";
+const CONTROLLER_THREAD_NAME: &str = "controller";
+
+pub enum SimError {
+    Io(io::Error),
+    ThreadPanicked(&'static str),
+    Vm(Error),
+}
+
+impl From<io::Error> for SimError {
+    fn from(err: io::Error) -> SimError {
+        SimError::Io(err)
+    }
+}
+
+impl From<Error> for SimError {
+    fn from(err: Error) -> SimError {
+        SimError::Vm(err)
+    }
+}
+
+/// Immediately starts the simulation and blocks this thread until the VM halts.
+pub fn run(mem: Memory, breakpoints: Breakpoints) -> Result<(RegBank, Memory), SimError> {
+    let handle = start(mem, breakpoints, false)?;
+
+    /// FIXME: exit on halt
+
+    handle.join()
+}
+
+pub fn start(
+    mem: Memory,
+    breakpoints: Breakpoints,
+    start_paused: bool,
+) -> Result<SimHandle, SimError> {
+    let signals = Arc::new(SimSignals {
+        pause: AtomicBool::new(start_paused),
+        stop: AtomicBool::new(false),
+        cont: Condvar::new(),
+    });
+
+    let state = Arc::new(Mutex::new(State {
+        regs: RegBank::new(),
+        mem,
+        breakpoints,
+        status: Status::Ready,
+    }));
+
+    let simulation = Simulation::start(Arc::clone(&signals), Arc::clone(&state))?;
+    let controller = Controller::start(signals, state)?;
+
+    Ok(SimHandle {
+        sim: simulation,
+        controller,
+    })
+}
+
+// TODO: add receiver for responses
+pub struct SimHandle {
+    sim: Simulation,
+    controller: Controller,
+}
+
+impl SimHandle {
+    pub fn join(self) -> Result<(RegBank, Memory), SimError> {
+        self.controller
+            .handle
+            .join()
+            .map_err(|_| SimError::ThreadPanicked(CONTROLLER_THREAD_NAME))??;
+
+        self.sim
+            .handle
+            .join()
+            .map_err(|_| SimError::ThreadPanicked(SIM_THREAD_NAME))
+            .and_then(|state| {
+                // other threads joined, so this is the last Arc
+                let state = Arc::try_unwrap(state?).ok().unwrap();
+                let state = Mutex::into_inner(state)
+                    .map_err(|_| SimError::ThreadPanicked(SIM_THREAD_NAME))?;
+
+                Ok((state.regs, state.mem))
+            })
+    }
+}
+
+struct Simulation {
+    handle: JoinHandle<Result<Arc<Mutex<State>>, SimError>>,
+    signals: Arc<SimSignals>,
+}
+
+struct SimSignals {
+    pause: AtomicBool,
+    stop: AtomicBool,
+    cont: Condvar,
 }
 
 impl Simulation {
-    pub fn new<F, G>(
-        mem: Memory,
-        breakpoints: Breakpoints,
-        on_halt: F,
-        mut on_pause: G,
-    ) -> Simulation
-    where
-        F: 'static + FnOnce(Arc<Mutex<State>>, Option<Error>) + Send,
-        G: 'static + FnMut(Arc<Mutex<State>>) + Send,
-    {
-        let (sender, receiver) = mpsc::channel();
+    fn start(signals: Arc<SimSignals>, state: Arc<Mutex<State>>) -> Result<Simulation, SimError> {
+        let signals_clone = Arc::clone(&signals);
 
-        let simulation = Simulation {
-            pause: Arc::new(AtomicBool::new(false)),
-            sender,
-        };
+        let handle = thread::Builder::new()
+            .name(SIM_THREAD_NAME.to_owned())
+            .spawn(move || {
+                let mut state_guard = state.lock().unwrap();
 
-        let state = Arc::new(Mutex::new(State {
-            regs: RegBank::new(),
-            mem,
-            breakpoints,
-        }));
+                loop {
+                    {
+                        let state = &mut *state_guard;
 
-        let pause = Arc::clone(&simulation.pause);
+                        let status = vm::run(
+                            &mut state.regs,
+                            &mut state.mem,
+                            &state.breakpoints,
+                            &signals.pause,
+                        )?;
 
-        thread::spawn(move || {
-            while let Ok(msg) = receiver.recv() {
-                if msg == Message::Stop {
-                    on_halt(state, None);
-                    break;
-                }
-
-                let result = {
-                    let mut state = state.lock().unwrap();
-                    let state = &mut *state;
-                    vm::run(&mut state.regs, &mut state.mem, &state.breakpoints, &pause)
-                };
-
-                match result {
-                    Ok(Status::Ready) => {
-                        pause.store(false, Ordering::Release);
-                        on_pause(Arc::clone(&state));
-                        continue;
+                        state.status = status;
                     }
-                    Ok(Status::Halt) => {
-                        on_halt(state, None);
-                        break;
-                    }
-                    Err(err) => {
-                        on_halt(state, Some(err));
-                        break;
+
+                    // yield lock to the controlling thread
+                    state_guard = signals.cont.wait(state_guard).unwrap();
+
+                    // abort if controlling thread set the stop flag
+                    if signals.stop.load(Ordering::SeqCst) {
+                        return Ok(Arc::clone(&state));
                     }
                 }
-            }
-        });
+            })?;
 
-        simulation
-    }
-
-    pub fn start(&self) -> Result<(), SimulationHaltedError> {
-        self.sender
-            .send(Message::Start)
-            .map_err(|_| SimulationHaltedError)
-    }
-
-    pub fn pause(&self) {
-        self.pause.store(true, Ordering::Release);
-    }
-
-    pub fn stop(&self) {
-        self.pause();
-
-        // if there's no receiver, it's already stopped
-        let _ = self.sender.send(Message::Stop);
+        Ok(Simulation {
+            handle,
+            signals: signals_clone,
+        })
     }
 }
 
-pub struct SimulationHaltedError;
+struct Controller {
+    handle: JoinHandle<Result<(), Error>>,
+    sender: Sender<Message>,
+}
+
+impl Controller {
+    fn start(signals: Arc<SimSignals>, state: Arc<Mutex<State>>) -> Result<Controller, SimError> {
+        let (sender, receiver) = mpsc::channel();
+
+        let handle = thread::Builder::new()
+            .name(CONTROLLER_THREAD_NAME.to_owned())
+            .spawn(move || {
+                loop {
+                    // should never be closed before Message::Exit
+                    match receiver.recv().unwrap() {
+                        Message::Pause => signals.pause.store(true, Ordering::Release),
+                        Message::Exit => {
+                            signals.pause.store(true, Ordering::Release);
+                            signals.stop.store(true, Ordering::SeqCst);
+                            signals.cont.notify_one();
+                        }
+                    }
+                }
+            })?;
+
+        Ok(Controller { handle, sender })
+    }
+}
+
+enum Message {
+    Pause,
+    Exit,
+}
 
 pub struct State {
     regs: RegBank,
     mem: Memory,
     breakpoints: Breakpoints,
+    status: Status,
 }
 
 impl Display for State {
@@ -105,10 +192,4 @@ impl Display for State {
         writeln!(f, "Breakpoints:")?;
         write!(f, "{}", self.breakpoints)
     }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Message {
-    Start,
-    Stop,
 }
