@@ -30,11 +30,13 @@ end entity decoder;
 
 architecture behavior of decoder is
 
+signal opc_temp : unsigned(opcode_Bits-1 downto 0);
+
 begin
-    process(clk,enable)
+    process(clk,enable,opc_temp)
     begin
         if enable = '0' then
-            opcode <= "01100"; --NOOP
+            opc_temp     <= "01100"; --NOOP
 
         elsif rising_edge(clk) and enable = '1' then
 
@@ -45,7 +47,7 @@ begin
 
 
             -- parse Befehl
-            opcode      <= instruction(bit_Width-1 downto bit_Width-opcode_Bits);
+            opc_temp    <= instruction(bit_Width-1 downto bit_Width-opcode_Bits);
             C           <= instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-adr_Width);
             B           <= instruction(bit_Width-opcode_Bits-adr_Width-1 downto bit_Width-opcode_Bits-(2*adr_Width));
             A           <= instruction(bit_Width-opcode_Bits-(2*adr_Width)-1 downto bit_Width-opcode_Bits-(3*adr_Width));
@@ -53,14 +55,14 @@ begin
             jump_offset <= instruction(bit_Width-opcode_Bits-1 downto 0);
             mem_offset  <= instruction(bit_Width-opcode_Bits-(2*adr_Width)-1 downto 0);
 
-            case opcode is
+            case opc_temp is
                     --Register
 --                --COPY
 --                when "00001" => 
 --                    ? <= 
                 --SET
                 when "01010" =>
-                    reg_write_en <= '1';
+                   reg_write_en <= '1';
 
                   --Spruenge
                 --JMP
@@ -82,7 +84,7 @@ begin
 --                    ? <=
                 --STORE
                 when "01011" =>
-                     mem_write_en <= '1';
+                    mem_write_en <= '1';
 
                     --Anderes
 --                --NOOP
@@ -102,5 +104,7 @@ begin
         end if;
 
     end process;
+
+    opcode <= opc_temp;
 
 end behavior;

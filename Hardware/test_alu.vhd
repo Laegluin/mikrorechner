@@ -112,6 +112,10 @@ begin
     wait for 100 ns;
         -- expected: "00000000000000000000000000000010" = 2
 
+    -- test signed_shiftr with negative
+    A <= "10000000000000000000000000001000"; -- negative??
+    opcode <= "10110";
+    wait for 100 ns;
 
     opcode <= "00011";
     wait for 100 ns;

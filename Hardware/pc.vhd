@@ -24,8 +24,7 @@ end entity pc;
 
 architecture behavior of pc is
 
-signal pc_old : unsigned(bit_Width-1 downto 0);
-signal pc_new : unsigned(bit_Width-1 downto 0);
+signal pc : unsigned(bit_Width-1 downto 0);
 
 begin
 
@@ -33,22 +32,18 @@ begin
     begin
 
         if reset = '1' then
-            pc_old   <= (others => '0');
-            pc_new   <= (others => '0');
+            pc   <= (others => '0');
 
         -- noop
-        elsif rising_edge(clk) and enable = '0' then
-            pc_new <= pc_old;
+--        elsif rising_edge(clk) and enable = '0' then
 
         -- jump
         elsif rising_edge(clk) and enable = '1' and write_en = '1' then
-            pc_old <= pc_new;
-            pc_new <= jump_to;
+            pc <= jump_to;
 
         -- no jump
         elsif rising_edge(clk) and enable = '1' and write_en = '0' then
-            pc_old <= pc_new;
-            pc_new <= pc_old + "00000000000000000000000000000100"; --increment by 4
+            pc <= pc + "00000000000000000000000000000100"; --increment by 4
 
 
         end if;
@@ -56,6 +51,6 @@ begin
     end process;
 
     -- update output port value
-    pc_value <= pc_new;
+    pc_value <= pc;
 
 end architecture behavior;

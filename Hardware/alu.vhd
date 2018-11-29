@@ -23,6 +23,8 @@ end entity ALU;
 architecture behavior of ALU is
 
 signal ALU_Result   : unsigned(bit_Width-1 downto 0);    -- Zwischenergebnis
+signal vorz_tmp     : unsigned(0 downto 0);
+
 
 begin
     process(A,B,opcode)
@@ -83,13 +85,20 @@ begin
                 ALU_Result <= shift_right(A, (to_integer(B)));
             --SIGNED_SHIFTR
                 -- A wird um B Bit nach rechts geshiftet;
+                -- A wird als signed interpretiert.
                 -- B muss zwischen 0 und 32 sein.
                 -- seine niedrigsten Bits werden mit Nullen aufgefuellt.
                 -- Ergebnis behaelt Vorzeichen von A bei.
+                -- Vorzeichen ist im MSB kodiert (linkestes Bit).
             when "10110" =>
-                ALU_Result <= unsigned(shift_right(signed(A), to_integer(B)));
+--                ALU_Result <= unsigned(shift_right(signed(A), to_integer(B)));
+                    vorz_tmp <= A(bit_Width-1 downto bit_Width-1);
+                    if (vorz_tmp = 1) then
+                        ALU_Result <= A(bit_Width-1 downto bit_Width-1) & shift_right((not(A(bit_Width-2 downto 0)) + 1), to_integer(B));
 
-
+                    else
+                        ALU_Result <= A(bit_Width-1 downto bit_Width-1) & shift_right(A(bit_Width-2 downto 0), to_integer(B));
+                    end if;
                 -- Vergleiche
             -- CMP_EQ
             when "00011" =>
