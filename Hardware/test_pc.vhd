@@ -93,7 +93,13 @@ begin
     enable <= '0';
     wait for 100 ns;
 
-
+        -- test jump and increment
+    jump_to <= "00001111000011110000111100001111";
+    enable <= '1';
+    write_en <= '1';
+    wait for 20 ns;
+    write_en <= '0';
+    wait for 80 ns;
 
     assert False report "Ende des Tests erreicht.";
     wait;

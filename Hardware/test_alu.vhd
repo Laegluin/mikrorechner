@@ -129,6 +129,11 @@ begin
     wait for 100 ns;
         -- expected: '1'
 
+    -- test divide by zero
+    B <= "00000000000000000000000000000000";
+    opcode <= "01111";
+    wait for 100 ns;
+
     assert False report "Ende des Tests erreicht.";
     wait;
 

@@ -38,7 +38,7 @@ begin
         if enable = '0' then
             opc_temp     <= "01100"; --NOOP
 
-        elsif rising_edge(clk) and enable = '1' then
+            else
 
             -- init output
             reg_write_en <= '0';

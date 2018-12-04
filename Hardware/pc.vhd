@@ -24,27 +24,27 @@ end entity pc;
 
 architecture behavior of pc is
 
-signal pc : unsigned(bit_Width-1 downto 0);
+signal pc    : unsigned(bit_Width-1 downto 0);
 
 begin
 
-    process(clk, reset)
+    process(clk)
     begin
 
         if reset = '1' then
             pc   <= (others => '0');
 
-        -- noop
---        elsif rising_edge(clk) and enable = '0' then
-
-        -- jump
-        elsif rising_edge(clk) and enable = '1' and write_en = '1' then
-            pc <= jump_to;
-
-        -- no jump
-        elsif rising_edge(clk) and enable = '1' and write_en = '0' then
-            pc <= pc + "00000000000000000000000000000100"; --increment by 4
-
+        elsif rising_edge(clk) then
+            if enable = '1' then
+                if write_en = '1' then
+                    -- jump
+                    pc <= jump_to;
+                else
+                    -- no jump
+                    pc <= pc + "00000000000000000000000000000100"; --increment by 4
+                end if;
+                    -- else noop
+            end if;
 
         end if;
 
