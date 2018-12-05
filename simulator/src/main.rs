@@ -1,6 +1,7 @@
 extern crate byteorder;
 extern crate env_logger;
 extern crate log;
+extern crate crossbeam_channel;
 extern crate num_enum;
 extern crate rand;
 extern crate structopt;

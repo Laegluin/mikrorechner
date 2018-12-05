@@ -1,8 +1,8 @@
+use crossbeam_channel::{self, Receiver, Sender};
 use memory::Memory;
 use std::fmt::{self, Display};
 use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self, Sender};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::{self, JoinHandle};
 use vm::{self, Breakpoints, RegBank, Status, VmError};
@@ -54,29 +54,31 @@ pub fn start(
         status: Status::Ready,
     }));
 
-    let simulation = Simulation::start(Arc::clone(&signals), Arc::clone(&state))?;
-    let controller = Controller::start(signals, state)?;
+    let ctrl = CtrlHandle::new();
+    let sim_thread = SimThread::start(&ctrl, Arc::clone(&signals), Arc::clone(&state))?;
+    let ctrl_thread = CtrlThread::start(&ctrl, signals, state)?;
 
     Ok(SimHandle {
-        sim: simulation,
-        controller,
+        sim_thread,
+        ctrl_thread,
+        ctrl,
     })
 }
 
-// TODO: add receiver for responses
 pub struct SimHandle {
-    sim: Simulation,
-    controller: Controller,
+    sim_thread: SimThread,
+    ctrl_thread: CtrlThread,
+    ctrl: CtrlHandle,
 }
 
 impl SimHandle {
     pub fn join(self) -> Result<(RegBank, Memory), SimError> {
-        self.controller
+        self.ctrl_thread
             .handle
             .join()
             .map_err(|_| SimError::ThreadPanicked(CONTROLLER_THREAD_NAME))??;
 
-        self.sim
+        self.sim_thread
             .handle
             .join()
             .map_err(|_| SimError::ThreadPanicked(SIM_THREAD_NAME))
@@ -89,11 +91,14 @@ impl SimHandle {
                 Ok((state.regs, state.mem))
             })
     }
+
+    pub fn ctrl_handle(&self) -> &CtrlHandle {
+        &self.ctrl
+    }
 }
 
-struct Simulation {
+struct SimThread {
     handle: JoinHandle<Result<Arc<Mutex<State>>, SimError>>,
-    signals: Arc<SimSignals>,
 }
 
 struct SimSignals {
@@ -102,9 +107,37 @@ struct SimSignals {
     cont: Condvar,
 }
 
-impl Simulation {
-    fn start(signals: Arc<SimSignals>, state: Arc<Mutex<State>>) -> Result<Simulation, SimError> {
-        let signals_clone = Arc::clone(&signals);
+impl SimSignals {
+    /// If set to true, the simulation will pause on the next instruction. While paused, the lock
+    /// to the state is yielded.
+    fn set_pause(&self, pause: bool) {
+        self.pause.store(pause, Ordering::Release);
+    }
+
+    fn pause(&self) {
+        self.pause.load(Ordering::Acquire);
+    }
+
+    /// If set to true, the simulation thread will exit. Note that for this condition to be
+    /// checked, the simulation must be paused and then continued again.
+    fn set_stop(&self, stop: bool) {
+        self.stop.store(stop, Ordering::SeqCst);
+    }
+
+    /// Continue the simulation. The simulation has to reacquire the lock to the state before
+    /// continuing.
+    fn cont(&self) {
+        self.cont.notify_one();
+    }
+}
+
+impl SimThread {
+    fn start(
+        ctrl: &CtrlHandle,
+        signals: Arc<SimSignals>,
+        state: Arc<Mutex<State>>,
+    ) -> Result<SimThread, SimError> {
+        let resp_sender = ctrl.resp_sender.clone();
 
         let handle = thread::Builder::new()
             .name(SIM_THREAD_NAME.to_owned())
@@ -122,7 +155,9 @@ impl Simulation {
                             &signals.pause,
                         )?;
 
+                        // update status and send notification about the pause
                         state.status = status;
+                        let _ = resp_sender.send(Response::Pause(status));
                     }
 
                     // yield lock to the controlling thread
@@ -135,45 +170,79 @@ impl Simulation {
                 }
             })?;
 
-        Ok(Simulation {
-            handle,
-            signals: signals_clone,
-        })
+        Ok(SimThread { handle })
     }
 }
 
-struct Controller {
+struct CtrlThread {
     handle: JoinHandle<Result<(), VmError>>,
-    sender: Sender<Message>,
 }
 
-impl Controller {
-    fn start(signals: Arc<SimSignals>, state: Arc<Mutex<State>>) -> Result<Controller, SimError> {
-        let (sender, receiver) = mpsc::channel();
+#[derive(Clone)]
+pub struct CtrlHandle {
+    req_sender: Sender<Request>,
+    resp_receiver: Receiver<Response>,
+    resp_sender: Sender<Response>,
+    req_receiver: Receiver<Request>,
+}
+
+impl CtrlHandle {
+    fn new() -> CtrlHandle {
+        let (req_sender, req_receiver) = crossbeam_channel::unbounded();
+        let (resp_sender, resp_receiver) = crossbeam_channel::unbounded();
+
+        CtrlHandle {
+            req_sender,
+            resp_receiver,
+            resp_sender,
+            req_receiver,
+        }
+    }
+}
+
+impl CtrlThread {
+    fn start(
+        ctrl: &CtrlHandle,
+        signals: Arc<SimSignals>,
+        state: Arc<Mutex<State>>,
+    ) -> Result<CtrlThread, SimError> {
+        let req_receiver = ctrl.req_receiver.clone();
 
         let handle = thread::Builder::new()
             .name(CONTROLLER_THREAD_NAME.to_owned())
             .spawn(move || {
                 loop {
-                    // should never be closed before Message::Exit
-                    match receiver.recv().unwrap() {
-                        Message::Pause => signals.pause.store(true, Ordering::Release),
-                        Message::Exit => {
-                            signals.pause.store(true, Ordering::Release);
-                            signals.stop.store(true, Ordering::SeqCst);
-                            signals.cont.notify_one();
+                    // sender should never be closed before Request::Exit
+                    match req_receiver.recv().unwrap() {
+                        Request::Continue => {
+                            signals.set_pause(false);
+                            signals.cont();
+                        }
+                        Request::Pause => {
+                            signals.set_pause(true);
+                        }
+                        Request::Exit => {
+                            signals.set_pause(true);
+                            signals.set_stop(true);
+                            signals.cont();
+                            return Ok(());
                         }
                     }
                 }
             })?;
 
-        Ok(Controller { handle, sender })
+        Ok(CtrlThread { handle })
     }
 }
 
-enum Message {
+enum Request {
+    Continue,
     Pause,
     Exit,
+}
+
+enum Response {
+    Pause(Status),
 }
 
 pub struct State {

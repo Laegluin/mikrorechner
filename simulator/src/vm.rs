@@ -1,6 +1,5 @@
 use log::trace;
-use memory::Word;
-use memory::{Memory, OP_CODE_BITS, REG_REF_BITS, WORD_BITS, WORD_BYTES};
+use memory::{Memory, Word, OP_CODE_BITS, REG_REF_BITS, WORD_BITS, WORD_BYTES};
 use num_enum::CustomTryInto;
 use rand;
 use std::fmt::{self, Display};
