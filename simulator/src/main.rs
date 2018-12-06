@@ -116,7 +116,7 @@ fn listen_for_events(sim: &CtrlHandle) {
             Response::Pause(Status::Halt) => println!("▶ halt"),
             Response::Exception(why) => println!("▶ error: {}", why),
             Response::Exit => return,
-            Response::RegValue(val) => println!("{}", val),
+            Response::RegValue(val) => println!("{} ({})", support::to_hex(val), val),
             Response::MemRange(bytes) => println!("{}", support::to_hex_octets(&bytes)),
             Response::InvalidRequest(why) => println!("error: {}", why),
         }
