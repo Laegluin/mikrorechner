@@ -3,7 +3,7 @@ use memory::Memory;
 use std::fmt::{self, Display};
 use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread::{self, JoinHandle};
 use vm::{self, Breakpoints, RegBank, Status, VmError};
 
@@ -147,7 +147,11 @@ impl SimSignals {
 
     /// Continue the simulation. The simulation has to reacquire the lock to the state before
     /// continuing.
-    fn cont(&self) {
+    ///
+    /// Takes a `MutexGuard` to prevent deadlocks: the state must be locked before notifying the
+    /// simulation thread, otherwise the continue notification could happen before it actually yields
+    /// (meaning the thread will wait forever).
+    fn cont(&self, _: MutexGuard<State>) {
         self.cont.notify_one();
     }
 }
@@ -244,7 +248,7 @@ impl CtrlThread {
                     match req_receiver.recv().unwrap() {
                         Request::Continue => {
                             signals.set_pause(false);
-                            signals.cont();
+                            signals.cont(state.lock().unwrap());
                         }
                         Request::Pause => {
                             signals.set_pause(true);
@@ -252,7 +256,7 @@ impl CtrlThread {
                         Request::Exit => {
                             signals.set_pause(true);
                             signals.set_stop(true);
-                            signals.cont();
+                            signals.cont(state.lock().unwrap());
                             return Ok(());
                         }
                     }
