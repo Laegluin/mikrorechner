@@ -31,29 +31,39 @@ impl Display for VmError {
             ErrorKind::IllegalInstruction(instr) => {
                 write!(f, "illegal instruction: {}", to_hex(instr),)
             }
-            ErrorKind::IllegalRegister(reg) => {
-                write!(f, "illegal register: {:0width$b}", reg, width = 8)
-            }
+            ErrorKind::IllegalRegister(reg) => write!(
+                f,
+                "illegal register: {:0width$b}",
+                reg,
+                width = REG_REF_BITS as usize
+            ),
             ErrorKind::UninitializedMemoryAccess(addr) => write!(
                 f,
                 "attempt to read from uninitialized memory at {}",
                 to_hex(addr),
             ),
+            ErrorKind::OutOfBoundsMemoryAccess(addr, len) => write!(
+                f,
+                "out of bounds memory access with length {} at {}",
+                len,
+                to_hex(addr)
+            ),
         }?;
 
         if let Some(at) = self.at {
-            write!(f, " at: {}", to_hex(at))?;
+            write!(f, " (at: {})", to_hex(at))?;
         }
 
         Ok(())
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ErrorKind {
     IllegalInstruction(Word),
     IllegalRegister(u8),
     UninitializedMemoryAccess(Word),
+    OutOfBoundsMemoryAccess(Word, usize),
 }
 
 pub struct RegBank {
@@ -421,7 +431,7 @@ fn store(instr: Word, regs: &mut RegBank, mem: &mut Memory) -> Result<Status, Er
     mem.store_word(
         regs[dst_addr_reg] + offset + regs[Reg::AddrOffset],
         regs[src],
-    );
+    )?;
 
     Ok(Status::Pause)
 }

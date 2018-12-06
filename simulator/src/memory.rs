@@ -36,19 +36,21 @@ impl Memory {
         }
     }
 
-    pub fn store_word(&mut self, addr: Word, value: Word) {
+    pub fn store_word(&mut self, addr: Word, value: Word) -> Result<(), vm::ErrorKind> {
         let mut bytes = [0; WORD_BYTES as usize];
         LittleEndian::write_u32(&mut bytes, value);
-        self.store(addr, &bytes);
+        self.store(addr, &bytes)
     }
 
     /// Stores the contents of `buf` into memory, starting at `addr`.
     ///
     /// ## Panics
     /// Panics if `addr + buf.len()` would cause an overflow.
-    pub fn store(&mut self, addr: Word, buf: &[u8]) {
+    pub fn store(&mut self, addr: Word, buf: &[u8]) -> Result<(), vm::ErrorKind> {
         // make sure the address does not overflow
-        assert!(buf.len() <= (Word::max_value() - addr) as usize);
+        if buf.len() > (Word::max_value() - addr) as usize {
+            return Err(vm::ErrorKind::OutOfBoundsMemoryAccess(addr, buf.len()));
+        }
 
         let mut ptr = addr;
         let mut remaining = buf;
@@ -61,6 +63,8 @@ impl Memory {
             ptr += memory_len as Word;
             remaining = &remaining[memory_len..];
         }
+
+        Ok(())
     }
 
     pub fn load_word(&mut self, addr: Word) -> Result<Word, vm::ErrorKind> {
@@ -80,7 +84,9 @@ impl Memory {
     /// Panics if `addr + buf.len()` would cause an overflow.
     pub fn load(&mut self, addr: Word, buf: &mut [u8]) -> Result<(), vm::ErrorKind> {
         // make sure the address does not overflow
-        assert!(buf.len() <= (Word::max_value() - addr) as usize);
+        if buf.len() > (Word::max_value() - addr) as usize {
+            return Err(vm::ErrorKind::OutOfBoundsMemoryAccess(addr, buf.len()));
+        }
 
         let buf_len = buf.len() as Word;
         let mut ptr = addr;
@@ -174,8 +180,8 @@ mod test {
         assert!(mem.mem_ref(0, 100).1);
 
         let mut mem = Memory::new();
-        mem.store(0, &[0; 10]);
-        mem.store(10, &[1; 10]);
+        mem.store(0, &[0; 10]).unwrap();
+        mem.store(10, &[1; 10]).unwrap();
         assert_eq!(mem.mem_ref(0, 10), (&mut *vec![0; 10], false));
         assert_eq!(mem.mem_ref(10, 10), (&mut *vec![1; 10], false));
 
@@ -192,7 +198,7 @@ mod test {
     #[should_panic]
     fn store_panic_on_overflow() {
         let mut mem = Memory::new();
-        mem.store(Word::max_value(), &[1, 2, 3, 4]);
+        mem.store(Word::max_value(), &[1, 2, 3, 4]).unwrap();
     }
 
     #[test]
@@ -210,7 +216,7 @@ mod test {
 
         // simple load and store
         let mut mem = Memory::new();
-        mem.store(0, &[1, 2, 3, 4]);
+        mem.store(0, &[1, 2, 3, 4]).unwrap();
 
         let mut buf = vec![0; 4];
         mem.load(0, &mut buf).unwrap();
@@ -221,9 +227,25 @@ mod test {
 
         // load and store across page boundaries
         let mut mem = Memory::new();
-        mem.store(PAGE_LEN as Word - 3, &[1, 2, 3, 4, 5, 6]);
+        mem.store(PAGE_LEN as Word - 3, &[1, 2, 3, 4, 5, 6])
+            .unwrap();
         let mut buf = vec![0; 6];
         mem.load(PAGE_LEN as Word - 3, &mut buf).unwrap();
         assert_eq!(vec![1, 2, 3, 4, 5, 6], buf);
+    }
+
+    #[test]
+    fn out_of_bounds_mem_access() {
+        let mut mem = Memory::new();
+
+        assert_eq!(
+            mem.load_word(0xffffffff).unwrap_err(),
+            vm::ErrorKind::OutOfBoundsMemoryAccess(0xffffffff, 4)
+        );
+
+        assert_eq!(
+            mem.store_word(0xffffffff, 0xdeaddead).unwrap_err(),
+            vm::ErrorKind::OutOfBoundsMemoryAccess(0xffffffff, 4)
+        );
     }
 }

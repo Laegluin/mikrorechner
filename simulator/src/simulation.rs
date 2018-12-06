@@ -392,7 +392,7 @@ mod test {
         asm::assemble(src, &mut img).unwrap();
 
         let mut mem = Memory::new();
-        mem.store(0, &img);
+        mem.store(0, &img).unwrap();
         let (regs, _) = run(mem, Breakpoints::new()).unwrap();
 
         assert_eq!(regs[Reg::R0], 500);

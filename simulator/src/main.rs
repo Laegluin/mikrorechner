@@ -25,13 +25,14 @@ use std::path::PathBuf;
 use std::process;
 use std::thread::{self, JoinHandle};
 use structopt::StructOpt;
-use vm::{Breakpoints, Reg, Status};
+use vm::{Breakpoints, Reg, Status, VmError};
 
 #[derive(Debug)]
 pub enum CliError {
     Io(io::Error),
     Asm(AsmError),
     Sim(SimError),
+    Vm(VmError),
     CannotJoinInputThread,
     IllegalRegister,
     CannotParseWord(String),
@@ -53,6 +54,12 @@ impl From<AsmError> for CliError {
 impl From<SimError> for CliError {
     fn from(err: SimError) -> CliError {
         CliError::Sim(err)
+    }
+}
+
+impl From<VmError> for CliError {
+    fn from(err: VmError) -> CliError {
+        CliError::Vm(err)
     }
 }
 
@@ -97,7 +104,7 @@ fn run(args: Args) -> Result<(), CliError> {
     };
 
     let mut mem = Memory::new();
-    mem.store(0, &img);
+    mem.store(0, &img).map_err(VmError::new)?;
 
     let sim = simulation::start(mem, Breakpoints::new(), args.start_paused)?;
     let handle = listen_for_input(sim.ctrl_handle().clone())?;
