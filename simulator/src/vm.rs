@@ -23,9 +23,6 @@ impl VmError {
 
 impl Display for VmError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "at: {}", to_hex(self.at))?;
-        write!(f, "error: ")?;
-
         match self.kind {
             ErrorKind::IllegalInstruction(instr) => {
                 write!(f, "illegal instruction: {}", to_hex(instr),)
@@ -38,7 +35,9 @@ impl Display for VmError {
                 "attempt to read from uninitialized memory at {}",
                 to_hex(addr),
             ),
-        }
+        }?;
+
+        write!(f, " at: {}", to_hex(self.at))
     }
 }
 

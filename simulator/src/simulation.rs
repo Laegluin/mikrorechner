@@ -31,6 +31,7 @@ impl From<VmError> for SimError {
 }
 
 /// Immediately starts the simulation and blocks this thread until the VM halts.
+#[allow(unused)]
 pub fn run(mem: Memory, breakpoints: Breakpoints) -> Result<(RegBank, Memory), SimError> {
     let handle = start(mem, breakpoints, false)?;
 
@@ -38,6 +39,7 @@ pub fn run(mem: Memory, breakpoints: Breakpoints) -> Result<(RegBank, Memory), S
         Response::Exception(err) => return Err(SimError::Vm(err)),
         Response::Pause(Status::Halt) => handle.send(Request::Exit),
         Response::Pause(pause) => return Err(SimError::UnexpectedPause(pause)),
+        Response::Exit => (),
     }
 
     handle.join()
@@ -80,15 +82,11 @@ pub struct SimHandle {
 
 impl SimHandle {
     pub fn send(&self, req: Request) {
-        self.ctrl.req_sender.send(req).unwrap()
+        self.ctrl.send(req)
     }
 
     pub fn recv(&self) -> Response {
-        self.ctrl.resp_receiver.recv().unwrap()
-    }
-
-    pub fn try_recv(&self) -> Option<Response> {
-        self.ctrl.resp_receiver.recv().ok()
+        self.ctrl.recv()
     }
 }
 
@@ -197,6 +195,7 @@ impl SimThread {
 
                     // abort if controlling thread set the stop flag
                     if signals.stop.load(Ordering::SeqCst) {
+                        let _ = resp_sender.send(Response::Exit);
                         return Arc::clone(&state);
                     }
                 }
@@ -229,6 +228,14 @@ impl CtrlHandle {
             resp_sender,
             req_receiver,
         }
+    }
+
+    pub fn send(&self, req: Request) {
+        self.req_sender.send(req).unwrap()
+    }
+
+    pub fn recv(&self) -> Response {
+        self.resp_receiver.recv().unwrap()
     }
 }
 
@@ -267,13 +274,14 @@ impl CtrlThread {
     }
 }
 
-enum Request {
+pub enum Request {
     Continue,
     Pause,
     Exit,
 }
 
-enum Response {
+pub enum Response {
+    Exit,
     Pause(Status),
     Exception(VmError),
 }
