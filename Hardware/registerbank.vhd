@@ -12,7 +12,7 @@ use work.universal_constants.all;
 entity registerbank is
 port(
     clk, rst: in std_logic;
-    reg_write_on: in std_logic;
+    reg_write_en: in std_logic;
     reg_write_addr: in unsigned(adr_Width-1 downto 0);
     reg_write_data: in unsigned(bit_Width-1 downto 0);
     reg_read_addr_A: in unsigned(5 downto 0);
@@ -35,7 +35,7 @@ begin
         if(rst='1') then
             --maybe do something
         elsif(rising_edge(clk)) then
-            if(reg_write_on='1') then
+            if(reg_write_en='1') then
                 if(reg_write_addr="100001") then
                     offset_register := reg_write_data;
                 else    
