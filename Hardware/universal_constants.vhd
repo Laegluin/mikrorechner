@@ -12,6 +12,6 @@ package universal_constants is
 
     constant reg_offset_Bits    : integer   := 21; -- Register Offset Bitumfang
     constant jump_offset_Bits   : integer   := 27; -- Jump Offset Bitumfang
-    constant mem_offset_Bits    : integer   := 15;  -- Speicher Offset Bitumfang
+    constant mem_offset_Bits    : integer   := 15; -- Speicher Offset Bitumfang
 
 end universal_constants;

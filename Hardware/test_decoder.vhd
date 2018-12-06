@@ -19,34 +19,37 @@ architecture behavior of test_decoder is
 
     port
     (
-        clk, enable  : in std_logic;
-        reg_write_en : out std_logic; -- Schreibmodus fuer Register
-        pc_write_en  : out std_logic; -- Schreibmodus fuer PC
-        mem_write_en : out std_logic; -- Schreibmodus fuer Speicher
+        clk, enable  : in       std_logic;
+        reg_write_en : out      std_logic; -- Schreibmodus fuer Register
+        pc_write_en  : out      std_logic; -- Schreibmodus fuer PC
+        mem_write_en : out      std_logic; -- Schreibmodus fuer Speicher
 
-
-        instruction  : in unsigned(bit_Width-1 downto 0);
-        opcode       : buffer unsigned(4 downto 0);
-        A,B,C        : out unsigned(adr_Width-1 downto 0);
-        reg_offset   : out unsigned(reg_offset_Bits-1 downto 0);
-        jump_offset  : out unsigned(jump_offset_Bits-1 downto 0);
-        mem_offset   : out unsigned(mem_offset_Bits-1 downto 0)
+        pc_in        : in       unsigned(bit_Width-1 downto 0);
+        pc_out       : out      unsigned(bit_Width-1 downto 0);
+        instruction  : in       unsigned(bit_Width-1 downto 0);
+        opcode       : buffer   unsigned(4 downto 0);
+        A,B,C        : out      unsigned(adr_Width-1 downto 0);
+        reg_imm      : out      unsigned(bit_Width-1 downto 0);
+        jump_offset  : out      unsigned(bit_Width-1 downto 0);
+        mem_offset   : out      unsigned(bit_Width-1 downto 0)
     );
 
     end component decoder;
     -- inputs
     signal clk, enable  : std_logic;
     signal instruction  : unsigned(bit_Width-1 downto 0);
+    signal pc_in        : unsigned(bit_Width-1 downto 0);
 
     -- outputs
+    signal pc_out       : unsigned(bit_Width-1 downto 0);
     signal reg_write_en : std_logic;
     signal pc_write_en  : std_logic;
     signal mem_write_en : std_logic;
 
     signal A, B, C      : unsigned(adr_Width-1 downto 0);
-    signal reg_offset   : unsigned(reg_offset_Bits-1 downto 0);
-    signal jump_offset  : unsigned(jump_offset_Bits-1 downto 0);
-    signal mem_offset   : unsigned(mem_offset_Bits-1 downto 0);
+    signal reg_imm      : unsigned(bit_Width-1 downto 0);
+    signal jump_offset  : unsigned(bit_Width-1 downto 0);
+    signal mem_offset   : unsigned(bit_Width-1 downto 0);
 
     signal opcode       : unsigned(opcode_Bits-1 downto 0);
 
@@ -57,6 +60,8 @@ begin
         clk    => clk,
         enable => enable,
 
+        pc_in        => pc_in,
+        pc_out       => pc_out,
         instruction  => instruction,
         reg_write_en => reg_write_en,
         pc_write_en  => pc_write_en,
@@ -66,9 +71,9 @@ begin
         B => B,
         C => C,
 
-        reg_offset => reg_offset,
+        reg_imm     => reg_imm,
         jump_offset => jump_offset,
-        mem_offset => mem_offset,
+        mem_offset  => mem_offset,
 
         opcode => opcode
     );
@@ -90,7 +95,7 @@ begin
 
     enable <= '1';
 
-        -- ADD reg3 reg2 reg1
+        -- ADD reg3 reg2 reg
     instruction  <= "00000000011000010000001000000000";
     wait for 100 ns;
 

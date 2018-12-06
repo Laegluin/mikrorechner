@@ -13,24 +13,29 @@ entity decoder is
 
     port
     (
-        clk, enable  : in std_logic;
-        reg_write_en : out std_logic; -- Schreibmodus fuer Register
-        pc_write_en  : out std_logic; -- Schreibmodus fuer PC
-        mem_write_en : out std_logic; -- Schreibmodus fuer Speicher
+        clk, enable  : in       std_logic;
+        reg_write_en : out      std_logic; -- Schreibmodus fuer Register
+        pc_write_en  : out      std_logic; -- Schreibmodus fuer PC
+        mem_write_en : out      std_logic; -- Schreibmodus fuer Speicher
 
-
-        instruction  : in unsigned(bit_Width-1 downto 0);
-        opcode       : buffer unsigned(4 downto 0);
-        A,B,C        : out unsigned(adr_Width-1 downto 0);
-        reg_offset   : out unsigned(reg_offset_Bits-1 downto 0);
-        jump_offset  : out unsigned(jump_offset_Bits-1 downto 0);
-        mem_offset   : out unsigned(mem_offset_Bits-1 downto 0)
+        pc_in        : in       unsigned(bit_Width-1 downto 0);
+        pc_out       : out      unsigned(bit_Width-1 downto 0);
+        instruction  : in       unsigned(bit_Width-1 downto 0);
+        opcode       : buffer   unsigned(4 downto 0);
+        A,B,C        : out      unsigned(adr_Width-1 downto 0);
+        reg_imm      : out      unsigned(bit_Width-1 downto 0);
+        jump_offset  : out      unsigned(bit_Width-1 downto 0);
+        mem_offset   : out      unsigned(bit_Width-1 downto 0)
     );
 end entity decoder;
 
 architecture behavior of decoder is
 
-signal opc_temp : unsigned(opcode_Bits-1 downto 0);
+signal opc_temp        : unsigned(opcode_Bits-1 downto 0);
+signal reg_imm_ext     : unsigned(bit_Width - reg_offset_Bits -1 downto 0)  := (others => '0');
+signal jump_offset_ext : unsigned(bit_Width - jump_offset_Bits -1 downto 0) := (others => '0');
+signal mem_offset_ext  : unsigned(bit_Width - mem_offset_Bits -1 downto 0)  := (others => '0');
+
 
 begin
     process(clk,enable,opc_temp)
@@ -38,9 +43,10 @@ begin
         if enable = '0' then
             opc_temp     <= "01100"; --NOOP
 
-            else
+        elsif rising_edge(clk) and enable = '1' then
 
             -- init output
+            pc_out <= pc_in;
             reg_write_en <= '0';
             pc_write_en  <= '0';
             mem_write_en <= '0';
@@ -51,9 +57,11 @@ begin
             C           <= instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-adr_Width);
             B           <= instruction(bit_Width-opcode_Bits-adr_Width-1 downto bit_Width-opcode_Bits-(2*adr_Width));
             A           <= instruction(bit_Width-opcode_Bits-(2*adr_Width)-1 downto bit_Width-opcode_Bits-(3*adr_Width));
-            reg_offset  <= instruction(bit_Width-opcode_Bits-adr_Width-1 downto 0);
-            jump_offset <= instruction(bit_Width-opcode_Bits-1 downto 0);
-            mem_offset  <= instruction(bit_Width-opcode_Bits-(2*adr_Width)-1 downto 0);
+            reg_imm     <= reg_imm_ext & instruction(bit_Width-opcode_Bits-adr_Width-1 downto 0);
+            jump_offset <= jump_offset_ext & instruction(bit_Width-opcode_Bits-1 downto 0);
+            mem_offset  <= mem_offset_ext & instruction(bit_Width-opcode_Bits-(2*adr_Width)-1 downto 0);
+
+            
 
             case opc_temp is
                     --Register
