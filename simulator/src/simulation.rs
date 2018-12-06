@@ -1,11 +1,11 @@
 use crossbeam_channel::{self, Receiver, Sender};
-use memory::Memory;
+use memory::{Memory, Word};
 use std::fmt::{self, Display};
 use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread::{self, JoinHandle};
-use vm::{self, Breakpoints, RegBank, Status, VmError};
+use vm::{self, Breakpoints, Reg, RegBank, Status, VmError};
 
 const SIM_THREAD_NAME: &str = "simulation";
 const CONTROLLER_THREAD_NAME: &str = "controller";
@@ -15,7 +15,6 @@ pub enum SimError {
     Io(io::Error),
     ThreadPanicked(&'static str),
     Vm(VmError),
-    UnexpectedPause(Status),
 }
 
 impl From<io::Error> for SimError {
@@ -38,8 +37,9 @@ pub fn run(mem: Memory, breakpoints: Breakpoints) -> Result<(RegBank, Memory), S
     match handle.recv() {
         Response::Exception(err) => return Err(SimError::Vm(err)),
         Response::Pause(Status::Halt) => handle.send(Request::Exit),
-        Response::Pause(pause) => return Err(SimError::UnexpectedPause(pause)),
         Response::Exit => (),
+        // we never generate any requests that could cause other responses
+        _ => unreachable!(),
     }
 
     handle.join()
@@ -52,6 +52,7 @@ pub fn start(
 ) -> Result<SimHandle, SimError> {
     let signals = Arc::new(SimSignals {
         pause: AtomicBool::new(start_paused),
+        is_running: AtomicBool::new(false),
         stop: AtomicBool::new(false),
         cont: Condvar::new(),
     });
@@ -122,6 +123,7 @@ struct SimThread {
 
 struct SimSignals {
     pause: AtomicBool,
+    is_running: AtomicBool,
     stop: AtomicBool,
     cont: Condvar,
 }
@@ -133,8 +135,12 @@ impl SimSignals {
         self.pause.store(pause, Ordering::Release);
     }
 
-    fn pause(&self) {
-        self.pause.load(Ordering::Acquire);
+    fn set_is_running(&self, is_running: bool) {
+        self.is_running.store(is_running, Ordering::SeqCst);
+    }
+
+    fn is_running(&self) -> bool {
+        self.is_running.load(Ordering::SeqCst)
     }
 
     /// If set to true, the simulation thread will exit. Note that for this condition to be
@@ -170,6 +176,7 @@ impl SimThread {
                 loop {
                     {
                         let state = &mut *state_guard;
+                        signals.set_is_running(true);
 
                         let result = vm::run(
                             &mut state.regs,
@@ -177,6 +184,8 @@ impl SimThread {
                             &state.breakpoints,
                             &signals.pause,
                         );
+
+                        signals.set_is_running(false);
 
                         match result {
                             Ok(status) => {
@@ -246,6 +255,8 @@ impl CtrlThread {
         state: Arc<Mutex<State>>,
     ) -> Result<CtrlThread, SimError> {
         let req_receiver = ctrl.req_receiver.clone();
+        let sender = ctrl.resp_sender.clone();
+        let send = move |resp| sender.send(resp).unwrap();
 
         let handle = thread::Builder::new()
             .name(CONTROLLER_THREAD_NAME.to_owned())
@@ -266,6 +277,13 @@ impl CtrlThread {
                             signals.cont(state.lock().unwrap());
                             return Ok(());
                         }
+                        Request::GetReg(reg) => {
+                            if !signals.is_running() {
+                                send(Response::RegValue(state.lock().unwrap().regs[reg]));
+                            } else {
+                                send(Response::InvalidRequest(RequestError::SimulationNotPaused));
+                            }
+                        }
                     }
                 }
             })?;
@@ -278,12 +296,29 @@ pub enum Request {
     Continue,
     Pause,
     Exit,
+    GetReg(Reg),
 }
 
 pub enum Response {
     Exit,
     Pause(Status),
     Exception(VmError),
+    RegValue(Word),
+    InvalidRequest(RequestError),
+}
+
+pub enum RequestError {
+    SimulationNotPaused,
+}
+
+impl Display for RequestError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use self::RequestError::*;
+
+        match *self {
+            SimulationNotPaused => write!(f, "simulation is not paused"),
+        }
+    }
 }
 
 pub struct State {

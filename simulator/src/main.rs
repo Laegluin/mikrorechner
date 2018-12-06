@@ -25,7 +25,7 @@ use std::path::PathBuf;
 use std::process;
 use std::thread::{self, JoinHandle};
 use structopt::StructOpt;
-use vm::{Breakpoints, Status};
+use vm::{Breakpoints, Reg, Status};
 
 #[derive(Debug)]
 pub enum CliError {
@@ -111,8 +111,10 @@ fn listen_for_events(sim: &CtrlHandle) {
             Response::Pause(Status::Pause) => println!("▶ paused"),
             Response::Pause(Status::Break) => println!("▶ paused on breakpoint"),
             Response::Pause(Status::Halt) => println!("▶ halt"),
-            Response::Exception(err) => println!("▶ error: {}", err),
+            Response::Exception(why) => println!("▶ error: {}", why),
             Response::Exit => return,
+            Response::RegValue(val) => println!("{}", val),
+            Response::InvalidRequest(why) => println!("▶ error: {}", why),
         }
     }
 }
@@ -148,6 +150,10 @@ fn exec_command(line: String, sim: &CtrlHandle) -> bool {
     match &words[..] {
         &["continue"] | &["c"] => sim.send(Request::Continue),
         &["pause"] | &["p"] => sim.send(Request::Pause),
+        &["reg", reg] => match reg.parse::<Reg>() {
+            Ok(reg) => sim.send(Request::GetReg(reg)),
+            Err(_) => println!("error: illegal register"),
+        },
         &["exit"] => {
             sim.send(Request::Exit);
             return true;

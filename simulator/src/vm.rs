@@ -28,7 +28,7 @@ impl Display for VmError {
                 write!(f, "illegal instruction: {}", to_hex(instr),)
             }
             ErrorKind::IllegalRegister(reg) => {
-                write!(f, "illegal register: {:#0width$b}", reg, width = 8)
+                write!(f, "illegal register: {:0width$b}", reg, width = 8)
             }
             ErrorKind::UninitializedMemoryAccess(addr) => write!(
                 f,
@@ -110,7 +110,7 @@ impl Display for RegBank {
     }
 }
 
-#[derive(strum_macros::Display, EnumIter, CustomTryInto, Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(strum_macros::Display, strum_macros::EnumString, EnumIter, CustomTryInto, Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u8)]
 #[rustfmt::skip]
 #[strum(serialize_all = "snake_case")]
