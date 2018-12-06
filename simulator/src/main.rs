@@ -116,7 +116,9 @@ fn listen_for_events(sim: &CtrlHandle) {
             Response::Pause(Status::Halt) => println!("▶ halt"),
             Response::Exception(why) => println!("▶ error: {}", why),
             Response::Exit => return,
-            Response::RegValue(val) => println!("{} ({})", support::to_hex(val), val),
+            Response::RegValue(val) | Response::WordValue(val) => {
+                println!("{} ({})", support::to_hex(val), val)
+            }
             Response::MemRange(bytes) => println!("{}", support::to_hex_octets(&bytes)),
             Response::InvalidRequest(why) => println!("error: {}", why),
         }
@@ -160,6 +162,7 @@ fn exec_command(line: String, sim: &CtrlHandle) -> Result<bool, CliError> {
         &["reg", reg] => sim.send(Request::GetReg(
             reg.parse::<Reg>().map_err(|_| CliError::IllegalRegister)?,
         )),
+        &["word", addr] => sim.send(Request::GetWord(parse_word(addr)?)),
         &["mem", start, end] => {
             sim.send(Request::GetMemRange(parse_word(start)?, parse_word(end)?))
         }

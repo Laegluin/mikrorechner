@@ -284,6 +284,16 @@ impl CtrlThread {
                                 send(Response::InvalidRequest(RequestError::SimulationNotPaused));
                             }
                         }
+                        Request::GetWord(addr) => {
+                            let mut state = state.lock().unwrap();
+
+                            match state.mem.load_word(addr) {
+                                Ok(val) => send(Response::WordValue(val)),
+                                Err(kind) => send(Response::InvalidRequest(RequestError::Vm(
+                                    VmError::new(kind),
+                                ))),
+                            }
+                        }
                         Request::GetMemRange(start, end) => {
                             if signals.is_running() {
                                 send(Response::InvalidRequest(RequestError::SimulationNotPaused));
@@ -320,6 +330,7 @@ pub enum Request {
     Pause,
     Exit,
     GetReg(Reg),
+    GetWord(Word),
     GetMemRange(Word, Word),
 }
 
@@ -328,6 +339,7 @@ pub enum Response {
     Pause(Status),
     Exception(VmError),
     RegValue(Word),
+    WordValue(Word),
     MemRange(Box<[u8]>),
     InvalidRequest(RequestError),
 }

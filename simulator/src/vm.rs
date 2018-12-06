@@ -288,6 +288,7 @@ pub fn run(
     Ok(Status::Pause)
 }
 
+// TODO: divide by zero and overflows
 fn run_next(regs: &mut RegBank, mem: &mut Memory) -> Result<Status, VmError> {
     use self::Op::*;
 
