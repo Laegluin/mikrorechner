@@ -11,13 +11,17 @@ use support::to_hex;
 
 #[derive(Debug)]
 pub struct VmError {
-    at: Word,
+    at: Option<Word>,
     kind: ErrorKind,
 }
 
 impl VmError {
-    fn new(at: Word, kind: ErrorKind) -> VmError {
-        VmError { at, kind }
+    pub fn at(at: Word, kind: ErrorKind) -> VmError {
+        VmError { at: Some(at), kind }
+    }
+
+    pub fn new(kind: ErrorKind) -> VmError {
+        VmError { at: None, kind }
     }
 }
 
@@ -37,7 +41,11 @@ impl Display for VmError {
             ),
         }?;
 
-        write!(f, " at: {}", to_hex(self.at))
+        if let Some(at) = self.at {
+            write!(f, " at: {}", to_hex(at))?;
+        }
+
+        Ok(())
     }
 }
 
@@ -289,9 +297,9 @@ fn run_next(regs: &mut RegBank, mem: &mut Memory) -> Result<Status, VmError> {
 
     let instr = mem
         .load_word(instr_addr)
-        .map_err(|kind| VmError::new(instr_addr, kind))?;
+        .map_err(|kind| VmError::at(instr_addr, kind))?;
 
-    let op = Op::from_word(instr).map_err(|kind| VmError::new(instr_addr, kind))?;
+    let op = Op::from_word(instr).map_err(|kind| VmError::at(instr_addr, kind))?;
 
     let result = match op {
         Add => binary_op(instr, Word::add, regs),
@@ -328,7 +336,7 @@ fn run_next(regs: &mut RegBank, mem: &mut Memory) -> Result<Status, VmError> {
         Halt => Ok(Status::Halt),
     };
 
-    result.map_err(|kind| VmError::new(instr_addr, kind))
+    result.map_err(|kind| VmError::at(instr_addr, kind))
 }
 
 fn binary_op<F>(instr: Word, op: F, regs: &mut RegBank) -> Result<Status, ErrorKind>

@@ -16,7 +16,7 @@ mod support;
 mod vm;
 
 use asm::AsmError;
-use memory::Memory;
+use memory::{Memory, Word};
 use rustyline::Editor;
 use simulation::{CtrlHandle, Request, Response, SimError};
 use std::fs::{self, File};
@@ -33,6 +33,9 @@ pub enum CliError {
     Asm(AsmError),
     Sim(SimError),
     CannotJoinInputThread,
+    IllegalRegister,
+    CannotParseWord(String),
+    UnknownCommand,
 }
 
 impl From<io::Error> for CliError {
@@ -114,7 +117,8 @@ fn listen_for_events(sim: &CtrlHandle) {
             Response::Exception(why) => println!("▶ error: {}", why),
             Response::Exit => return,
             Response::RegValue(val) => println!("{}", val),
-            Response::InvalidRequest(why) => println!("▶ error: {}", why),
+            Response::MemRange(bytes) => println!("{}", support::to_hex_octets(&bytes)),
+            Response::InvalidRequest(why) => println!("error: {}", why),
         }
     }
 }
@@ -134,14 +138,17 @@ fn listen_for_input(sim: CtrlHandle) -> Result<JoinHandle<()>, CliError> {
                     }
                 };
 
-                if exec_command(line, &sim) {
-                    return;
+                match exec_command(line, &sim) {
+                    Ok(true) => return,
+                    Ok(false) => (),
+                    // TOOD: impl Display
+                    Err(why) => println!("error: {:?}", why),
                 }
             }
         }).map_err(CliError::Io)
 }
 
-fn exec_command(line: String, sim: &CtrlHandle) -> bool {
+fn exec_command(line: String, sim: &CtrlHandle) -> Result<bool, CliError> {
     let words: Vec<&str> = line
         .split(char::is_whitespace)
         .filter(|word| !word.is_empty())
@@ -150,16 +157,30 @@ fn exec_command(line: String, sim: &CtrlHandle) -> bool {
     match &words[..] {
         &["continue"] | &["c"] => sim.send(Request::Continue),
         &["pause"] | &["p"] => sim.send(Request::Pause),
-        &["reg", reg] => match reg.parse::<Reg>() {
-            Ok(reg) => sim.send(Request::GetReg(reg)),
-            Err(_) => println!("error: illegal register"),
-        },
+        &["reg", reg] => sim.send(Request::GetReg(
+            reg.parse::<Reg>().map_err(|_| CliError::IllegalRegister)?,
+        )),
+        &["mem", start, end] => {
+            sim.send(Request::GetMemRange(parse_word(start)?, parse_word(end)?))
+        }
         &["exit"] => {
             sim.send(Request::Exit);
-            return true;
+            return Ok(true);
         }
-        _ => println!("error: unknown command"),
+        _ => return Err(CliError::UnknownCommand),
     }
 
-    false
+    Ok(false)
+}
+
+fn parse_word(word: &str) -> Result<Word, CliError> {
+    let result = if word.starts_with("0x") {
+        Word::from_str_radix(&word[2..], 16)
+    } else if word.starts_with("0b") {
+        Word::from_str_radix(&word[2..], 2)
+    } else {
+        Word::from_str_radix(word, 10)
+    };
+
+    result.map_err(|_| CliError::CannotParseWord(word.to_owned()))
 }

@@ -78,7 +78,7 @@ impl Memory {
     ///
     /// ## Panics
     /// Panics if `addr + buf.len()` would cause an overflow.
-    fn load(&mut self, addr: Word, buf: &mut [u8]) -> Result<(), vm::ErrorKind> {
+    pub fn load(&mut self, addr: Word, buf: &mut [u8]) -> Result<(), vm::ErrorKind> {
         // make sure the address does not overflow
         assert!(buf.len() <= (Word::max_value() - addr) as usize);
 

@@ -284,6 +284,29 @@ impl CtrlThread {
                                 send(Response::InvalidRequest(RequestError::SimulationNotPaused));
                             }
                         }
+                        Request::GetMemRange(start, end) => {
+                            if signals.is_running() {
+                                send(Response::InvalidRequest(RequestError::SimulationNotPaused));
+                                continue;
+                            }
+
+                            if start > end {
+                                send(Response::InvalidRequest(
+                                    RequestError::RangeStartOutOfBounds,
+                                ));
+                                continue;
+                            }
+
+                            let mut state = state.lock().unwrap();
+                            let mut buf = vec![0; (end - start) as usize];
+
+                            match state.mem.load(start, &mut buf) {
+                                Ok(_) => send(Response::MemRange(Box::from(buf))),
+                                Err(kind) => send(Response::InvalidRequest(RequestError::Vm(
+                                    VmError::new(kind),
+                                ))),
+                            }
+                        }
                     }
                 }
             })?;
@@ -297,6 +320,7 @@ pub enum Request {
     Pause,
     Exit,
     GetReg(Reg),
+    GetMemRange(Word, Word),
 }
 
 pub enum Response {
@@ -304,11 +328,14 @@ pub enum Response {
     Pause(Status),
     Exception(VmError),
     RegValue(Word),
+    MemRange(Box<[u8]>),
     InvalidRequest(RequestError),
 }
 
 pub enum RequestError {
     SimulationNotPaused,
+    RangeStartOutOfBounds,
+    Vm(VmError),
 }
 
 impl Display for RequestError {
@@ -317,6 +344,8 @@ impl Display for RequestError {
 
         match *self {
             SimulationNotPaused => write!(f, "simulation is not paused"),
+            RangeStartOutOfBounds => write!(f, "start of memory range is greater than end"),
+            Vm(ref why) => write!(f, "{}", why),
         }
     }
 }
