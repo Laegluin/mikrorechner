@@ -10,10 +10,12 @@ use vm::{self, Breakpoints, RegBank, Status, VmError};
 const SIM_THREAD_NAME: &str = "simulation";
 const CONTROLLER_THREAD_NAME: &str = "controller";
 
+#[derive(Debug)]
 pub enum SimError {
     Io(io::Error),
     ThreadPanicked(&'static str),
     Vm(VmError),
+    UnexpectedPause(Status),
 }
 
 impl From<io::Error> for SimError {
@@ -32,7 +34,12 @@ impl From<VmError> for SimError {
 pub fn run(mem: Memory, breakpoints: Breakpoints) -> Result<(RegBank, Memory), SimError> {
     let handle = start(mem, breakpoints, false)?;
 
-    // FIXME: exit on halt
+    match handle.recv() {
+        Response::Exception(err) => return Err(SimError::Vm(err)),
+        Response::Pause(Status::Halt) => handle.send(Request::Exit),
+        Response::Pause(pause) => return Err(SimError::UnexpectedPause(pause)),
+    }
+
     handle.join()
 }
 
@@ -51,7 +58,7 @@ pub fn start(
         regs: RegBank::new(),
         mem,
         breakpoints,
-        status: Status::Ready,
+        status: Status::Pause,
     }));
 
     let ctrl = CtrlHandle::new();
@@ -72,6 +79,20 @@ pub struct SimHandle {
 }
 
 impl SimHandle {
+    pub fn send(&self, req: Request) {
+        self.ctrl.req_sender.send(req).unwrap()
+    }
+
+    pub fn recv(&self) -> Response {
+        self.ctrl.resp_receiver.recv().unwrap()
+    }
+
+    pub fn try_recv(&self) -> Option<Response> {
+        self.ctrl.resp_receiver.recv().ok()
+    }
+}
+
+impl SimHandle {
     pub fn join(self) -> Result<(RegBank, Memory), SimError> {
         self.ctrl_thread
             .handle
@@ -84,7 +105,7 @@ impl SimHandle {
             .map_err(|_| SimError::ThreadPanicked(SIM_THREAD_NAME))
             .and_then(|state| {
                 // other threads joined, so this is the last Arc
-                let state = Arc::try_unwrap(state?).ok().unwrap();
+                let state = Arc::try_unwrap(state).ok().unwrap();
                 let state = Mutex::into_inner(state)
                     .map_err(|_| SimError::ThreadPanicked(SIM_THREAD_NAME))?;
 
@@ -98,7 +119,7 @@ impl SimHandle {
 }
 
 struct SimThread {
-    handle: JoinHandle<Result<Arc<Mutex<State>>, SimError>>,
+    handle: JoinHandle<Arc<Mutex<State>>>,
 }
 
 struct SimSignals {
@@ -148,16 +169,23 @@ impl SimThread {
                     {
                         let state = &mut *state_guard;
 
-                        let status = vm::run(
+                        let result = vm::run(
                             &mut state.regs,
                             &mut state.mem,
                             &state.breakpoints,
                             &signals.pause,
-                        )?;
+                        );
 
-                        // update status and send notification about the pause
-                        state.status = status;
-                        let _ = resp_sender.send(Response::Pause(status));
+                        match result {
+                            Ok(status) => {
+                                // update status and send notification about the pause
+                                state.status = status;
+                                let _ = resp_sender.send(Response::Pause(status));
+                            }
+                            Err(why) => {
+                                let _ = resp_sender.send(Response::Exception(why));
+                            }
+                        }
                     }
 
                     // yield lock to the controlling thread
@@ -165,7 +193,7 @@ impl SimThread {
 
                     // abort if controlling thread set the stop flag
                     if signals.stop.load(Ordering::SeqCst) {
-                        return Ok(Arc::clone(&state));
+                        return Arc::clone(&state);
                     }
                 }
             })?;
@@ -243,6 +271,7 @@ enum Request {
 
 enum Response {
     Pause(Status),
+    Exception(VmError),
 }
 
 pub struct State {
@@ -258,5 +287,27 @@ impl Display for State {
         writeln!(f, "{}", self.regs)?;
         writeln!(f, "Breakpoints:")?;
         write!(f, "{}", self.breakpoints)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use asm;
+    use std::io::Cursor;
+    use vm::Reg;
+
+    #[test]
+    fn sum() {
+        let src = Cursor::new(&include_bytes!("../tests/sum.img.txt")[..]);
+        let mut img = Vec::new();
+        asm::assemble(src, &mut img).unwrap();
+
+        let mut mem = Memory::new();
+        mem.store(0, &img);
+        let (regs, _) = run(mem, Breakpoints::new()).unwrap();
+
+        assert_eq!(regs[Reg::R0], 500);
+        assert_eq!(regs[Reg::R1], 100);
     }
 }

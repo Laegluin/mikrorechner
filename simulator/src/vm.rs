@@ -115,7 +115,7 @@ impl Display for RegBank {
 #[repr(u8)]
 #[rustfmt::skip]
 #[strum(serialize_all = "snake_case")]
-enum Reg {
+pub enum Reg {
     R0          = 0b_000000,
     R1          = 0b_000001,
     R2          = 0b_000010,
@@ -255,9 +255,10 @@ impl Display for Breakpoints {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Status {
-    Ready,
+    Pause,
+    Break,
     Halt,
 }
 
@@ -269,7 +270,7 @@ pub fn run(
 ) -> Result<Status, VmError> {
     while !pause.load(Ordering::Acquire) {
         if breakpoints.is_breakpoint(regs.next_instr_addr()) {
-            return Ok(Status::Ready);
+            return Ok(Status::Break);
         }
 
         if run_next(regs, mem)? == Status::Halt {
@@ -277,7 +278,7 @@ pub fn run(
         }
     }
 
-    Ok(Status::Ready)
+    Ok(Status::Pause)
 }
 
 fn run_next(regs: &mut RegBank, mem: &mut Memory) -> Result<Status, VmError> {
@@ -315,16 +316,16 @@ fn run_next(regs: &mut RegBank, mem: &mut Memory) -> Result<Status, VmError> {
         JmpIf => if regs.is_cmp_set() {
             jmp(instr, regs)
         } else {
-            Ok(Status::Ready)
+            Ok(Status::Pause)
         },
         JmpRelIf => if regs.is_cmp_set() {
             jmp_rel(instr, regs)
         } else {
-            Ok(Status::Ready)
+            Ok(Status::Pause)
         },
         Load => load(instr, regs, mem),
         Store => store(instr, regs, mem),
-        NoOp => Ok(Status::Ready),
+        NoOp => Ok(Status::Pause),
         Halt => Ok(Status::Halt),
     };
 
@@ -341,7 +342,7 @@ where
 
     let value = op(regs[lhs], regs[rhs]);
     regs.set(dst, value);
-    Ok(Status::Ready)
+    Ok(Status::Pause)
 }
 
 fn not(instr: Word, regs: &mut RegBank) -> Result<Status, ErrorKind> {
@@ -350,7 +351,7 @@ fn not(instr: Word, regs: &mut RegBank) -> Result<Status, ErrorKind> {
 
     let value = !regs[src];
     regs.set(dst, value);
-    Ok(Status::Ready)
+    Ok(Status::Pause)
 }
 
 fn copy(instr: Word, regs: &mut RegBank) -> Result<Status, ErrorKind> {
@@ -359,7 +360,7 @@ fn copy(instr: Word, regs: &mut RegBank) -> Result<Status, ErrorKind> {
 
     let value = regs[src];
     regs.set(dst, value);
-    Ok(Status::Ready)
+    Ok(Status::Pause)
 }
 
 fn set(instr: Word, regs: &mut RegBank) -> Result<Status, ErrorKind> {
@@ -367,7 +368,7 @@ fn set(instr: Word, regs: &mut RegBank) -> Result<Status, ErrorKind> {
 
     let value = immediate_from_instr(instr, 1);
     regs.set(dst, value);
-    Ok(Status::Ready)
+    Ok(Status::Pause)
 }
 
 fn cmp<F>(instr: Word, op: F, regs: &mut RegBank) -> Result<Status, ErrorKind>
@@ -378,20 +379,20 @@ where
     let rhs = Reg::from_word(instr, RegPos::Arg2)?;
 
     regs.cmp_flag = op(regs[lhs], regs[rhs]);
-    Ok(Status::Ready)
+    Ok(Status::Pause)
 }
 
 fn jmp(instr: Word, regs: &mut RegBank) -> Result<Status, ErrorKind> {
     let addr = regs[Reg::from_word(instr, RegPos::Dst)?];
     regs.next_instr_addr = addr + regs[Reg::AddrOffset];
-    Ok(Status::Ready)
+    Ok(Status::Pause)
 }
 
 fn jmp_rel(instr: Word, regs: &mut RegBank) -> Result<Status, ErrorKind> {
     let offset = immediate_from_instr_signed(instr, 0);
     // subtract the word len, because the instr_addr already points at the next instruction
     regs.next_instr_addr = regs.next_instr_addr.wrapping_add(offset) - WORD_BYTES;
-    Ok(Status::Ready)
+    Ok(Status::Pause)
 }
 
 fn load(instr: Word, regs: &mut RegBank, mem: &mut Memory) -> Result<Status, ErrorKind> {
@@ -401,7 +402,7 @@ fn load(instr: Word, regs: &mut RegBank, mem: &mut Memory) -> Result<Status, Err
 
     let value = mem.load_word(regs[src_addr_reg] + offset + regs[Reg::AddrOffset])?;
     regs.set(dst, value);
-    Ok(Status::Ready)
+    Ok(Status::Pause)
 }
 
 fn store(instr: Word, regs: &mut RegBank, mem: &mut Memory) -> Result<Status, ErrorKind> {
@@ -414,7 +415,7 @@ fn store(instr: Word, regs: &mut RegBank, mem: &mut Memory) -> Result<Status, Er
         regs[src],
     );
 
-    Ok(Status::Ready)
+    Ok(Status::Pause)
 }
 
 /// Extracts an unsigned immediate from an `instr` with `num_reg_refs` number of
