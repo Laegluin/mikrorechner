@@ -1,9 +1,9 @@
+use crate::vm;
 use byteorder::{ByteOrder, LittleEndian};
 use rand;
 use std::cmp::min;
 use std::mem;
 use std::ptr;
-use vm;
 
 pub type Word = u32;
 pub const WORD_BYTES: Word = mem::size_of::<Word>() as Word;

@@ -1,5 +1,6 @@
+use crate::memory::{Memory, Word, OP_CODE_BITS, REG_REF_BITS, WORD_BITS, WORD_BYTES};
+use crate::support::to_hex;
 use log::trace;
-use memory::{Memory, Word, OP_CODE_BITS, REG_REF_BITS, WORD_BITS, WORD_BYTES};
 use num_enum::CustomTryInto;
 use rand;
 use std::fmt::{self, Display};
@@ -7,7 +8,6 @@ use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Index, Mul, Shl, Shr, Sub};
 use std::sync::atomic::{AtomicBool, Ordering};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
-use support::to_hex;
 
 #[derive(Debug)]
 pub struct VmError {
@@ -26,7 +26,7 @@ impl VmError {
 }
 
 impl Display for VmError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.kind {
             ErrorKind::IllegalInstruction(instr) => {
                 write!(f, "illegal instruction: {}", to_hex(instr),)
@@ -116,7 +116,7 @@ impl Index<Reg> for RegBank {
 }
 
 impl Display for RegBank {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "next instruction: {}", to_hex(self.next_instr_addr),)?;
         writeln!(f, "comparison flag: {}", self.cmp_flag)?;
 
@@ -259,7 +259,7 @@ impl Breakpoints {
 }
 
 impl Display for Breakpoints {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.0.is_empty() {
             return write!(f, "<none>");
         }
@@ -331,16 +331,20 @@ fn run_next(regs: &mut RegBank, mem: &mut Memory) -> Result<Status, VmError> {
         CmpGe => cmp(instr, |l, r| l >= r, regs),
         Jmp => jmp(instr, regs),
         JmpRel => jmp_rel(instr, regs),
-        JmpIf => if regs.is_cmp_set() {
-            jmp(instr, regs)
-        } else {
-            Ok(Status::Pause)
-        },
-        JmpRelIf => if regs.is_cmp_set() {
-            jmp_rel(instr, regs)
-        } else {
-            Ok(Status::Pause)
-        },
+        JmpIf => {
+            if regs.is_cmp_set() {
+                jmp(instr, regs)
+            } else {
+                Ok(Status::Pause)
+            }
+        }
+        JmpRelIf => {
+            if regs.is_cmp_set() {
+                jmp_rel(instr, regs)
+            } else {
+                Ok(Status::Pause)
+            }
+        }
         Load => load(instr, regs, mem),
         Store => store(instr, regs, mem),
         NoOp => Ok(Status::Pause),

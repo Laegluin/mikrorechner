@@ -1,11 +1,11 @@
+use crate::memory::{Memory, Word};
+use crate::vm::{self, Breakpoints, Reg, RegBank, Status, VmError};
 use crossbeam_channel::{self, Receiver, Sender};
-use memory::{Memory, Word};
 use std::fmt::{self, Display};
 use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread::{self, JoinHandle};
-use vm::{self, Breakpoints, Reg, RegBank, Status, VmError};
 
 const SIM_THREAD_NAME: &str = "simulation";
 const CONTROLLER_THREAD_NAME: &str = "controller";
@@ -155,7 +155,7 @@ impl SimSignals {
     /// Takes a `MutexGuard` to prevent deadlocks: the state must be locked before notifying the
     /// simulation thread, otherwise the continue notification could happen before it actually yields
     /// (meaning the thread will wait forever).
-    fn cont(&self, _: MutexGuard<State>) {
+    fn cont(&self, _: MutexGuard<'_, State>) {
         self.cont.notify_one();
     }
 }
@@ -351,7 +351,7 @@ pub enum RequestError {
 }
 
 impl Display for RequestError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use self::RequestError::*;
 
         match *self {
@@ -370,7 +370,7 @@ pub struct State {
 }
 
 impl Display for State {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Registers:")?;
         writeln!(f, "{}", self.regs)?;
         writeln!(f, "Breakpoints:")?;
@@ -381,9 +381,9 @@ impl Display for State {
 #[cfg(test)]
 mod test {
     use super::*;
-    use asm;
+    use crate::asm;
+    use crate::vm::Reg;
     use std::io::Cursor;
-    use vm::Reg;
 
     #[test]
     fn sum() {

@@ -1,24 +1,14 @@
-extern crate byteorder;
-extern crate crossbeam_channel;
-extern crate env_logger;
-extern crate linefeed;
-extern crate log;
-extern crate num_enum;
-extern crate rand;
-extern crate structopt;
-extern crate strum;
-extern crate strum_macros;
-
 mod asm;
 mod memory;
 mod simulation;
 mod support;
 mod vm;
 
-use asm::AsmError;
+use crate::asm::AsmError;
+use crate::memory::{Memory, Word};
+use crate::simulation::{CtrlHandle, Request, Response, SimError};
+use crate::vm::{Breakpoints, Reg, Status, VmError};
 use linefeed::ReadResult;
-use memory::{Memory, Word};
-use simulation::{CtrlHandle, Request, Response, SimError};
 use std::fs::{self, File};
 use std::io::{self, BufReader};
 use std::path::PathBuf;
@@ -26,7 +16,6 @@ use std::process;
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use structopt::StructOpt;
-use vm::{Breakpoints, Reg, Status, VmError};
 
 #[derive(Debug)]
 pub enum CliError {
@@ -186,7 +175,8 @@ fn listen_for_input(printer: Arc<Printer>, sim: CtrlHandle) -> Result<JoinHandle
                     }
                 }
             }
-        }).map_err(CliError::Io)
+        })
+        .map_err(CliError::Io)
 }
 
 fn exec_command(line: &str, sim: &CtrlHandle) -> Result<bool, CliError> {

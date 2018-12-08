@@ -1,5 +1,5 @@
+use crate::memory::Word;
 use byteorder::{ByteOrder, LittleEndian};
-use memory::Word;
 use std::io::{self, BufRead, Read, Write};
 use std::num::ParseIntError;
 
