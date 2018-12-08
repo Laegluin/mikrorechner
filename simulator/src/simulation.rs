@@ -426,7 +426,7 @@ impl Display for State {
 mod test {
     use super::*;
     use crate::asm;
-    use crate::vm::Reg;
+    use crate::vm::{ErrorKind, Reg};
     use std::io::Cursor;
 
     #[test]
@@ -457,5 +457,36 @@ mod test {
         breaks.push(40);
 
         run(mem, breaks).unwrap();
+    }
+
+    #[test]
+    fn halt_on_divide_by_zero() {
+        let src = Cursor::new(&include_bytes!("../tests/divide_by_zero.img.txt")[..]);
+        let mut img = Vec::new();
+        asm::assemble(src, &mut img).unwrap();
+
+        let mut mem = Memory::new();
+        mem.store(0, &img).unwrap();
+
+        match run(mem, Breakpoints::new()) {
+            Err(SimError::Vm(VmError {
+                kind: ErrorKind::DivideByZero,
+                ..
+            })) => (),
+            Err(actual) => panic!("{:?}", actual),
+            Ok(_) => panic!("expected error"),
+        }
+    }
+
+    #[test]
+    fn no_panic_on_overflow() {
+        let src = Cursor::new(&include_bytes!("../tests/overflows.img.txt")[..]);
+        let mut img = Vec::new();
+        asm::assemble(src, &mut img).unwrap();
+
+        let mut mem = Memory::new();
+        mem.store(0, &img).unwrap();
+
+        run(mem, Breakpoints::new()).unwrap();
     }
 }

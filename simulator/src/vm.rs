@@ -4,15 +4,15 @@ use log::trace;
 use num_enum::CustomTryInto;
 use rand;
 use std::fmt::{self, Display};
-use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Index, Mul, Shl, Shr, Sub};
+use std::ops::{BitAnd, BitOr, BitXor, Index};
 use std::sync::atomic::{AtomicBool, Ordering};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
 #[derive(Debug)]
 pub struct VmError {
-    at: Option<Word>,
-    kind: ErrorKind,
+    pub at: Option<Word>,
+    pub kind: ErrorKind,
 }
 
 impl VmError {
@@ -48,6 +48,7 @@ impl Display for VmError {
                 len,
                 to_hex(addr)
             ),
+            ErrorKind::DivideByZero => write!(f, "attempt to divide by zero"),
         }?;
 
         if let Some(at) = self.at {
@@ -64,6 +65,7 @@ pub enum ErrorKind {
     IllegalRegister(u8),
     UninitializedMemoryAccess(Word),
     OutOfBoundsMemoryAccess(Word, usize),
+    DivideByZero,
 }
 
 pub struct RegBank {
@@ -233,14 +235,9 @@ impl Op {
     fn from_word(word: Word) -> Result<Op, ErrorKind> {
         let code = word >> (WORD_BITS - OP_CODE_BITS);
 
-        match (code as u8).try_into_Op() {
-            // TODO: mul and div are not implemented yet
-            Ok(op) => match op {
-                Op::Mul | Op::Div => Err(ErrorKind::IllegalInstruction(word)),
-                op => Ok(op),
-            },
-            Err(_) => Err(ErrorKind::IllegalInstruction(word)),
-        }
+        (code as u8)
+            .try_into_Op()
+            .map_err(|_| ErrorKind::IllegalInstruction(word))
     }
 }
 
@@ -308,7 +305,6 @@ pub fn run(
     Ok(Status::Pause)
 }
 
-// TODO: divide by zero and overflows
 fn run_next(regs: &mut RegBank, mem: &mut Memory) -> Result<Status, VmError> {
     use self::Op::*;
 
@@ -323,17 +319,27 @@ fn run_next(regs: &mut RegBank, mem: &mut Memory) -> Result<Status, VmError> {
     let op = Op::from_word(instr).map_err(|kind| VmError::at(instr_addr, kind))?;
 
     let result = match op {
-        Add => binary_op(instr, Word::add, regs),
-        Sub => binary_op(instr, Word::sub, regs),
-        Mul => binary_op(instr, Word::mul, regs),
-        Div => binary_op(instr, Word::div, regs),
+        Add => binary_op(instr, Word::wrapping_add, regs),
+        Sub => binary_op(instr, Word::wrapping_sub, regs),
+        Mul => binary_op(instr, Word::wrapping_mul, regs),
+        Div => binary_op(
+            instr,
+            |l, r| {
+                if r == 0 {
+                    Err(ErrorKind::DivideByZero)
+                } else {
+                    Ok(l / r)
+                }
+            },
+            regs,
+        ),
         And => binary_op(instr, Word::bitand, regs),
         Or => binary_op(instr, Word::bitor, regs),
         Not => not(instr, regs),
         Xor => binary_op(instr, Word::bitxor, regs),
-        ShiftL => binary_op(instr, Word::shl, regs),
-        ShiftR => binary_op(instr, Word::shr, regs),
-        SignedShiftR => binary_op(instr, |l, r| (l as i32 >> r) as Word, regs),
+        ShiftL => binary_op(instr, Word::wrapping_shl, regs),
+        ShiftR => binary_op(instr, Word::wrapping_shr, regs),
+        SignedShiftR => binary_op(instr, |l, r| ((l as i32).wrapping_shr(r)) as Word, regs),
         Copy => copy(instr, regs),
         Set => set(instr, regs),
         CmpEq => cmp(instr, |l, r| l == r, regs),
@@ -364,16 +370,33 @@ fn run_next(regs: &mut RegBank, mem: &mut Memory) -> Result<Status, VmError> {
     result.map_err(|kind| VmError::at(instr_addr, kind))
 }
 
-fn binary_op<F>(instr: Word, op: F, regs: &mut RegBank) -> Result<Status, ErrorKind>
+trait Lift<T, E> {
+    fn lift(value: Self) -> Result<T, E>;
+}
+
+impl<E> Lift<Word, E> for Word {
+    fn lift(value: Word) -> Result<Word, E> {
+        Ok(value)
+    }
+}
+
+impl<E> Lift<Word, E> for Result<Word, E> {
+    fn lift(value: Result<Word, E>) -> Result<Word, E> {
+        value
+    }
+}
+
+fn binary_op<F, R>(instr: Word, op: F, regs: &mut RegBank) -> Result<Status, ErrorKind>
 where
-    F: FnOnce(Word, Word) -> Word,
+    F: FnOnce(Word, Word) -> R,
+    R: Lift<Word, ErrorKind>,
 {
     let dst = Reg::from_word(instr, RegPos::Dst)?;
     let lhs = Reg::from_word(instr, RegPos::Arg1)?;
     let rhs = Reg::from_word(instr, RegPos::Arg2)?;
 
     let value = op(regs[lhs], regs[rhs]);
-    regs.set(dst, value);
+    regs.set(dst, R::lift(value)?);
     Ok(Status::Pause)
 }
 
@@ -416,7 +439,7 @@ where
 
 fn jmp(instr: Word, regs: &mut RegBank) -> Result<Status, ErrorKind> {
     let addr = regs[Reg::from_word(instr, RegPos::Dst)?];
-    regs.next_instr_addr = addr + regs[Reg::AddrOffset];
+    regs.next_instr_addr = addr.wrapping_add(regs[Reg::AddrOffset]);
     Ok(Status::Pause)
 }
 
@@ -432,7 +455,11 @@ fn load(instr: Word, regs: &mut RegBank, mem: &mut Memory) -> Result<Status, Err
     let src_addr_reg = Reg::from_word(instr, RegPos::Arg1)?;
     let offset = immediate_from_instr(instr, 2);
 
-    let value = mem.load_word(regs[src_addr_reg] + offset + regs[Reg::AddrOffset])?;
+    let addr = regs[src_addr_reg]
+        .wrapping_add(offset)
+        .wrapping_add(regs[Reg::AddrOffset]);
+
+    let value = mem.load_word(addr)?;
     regs.set(dst, value);
     Ok(Status::Pause)
 }
@@ -442,10 +469,11 @@ fn store(instr: Word, regs: &mut RegBank, mem: &mut Memory) -> Result<Status, Er
     let src = Reg::from_word(instr, RegPos::Arg1)?;
     let offset = immediate_from_instr(instr, 2);
 
-    mem.store_word(
-        regs[dst_addr_reg] + offset + regs[Reg::AddrOffset],
-        regs[src],
-    )?;
+    let addr = regs[dst_addr_reg]
+        .wrapping_add(offset)
+        .wrapping_add(regs[Reg::AddrOffset]);
+
+    mem.store_word(addr, regs[src])?;
 
     Ok(Status::Pause)
 }

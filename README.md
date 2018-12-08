@@ -38,6 +38,9 @@ div: 0111 1DDD DDDA AAAA ABBB BBB* **** ****
       op  dst-reg lhs-reg rhs-reg
 ```
 
+Divides the value in `lhs-reg` by the value in `rhs-reg` and stores the result in `dst-reg`.
+Division by zero causes the CPU to halt.
+
 ### Bitwise
 
 ```text
