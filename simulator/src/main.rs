@@ -1,10 +1,10 @@
 extern crate byteorder;
 extern crate crossbeam_channel;
 extern crate env_logger;
+extern crate linefeed;
 extern crate log;
 extern crate num_enum;
 extern crate rand;
-extern crate rustyline;
 extern crate structopt;
 extern crate strum;
 extern crate strum_macros;
@@ -16,13 +16,14 @@ mod support;
 mod vm;
 
 use asm::AsmError;
+use linefeed::ReadResult;
 use memory::{Memory, Word};
-use rustyline::Editor;
 use simulation::{CtrlHandle, Request, Response, SimError};
 use std::fs::{self, File};
 use std::io::{self, BufReader};
 use std::path::PathBuf;
 use std::process;
+use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use structopt::StructOpt;
 use vm::{Breakpoints, Reg, Status, VmError};
@@ -107,57 +108,88 @@ fn run(args: Args) -> Result<(), CliError> {
     mem.store(0, &img).map_err(VmError::new)?;
 
     let sim = simulation::start(mem, Breakpoints::new(), args.start_paused)?;
-    let handle = listen_for_input(sim.ctrl_handle().clone())?;
-    listen_for_events(sim.ctrl_handle());
+
+    let printer = Arc::new(new_printer()?);
+    let handle = listen_for_input(Arc::clone(&printer), sim.ctrl_handle().clone())?;
+    listen_for_events(printer, sim.ctrl_handle());
 
     handle.join().map_err(|_| CliError::CannotJoinInputThread)?;
     sim.join()?;
     Ok(())
 }
 
-fn listen_for_events(sim: &CtrlHandle) {
+type Printer = linefeed::Interface<linefeed::DefaultTerminal>;
+
+fn new_printer() -> Result<Printer, io::Error> {
+    let printer = linefeed::Interface::new("simulator")?;
+
+    printer.set_prompt(":: ")?;
+    printer.set_report_signal(linefeed::Signal::Interrupt, true);
+    printer.set_history_size(1000);
+
+    Ok(printer)
+}
+
+macro_rules! displayln {
+    ($printer: expr, $msg: expr) => {
+        displayln!($printer, $msg,);
+    };
+
+    ($printer: expr, $msg: expr, $($fmt_args: tt)*) => {
+        writeln!($printer.lock_writer_erase().unwrap(), $msg, $($fmt_args)*).unwrap();
+    };
+}
+
+fn listen_for_events(printer: Arc<Printer>, sim: &CtrlHandle) {
     loop {
         match sim.recv() {
-            Response::Pause(Status::Pause) => println!("▶ paused"),
-            Response::Pause(Status::Break) => println!("▶ paused on breakpoint"),
-            Response::Pause(Status::Halt) => println!("▶ halt"),
-            Response::Exception(why) => println!("▶ error: {}", why),
+            Response::Pause(Status::Pause) => displayln!(printer, "▶ paused"),
+            Response::Pause(Status::Break) => displayln!(printer, "▶ paused on breakpoint"),
+            Response::Pause(Status::Halt) => displayln!(printer, "▶ halt"),
+            Response::Exception(why) => displayln!(printer, "▶ error: {}", why),
             Response::Exit => return,
             Response::RegValue(val) | Response::WordValue(val) => {
-                println!("{} ({})", support::to_hex(val), val)
+                displayln!(printer, "{} ({})", support::to_hex(val), val)
             }
-            Response::MemRange(bytes) => println!("{}", support::to_hex_octets(&bytes)),
-            Response::InvalidRequest(why) => println!("error: {}", why),
+            Response::MemRange(bytes) => displayln!(printer, "{}", support::to_hex_octets(&bytes)),
+            Response::InvalidRequest(why) => displayln!(printer, "error: {}", why),
         }
     }
 }
 
-fn listen_for_input(sim: CtrlHandle) -> Result<JoinHandle<()>, CliError> {
+fn listen_for_input(printer: Arc<Printer>, sim: CtrlHandle) -> Result<JoinHandle<()>, CliError> {
     thread::Builder::new()
         .name("input".to_owned())
         .spawn(move || {
-            let mut editor = Editor::<()>::new();
-            for line in editor.iter(":: ") {
-                let line = match line {
+            loop {
+                let result = match printer.read_line() {
                     Ok(line) => line,
                     Err(why) => {
-                        println!("error: {}", why);
+                        displayln!(printer, "error: {}", why);
                         sim.send(Request::Exit);
                         return;
                     }
                 };
 
-                match exec_command(line, &sim) {
-                    Ok(true) => return,
-                    Ok(false) => (),
-                    // TOOD: impl Display
-                    Err(why) => println!("error: {:?}", why),
+                match result {
+                    ReadResult::Input(line) => {
+                        match exec_command(&line, &sim) {
+                            Ok(true) => return,
+                            Ok(false) => printer.add_history(line),
+                            // TOOD: impl Display
+                            Err(why) => displayln!(printer, "error: {:?}", why),
+                        }
+                    }
+                    ReadResult::Eof | ReadResult::Signal(_) => {
+                        sim.send(Request::Exit);
+                        return;
+                    }
                 }
             }
         }).map_err(CliError::Io)
 }
 
-fn exec_command(line: String, sim: &CtrlHandle) -> Result<bool, CliError> {
+fn exec_command(line: &str, sim: &CtrlHandle) -> Result<bool, CliError> {
     let words: Vec<&str> = line
         .split(char::is_whitespace)
         .filter(|word| !word.is_empty())
