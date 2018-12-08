@@ -1,5 +1,6 @@
 use crate::memory::Word;
 use byteorder::{ByteOrder, LittleEndian};
+use std::fmt::{self, Display};
 use std::io::{self, BufRead, Read, Write};
 use std::num::ParseIntError;
 
@@ -7,6 +8,17 @@ use std::num::ParseIntError;
 pub enum AsmError {
     Io(io::Error),
     InvalidWord(ParseIntError),
+}
+
+impl Display for AsmError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use self::AsmError::*;
+
+        match *self {
+            Io(ref why) => write!(f, "an IO error occurred: {}", why),
+            InvalidWord(ref why) => write!(f, "cannot parse line as word: {}", why),
+        }
+    }
 }
 
 /// Converts a simple text file into a binary image that can be loaded by the vm.

@@ -9,6 +9,7 @@ use crate::memory::{Memory, Word};
 use crate::simulation::{CtrlHandle, Request, Response, SimError};
 use crate::vm::{Breakpoints, Reg, Status, VmError};
 use linefeed::ReadResult;
+use std::fmt::{self, Display};
 use std::fs::{self, File};
 use std::io::{self, BufReader};
 use std::path::PathBuf;
@@ -53,6 +54,23 @@ impl From<VmError> for CliError {
     }
 }
 
+impl Display for CliError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use self::CliError::*;
+
+        match *self {
+            Io(ref why) => write!(f, "an IO error occurred: {}", why),
+            Asm(ref why) => write!(f, "cannot convert text file to binary image: {}", why),
+            Sim(ref why) => write!(f, "an error occurred in the simulator: {}", why),
+            Vm(ref why) => write!(f, "{}", why),
+            CannotJoinInputThread => write!(f, "cannot join on the input thread"),
+            IllegalRegister => write!(f, "illegal register"),
+            CannotParseWord(ref src) => write!(f, "cannot parse '{}' as word", src),
+            UnknownCommand => write!(f, "unknown command"),
+        }
+    }
+}
+
 #[derive(StructOpt)]
 struct Args {
     /// The image that is loaded into memory before startup. Addressing
@@ -77,8 +95,7 @@ fn main() {
     match run(Args::from_args()) {
         Ok(_) => process::exit(0),
         Err(why) => {
-            // TODO: add Display impl
-            eprintln!("error: {:?}", why);
+            eprintln!("error: {}", why);
             process::exit(1);
         }
     }
@@ -151,30 +168,25 @@ fn listen_for_events(printer: Arc<Printer>, sim: &CtrlHandle) {
 fn listen_for_input(printer: Arc<Printer>, sim: CtrlHandle) -> Result<JoinHandle<()>, CliError> {
     thread::Builder::new()
         .name("input".to_owned())
-        .spawn(move || {
-            loop {
-                let result = match printer.read_line() {
-                    Ok(line) => line,
-                    Err(why) => {
-                        displayln!(printer, "error: {}", why);
-                        sim.send(Request::Exit);
-                        return;
-                    }
-                };
+        .spawn(move || loop {
+            let result = match printer.read_line() {
+                Ok(line) => line,
+                Err(why) => {
+                    displayln!(printer, "error: {}", why);
+                    sim.send(Request::Exit);
+                    return;
+                }
+            };
 
-                match result {
-                    ReadResult::Input(line) => {
-                        match exec_command(&line, &sim) {
-                            Ok(true) => return,
-                            Ok(false) => printer.add_history(line),
-                            // TOOD: impl Display
-                            Err(why) => displayln!(printer, "error: {:?}", why),
-                        }
-                    }
-                    ReadResult::Eof | ReadResult::Signal(_) => {
-                        sim.send(Request::Exit);
-                        return;
-                    }
+            match result {
+                ReadResult::Input(line) => match exec_command(&line, &sim) {
+                    Ok(true) => return,
+                    Ok(false) => printer.add_history(line),
+                    Err(why) => displayln!(printer, "error: {}", why),
+                },
+                ReadResult::Eof | ReadResult::Signal(_) => {
+                    sim.send(Request::Exit);
+                    return;
                 }
             }
         })

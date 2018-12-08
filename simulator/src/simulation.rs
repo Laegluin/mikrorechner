@@ -29,6 +29,18 @@ impl From<VmError> for SimError {
     }
 }
 
+impl Display for SimError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use self::SimError::*;
+
+        match *self {
+            Io(ref why) => write!(f, "an IO error occurred: {}", why),
+            ThreadPanicked(name) => write!(f, "the {} thread panicked", name),
+            Vm(ref why) => write!(f, "an error occurred during execution: {}", why),
+        }
+    }
+}
+
 /// Immediately starts the simulation and blocks this thread until the VM halts.
 #[allow(unused)]
 pub fn run(mem: Memory, breakpoints: Breakpoints) -> Result<(RegBank, Memory), SimError> {
@@ -473,7 +485,7 @@ mod test {
                 kind: ErrorKind::DivideByZero,
                 ..
             })) => (),
-            Err(actual) => panic!("{:?}", actual),
+            Err(actual) => panic!("{}", actual),
             Ok(_) => panic!("expected error"),
         }
     }
