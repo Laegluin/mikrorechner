@@ -296,12 +296,12 @@ pub fn run(
     pause: &AtomicBool,
 ) -> Result<Status, VmError> {
     while !pause.load(Ordering::Acquire) {
-        if breakpoints.is_breakpoint(regs.next_instr_addr()) {
-            return Ok(Status::Break);
-        }
-
         if run_next(regs, mem)? == Status::Halt {
             return Ok(Status::Halt);
+        }
+
+        if breakpoints.is_breakpoint(regs.next_instr_addr()) {
+            return Ok(Status::Break);
         }
     }
 

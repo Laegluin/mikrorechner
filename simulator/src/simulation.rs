@@ -33,13 +33,20 @@ impl From<VmError> for SimError {
 #[allow(unused)]
 pub fn run(mem: Memory, breakpoints: Breakpoints) -> Result<(RegBank, Memory), SimError> {
     let handle = start(mem, breakpoints, false)?;
+    let mut c = 0;
 
-    match handle.recv() {
-        Response::Exception(err) => return Err(SimError::Vm(err)),
-        Response::Pause(Status::Halt) => handle.send(Request::Exit),
-        Response::Exit => (),
-        // we never generate any requests that could cause other responses
-        _ => unreachable!(),
+    loop {
+        match handle.recv() {
+            Response::Exception(err) => {
+                handle.send(Request::Exit);
+                return Err(SimError::Vm(err));
+            }
+            Response::Pause(Status::Halt) => handle.send(Request::Exit),
+            Response::Pause(Status::Break) => handle.send(Request::Continue),
+            Response::Exit => break,
+            // we never generate any requests that could cause other responses
+            _ => unreachable!(),
+        }
     }
 
     handle.join()
@@ -171,31 +178,30 @@ impl SimThread {
         let handle = thread::Builder::new()
             .name(SIM_THREAD_NAME.to_owned())
             .spawn(move || {
+                let state_clone = Arc::clone(&state);
                 let mut state_guard = state.lock().unwrap();
 
                 loop {
-                    {
-                        let state = &mut *state_guard;
-                        signals.set_is_running(true);
+                    let state = &mut *state_guard;
+                    signals.set_is_running(true);
 
-                        let result = vm::run(
-                            &mut state.regs,
-                            &mut state.mem,
-                            &state.breakpoints,
-                            &signals.pause,
-                        );
+                    let result = vm::run(
+                        &mut state.regs,
+                        &mut state.mem,
+                        &state.breakpoints,
+                        &signals.pause,
+                    );
 
-                        signals.set_is_running(false);
+                    signals.set_is_running(false);
 
-                        match result {
-                            Ok(status) => {
-                                // update status and send notification about the pause
-                                state.status = status;
-                                let _ = resp_sender.send(Response::Pause(status));
-                            }
-                            Err(why) => {
-                                let _ = resp_sender.send(Response::Exception(why));
-                            }
+                    match result {
+                        Ok(status) => {
+                            // update status and send notification about the pause
+                            state.status = status;
+                            let _ = resp_sender.send(Response::Pause(status));
+                        }
+                        Err(why) => {
+                            let _ = resp_sender.send(Response::Exception(why));
                         }
                     }
 
@@ -205,7 +211,7 @@ impl SimThread {
                     // abort if controlling thread set the stop flag
                     if signals.stop.load(Ordering::SeqCst) {
                         let _ = resp_sender.send(Response::Exit);
-                        return Arc::clone(&state);
+                        return state_clone;
                     }
                 }
             })?;
@@ -435,5 +441,21 @@ mod test {
 
         assert_eq!(regs[Reg::R0], 500);
         assert_eq!(regs[Reg::R1], 100);
+    }
+
+    #[test]
+    fn only_break_once() {
+        let src = Cursor::new(&include_bytes!("../tests/sum.img.txt")[..]);
+        let mut img = Vec::new();
+        asm::assemble(src, &mut img).unwrap();
+
+        let mut mem = Memory::new();
+        mem.store(0, &img).unwrap();
+
+        // place breakpoint inside of the loop
+        let mut breaks = Breakpoints::new();
+        breaks.push(40);
+
+        run(mem, breaks).unwrap();
     }
 }
