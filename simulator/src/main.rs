@@ -179,7 +179,7 @@ fn listen_for_input(printer: Arc<Printer>, sim: CtrlHandle) -> Result<JoinHandle
             };
 
             match result {
-                ReadResult::Input(line) => match exec_command(&line, &sim) {
+                ReadResult::Input(line) => match exec_command(&line, &printer, &sim) {
                     Ok(true) => return,
                     Ok(false) => printer.add_history(line),
                     Err(why) => displayln!(printer, "error: {}", why),
@@ -193,7 +193,7 @@ fn listen_for_input(printer: Arc<Printer>, sim: CtrlHandle) -> Result<JoinHandle
         .map_err(CliError::Io)
 }
 
-fn exec_command(line: &str, sim: &CtrlHandle) -> Result<bool, CliError> {
+fn exec_command(line: &str, printer: &Printer, sim: &CtrlHandle) -> Result<bool, CliError> {
     let words: Vec<&str> = line
         .split(char::is_whitespace)
         .filter(|word| !word.is_empty())
@@ -211,12 +211,9 @@ fn exec_command(line: &str, sim: &CtrlHandle) -> Result<bool, CliError> {
         &["mem", start, end] => {
             sim.send(Request::GetMemRange(parse_word(start)?, parse_word(end)?))
         }
-        &["set_break", addr] | &["set_breakpoint", addr] => {
-            sim.send(Request::SetBreakpoint(parse_word(addr)?))
-        }
-        &["remove_break", addr] | &["remove_breakpoint", addr] => {
-            sim.send(Request::RemoveBreakpoint(parse_word(addr)?))
-        }
+        &["set_break", addr] => sim.send(Request::SetBreakpoint(parse_word(addr)?)),
+        &["remove_break", addr] => sim.send(Request::RemoveBreakpoint(parse_word(addr)?)),
+        &["?"] | &["help"] => displayln!(printer, "{}", HELP),
         &["exit"] => {
             sim.send(Request::Exit);
             return Ok(true);
@@ -238,3 +235,23 @@ fn parse_word(word: &str) -> Result<Word, CliError> {
 
     result.map_err(|_| CliError::CannotParseWord(word.to_owned()))
 }
+
+const HELP: &str = r#"Inspect and interact with the simulator.
+
+All commands interacting with the simulators state require the simulation to be paused.
+Numeric literals are interpreted as decimal, but can be prefixed with `0x` for hexadecimal
+or `0b` for binary.
+
+c | continue            Continue execution if paused
+p | pause               Pause execution if currently running
+reg <register>          Display the contents of `register`
+pc                      Display the value of the program counter
+cmp_flag                Display the value of the compare flag
+word <addr>             Display the value of a word in memory starting at `addr`
+mem <start> <end>       Display the contents of the memory starting at `start` (inclusive) and
+                        ending at `end` (exclusive)
+set_break <addr>        Set a breakpoint at `addr`
+remove_break <addr>     Remove all breakpoints at `addr`
+? | help                Display this help message
+exit                    Exit the simulator
+"#;
