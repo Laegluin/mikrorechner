@@ -140,6 +140,8 @@ fn listen_for_events(printer: Arc<Printer>, sim: &CtrlHandle) {
             Response::RegValue(val) | Response::WordValue(val) => {
                 displayln!(printer, "{} ({})", support::to_hex(val), val)
             }
+            Response::NextInstrAddrValue(addr) => displayln!(printer, "{}", support::to_hex(addr)),
+            Response::CmpFlagValue(flag) => displayln!(printer, "{}", flag),
             Response::MemRange(bytes) => displayln!(printer, "{}", support::to_hex_octets(&bytes)),
             Response::InvalidRequest(why) => displayln!(printer, "error: {}", why),
         }
@@ -191,9 +193,17 @@ fn exec_command(line: &str, sim: &CtrlHandle) -> Result<bool, CliError> {
         &["reg", reg] => sim.send(Request::GetReg(
             reg.parse::<Reg>().map_err(|_| CliError::IllegalRegister)?,
         )),
+        &["pc"] => sim.send(Request::GetNextInstrAddr),
+        &["cmp_flag"] => sim.send(Request::GetCmpFlag),
         &["word", addr] => sim.send(Request::GetWord(parse_word(addr)?)),
         &["mem", start, end] => {
             sim.send(Request::GetMemRange(parse_word(start)?, parse_word(end)?))
+        }
+        &["set_break", addr] | &["set_breakpoint", addr] => {
+            sim.send(Request::SetBreakpoint(parse_word(addr)?))
+        }
+        &["remove_break", addr] | &["remove_breakpoint", addr] => {
+            sim.send(Request::RemoveBreakpoint(parse_word(addr)?))
         }
         &["exit"] => {
             sim.send(Request::Exit);

@@ -88,12 +88,16 @@ impl RegBank {
         }
     }
 
-    fn incr_instr_addr(&mut self) {
-        self.next_instr_addr += WORD_BYTES;
+    pub fn next_instr_addr(&self) -> Word {
+        self.next_instr_addr
     }
 
-    fn next_instr_addr(&self) -> Word {
-        self.next_instr_addr
+    pub fn cmp_flag(&self) -> bool {
+        self.cmp_flag
+    }
+
+    fn incr_instr_addr(&mut self) {
+        self.next_instr_addr += WORD_BYTES;
     }
 
     fn is_cmp_set(&self) -> bool {
@@ -250,6 +254,12 @@ impl Breakpoints {
     pub fn push(&mut self, addr: Word) {
         if let Err(idx) = self.0.binary_search(&addr) {
             self.0.insert(idx, addr);
+        }
+    }
+
+    pub fn remove(&mut self, addr: Word) {
+        if let Ok(idx) = self.0.binary_search(&addr) {
+            self.0.remove(idx);
         }
     }
 

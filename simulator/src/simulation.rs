@@ -284,6 +284,24 @@ impl CtrlThread {
                                 send(Response::InvalidRequest(RequestError::SimulationNotPaused));
                             }
                         }
+                        Request::GetNextInstrAddr => {
+                            if !signals.is_running() {
+                                send(Response::NextInstrAddrValue(
+                                    state.lock().unwrap().regs.next_instr_addr(),
+                                ));
+                            } else {
+                                send(Response::InvalidRequest(RequestError::SimulationNotPaused));
+                            }
+                        }
+                        Request::GetCmpFlag => {
+                            if !signals.is_running() {
+                                send(Response::CmpFlagValue(
+                                    state.lock().unwrap().regs.cmp_flag(),
+                                ));
+                            } else {
+                                send(Response::InvalidRequest(RequestError::SimulationNotPaused));
+                            }
+                        }
                         Request::GetWord(addr) => {
                             let mut state = state.lock().unwrap();
 
@@ -317,6 +335,20 @@ impl CtrlThread {
                                 ))),
                             }
                         }
+                        Request::SetBreakpoint(addr) => {
+                            if !signals.is_running() {
+                                state.lock().unwrap().breakpoints.push(addr);
+                            } else {
+                                send(Response::InvalidRequest(RequestError::SimulationNotPaused));
+                            }
+                        }
+                        Request::RemoveBreakpoint(addr) => {
+                            if !signals.is_running() {
+                                state.lock().unwrap().breakpoints.remove(addr);
+                            } else {
+                                send(Response::InvalidRequest(RequestError::SimulationNotPaused));
+                            }
+                        }
                     }
                 }
             })?;
@@ -330,8 +362,12 @@ pub enum Request {
     Pause,
     Exit,
     GetReg(Reg),
+    GetNextInstrAddr,
+    GetCmpFlag,
     GetWord(Word),
     GetMemRange(Word, Word),
+    SetBreakpoint(Word),
+    RemoveBreakpoint(Word),
 }
 
 pub enum Response {
@@ -339,6 +375,8 @@ pub enum Response {
     Pause(Status),
     Exception(VmError),
     RegValue(Word),
+    NextInstrAddrValue(Word),
+    CmpFlagValue(bool),
     WordValue(Word),
     MemRange(Box<[u8]>),
     InvalidRequest(RequestError),
