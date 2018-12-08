@@ -8,7 +8,9 @@
 
 ## Instruction Set
 
-All instructions are 32-bit words.
+All instructions are 32-bit words. In all instructions, if the instruction takes more than
+one register as argument, the register arguments are allowed to overlap. For example,
+`add r0 r0 r0` is allowed and will double the value of `r0`.
 
 ### Arithmetic
 
