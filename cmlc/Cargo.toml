@@ -5,3 +5,4 @@ authors = ["Robin Mirow <robinmirow@live.com>"]
 edition = "2018"
 
 [dependencies]
+codespan = "0.2.0"

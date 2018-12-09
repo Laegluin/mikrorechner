@@ -1,3 +1,9 @@
+mod lexer;
+mod span;
+
+use crate::lexer::StrStream;
+
 fn main() {
-    println!("Hello, world!");
+    let tokens = lexer::lex(StrStream::new(include_str!("../tests/syntax.cml"))).unwrap();
+    println!("{:#?}", tokens);
 }

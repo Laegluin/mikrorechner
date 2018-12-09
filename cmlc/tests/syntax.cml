@@ -2,10 +2,11 @@ type Variant =
     | One
     | Two i32
     | Three i32, i32
-    | User User
+    | User User;
 
 fn variant = -> Variant {
-    Variant::Three: 1, 2
+    let a = Variant::Three: 1, 2;
+    let b = Variant::One;
 }
 
 type User = {
@@ -20,7 +21,9 @@ fn user = -> User {
     }
 }
 
-type SpecialFn = i32, i32 -> i32;
+type SpecialFn = *fn i32, i32 -> i32;
+type NoReturnFn = *fn i32, i32;
+type ZeroArgFn = *fn -> i32;
 
 fn add_three = first: i32, second: i32, third: i32 -> i32 {
     first + second + third
@@ -35,20 +38,17 @@ fn do_stuff = {
 }
 
 fn get_stuff = -> i32 {
-
+    42
 }
 
 fn main = -> i32 {
     function_call: arg1, arg2, arg3;
     named_args: arg1 = 1, arg2 = 2, arg3 = 3;
     object method_call: arg1, arg2;
+    let array: [i32; 3] = [1, 2, 3];
 
-    // sugar for zero arg fns
     object zero_arg_method!;
-    object zero_arg_method: ();
-
     zero_arg_function!;
-    zero_arg_function: ();
 
     // method chaining
     open_file: "test.txt"
@@ -59,11 +59,36 @@ fn main = -> i32 {
         set_name: "changed.txt"
         close!;
 
-    new_file: "test" close!;
-
-    if open?: "file" {
+    if is_open: "file" {
         ret 0;
     } else {
         ret -1;
     }
+
+    fn plus = lhs: i32, rhs: i32 -> i32 {
+        lhs + rhs
+    }
+
+    if 1 + 2 > 0 {
+        let three = 1 plus: 2 plus: 3;
+        let three = plus: (plus: 1, 2), 3
+    }
+
+    if !true && false || true {
+        explode!;
+    }
+}
+
+fn dangling_ptr = -> *mut Record {
+    type Record = {
+        ptr_field: *i32,
+    }
+
+    let some_record = Record {
+        ptr_field = &42,
+    };
+
+    let some_record_ptr: *Record = &some_record;
+    *some_record_ptr.*ptr_field = 42;
+    &mut some_record
 }
