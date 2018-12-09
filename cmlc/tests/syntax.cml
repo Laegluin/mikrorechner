@@ -1,0 +1,69 @@
+type Variant =
+    | One
+    | Two i32
+    | Three i32, i32
+    | User User
+
+fn variant = -> Variant {
+    Variant::Three: 1, 2
+}
+
+type User = {
+    id: i32,
+    name: &str,
+}
+
+fn user = -> User {
+    User {
+        id = 1,
+        name = "name",
+    }
+}
+
+type SpecialFn = i32, i32 -> i32;
+
+fn add_three = first: i32, second: i32, third: i32 -> i32 {
+    first + second + third
+}
+
+fn println = msg: &str {
+
+}
+
+fn do_stuff = {
+
+}
+
+fn get_stuff = -> i32 {
+
+}
+
+fn main = -> i32 {
+    function_call: arg1, arg2, arg3;
+    named_args: arg1 = 1, arg2 = 2, arg3 = 3;
+    object method_call: arg1, arg2;
+
+    // sugar for zero arg fns
+    object zero_arg_method!;
+    object zero_arg_method: ();
+
+    zero_arg_function!;
+    zero_arg_function: ();
+
+    // method chaining
+    open_file: "test.txt"
+        truncate: true
+        write: true
+        clear!
+        set_permissions: "rwx", "r-x", "r-x",
+        set_name: "changed.txt"
+        close!;
+
+    new_file: "test" close!;
+
+    if open?: "file" {
+        ret 0;
+    } else {
+        ret -1;
+    }
+}
