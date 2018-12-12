@@ -22,6 +22,7 @@ entity decoder is
         alu_opc      : out      unsigned(4 downto 0);    -- spart man sich nen mux
         A,B,C        : out      unsigned(adr_Width-1 downto 0);
         reg_imm      : out      unsigned(bit_Width-1 downto 0);
+        jump_imm     : out      unsigned(adr_Width-1 downto 0);  -- auch hier mux gespart
         jump_offset  : out      signed(bit_Width-1 downto 0);
         mem_offset   : out      unsigned(bit_Width-1 downto 0)
     );
@@ -56,6 +57,7 @@ begin
             reg_imm     <= reg_imm_ext & instruction(bit_Width-opcode_Bits-adr_Width-1 downto 0);
             jump_offset <= jump_offset_ext & signed(instruction(bit_Width-opcode_Bits-1 downto 1)) & signed(instruction(1 downto 0));
             mem_offset  <= mem_offset_ext & instruction(bit_Width-opcode_Bits-(2*adr_Width)-1 downto 0);
+            jump_imm    <= instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-adr_Width);
 
             end if;
         else
