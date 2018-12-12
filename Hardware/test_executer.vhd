@@ -23,16 +23,17 @@ architecture behavior of test_executer is
         pc_in         : in       unsigned(bit_Width-1 downto 0);
         jump_off_in   : in       signed(bit_Width-1 downto 0);
         mem_off_in    : in       unsigned(bit_Width-1 downto 0);
-        reg_imm       : in       unsigned(bit_Width-1 downto 0);
+        reg_imm_in    : in       unsigned(bit_Width-1 downto 0);
         opcode_in     : in       unsigned(opcode_Bits-1 downto 0);
         alu_flag      : in       std_logic;
         jump_to_in    : in       unsigned(bit_Width-1 downto 0);
         C_in          : in       unsigned(bit_Width-1 downto 0); -- register adress of alu-result
 
-        C_out         : out       unsigned(bit_Width-1 downto 0);
+        C_out         : out      unsigned(bit_Width-1 downto 0);
         pc_write_en   : out      std_logic;
         mem_write_en  : out      std_logic;
         reg_write_en  : out      std_logic;
+        reg_imm_out   : out      unsigned(bit_Width-1 downto 0);
         jump_to_out   : out      unsigned(bit_Width-1 downto 0);
         mem_off_out   : out      unsigned(bit_Width-1 downto 0);
         opcode_out    : out      unsigned(bit_Width-1 downto 0)
@@ -44,7 +45,7 @@ architecture behavior of test_executer is
     signal pc_in        : unsigned(bit_Width-1 downto 0);
     signal jump_off_in  : signed(bit_Width-1 downto 0);
     signal mem_off_in   : unsigned(bit_Width-1 downto 0);
-    signal reg_imm      : unsigned(bit_Width-1 downto 0);
+    signal reg_imm_in   : unsigned(bit_Width-1 downto 0);
     signal opcode_in    : unsigned(opcode_Bits-1 downto 0);
     signal alu_flag     : std_logic;
     signal jump_to_in   : unsigned(bit_Width-1 downto 0);
@@ -55,6 +56,7 @@ architecture behavior of test_executer is
     signal pc_write_en  : std_logic;
     signal mem_write_en : std_logic;
     signal reg_write_en : std_logic;
+    signal reg_imm_out  : unsigned(bit_Width-1 downto 0);
     signal jump_to_out  : unsigned(bit_Width-1 downto 0);
     signal mem_off_out  : unsigned(bit_Width-1 downto 0);
     signal opcode_out   : unsigned(bit_Width-1 downto 0);
@@ -72,7 +74,7 @@ begin
         jump_off_in => jump_off_in,
         mem_off_in  => mem_off_in,
 
-        reg_imm    => reg_imm,
+        reg_imm_in => reg_imm_in,
         opcode_in  => opcode_in,
         alu_flag   => alu_flag,
         jump_to_in => jump_to_in,
@@ -83,6 +85,7 @@ begin
         pc_write_en  => pc_write_en,
         mem_write_en => mem_write_en,
         reg_write_en => reg_write_en,
+        reg_imm_out  => reg_imm_out,
 
         jump_to_out  => jump_to_out,
         mem_off_out  => mem_off_out,
