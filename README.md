@@ -187,10 +187,11 @@ halt: 0110 1*** **** **** **** **** **** ****
 ```
 
 ## Assembler Syntax
+```text
 <R> ::= R1 | R2 | ... | R31 | null
 <I> ::= -<X> | ... | <X>
 <X> ::= gültiger Immediatewert für entsprechenden Befehl
-     
+```
 ### Arithmetic
 ```text
 add: <R> = <R> + <R>
