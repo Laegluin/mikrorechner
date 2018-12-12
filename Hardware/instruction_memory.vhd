@@ -24,10 +24,9 @@ port
 end instruction_memory;
 
 architecture behavior of instruction_memory is
---type mem_data is array (0 to 255) of unsigned(bit_Width-1 downto 0); --256 for testing, larger in actual project
 
 subtype word_t  is unsigned(bit_Width- 1 downto 0);
-type    ram_t   is array(0 to 8- 1) of word_t; --temporary depth
+type    ram_t   is array(0 to mem_Depth- 1) of word_t;
 impure function mem_read_file(FileName : STRING) return ram_t is --function to read file into RAM
 file FileHandle       : TEXT open READ_MODE is FileName;
 variable CurrentLine  : LINE;
@@ -35,7 +34,7 @@ variable TempWord     : std_logic_vector(bit_Width- 1 downto 0); -- was (div_cei
 variable Result       : ram_t    := (others => (others => '0'));
 
 begin
-  for i in 0 to 8- 1 loop --temporary depth
+  for i in 0 to mem_Depth- 1 loop
     exit when endfile(FileHandle);
 
     readline(FileHandle, CurrentLine);
