@@ -20,14 +20,12 @@ architecture behavior of test_decoder is
     port
     (
         clk, enable  : in       std_logic;
-        reg_write_en : out      std_logic; -- Schreibmodus fuer Register
-        pc_write_en  : out      std_logic; -- Schreibmodus fuer PC
-        mem_write_en : out      std_logic; -- Schreibmodus fuer Speicher
-
-        pc_in        : in       unsigned(bit_Width-1 downto 0);
-        pc_out       : out      unsigned(bit_Width-1 downto 0);
         instruction  : in       unsigned(bit_Width-1 downto 0);
-        opcode       : buffer   unsigned(4 downto 0);
+        pc_in        : in       unsigned(bit_Width-1 downto 0);
+
+        pc_out       : out      unsigned(bit_Width-1 downto 0);
+        opcode       : out      unsigned(4 downto 0);
+        alu_opc      : out      unsigned(4 downto 0);
         A,B,C        : out      unsigned(adr_Width-1 downto 0);
         reg_imm      : out      unsigned(bit_Width-1 downto 0);
         jump_offset  : out      unsigned(bit_Width-1 downto 0);
@@ -42,9 +40,6 @@ architecture behavior of test_decoder is
 
     -- outputs
     signal pc_out       : unsigned(bit_Width-1 downto 0);
-    signal reg_write_en : std_logic;
-    signal pc_write_en  : std_logic;
-    signal mem_write_en : std_logic;
 
     signal A, B, C      : unsigned(adr_Width-1 downto 0);
     signal reg_imm      : unsigned(bit_Width-1 downto 0);
@@ -52,6 +47,7 @@ architecture behavior of test_decoder is
     signal mem_offset   : unsigned(bit_Width-1 downto 0);
 
     signal opcode       : unsigned(opcode_Bits-1 downto 0);
+    signal alu_opc      : unsigned(opcode_Bits-1 downto 0);
 
 begin
     -- instanziiere UUT
@@ -63,9 +59,6 @@ begin
         pc_in        => pc_in,
         pc_out       => pc_out,
         instruction  => instruction,
-        reg_write_en => reg_write_en,
-        pc_write_en  => pc_write_en,
-        mem_write_en => mem_write_en,
 
         A => A,
         B => B,
@@ -75,7 +68,8 @@ begin
         jump_offset => jump_offset,
         mem_offset  => mem_offset,
 
-        opcode => opcode
+        opcode  => opcode,
+        alu_opc => alu_opc
     );
 
     -- clk process
