@@ -185,3 +185,58 @@ halt: 0110 1*** **** **** **** **** **** ****
       └────┘
         op
 ```
+
+## Assembler Syntax
+<R> ::= R1 | R2 | ... | R31 | null
+<I> ::= -<X> | ... | <X>
+<X> ::= gültiger Immediatewert für entsprechenden Befehl
+     
+### Arithmetic
+```text
+add: <R> = <R> + <R>
+sub: <R> = <R> - <R>
+mul: <R> = <R> * <R>
+div: <R> = <R> / <R>
+```
+
+### Bitwise
+```text
+and: <R> = <R> & <R>
+or: <R> = <R> | <R>
+xor: <R> = <R> ^ <R>
+not: <R> = ~R
+shiftleft: <R> = <R> << <R> times
+shiftright: <R> = <R> >> <R> times
+signed shift right: <R> = <R> >>_s <R> times
+```
+### Registers
+```text
+copy <R> to <R>
+set <R> to <I>
+```
+### Comparisons
+```text
+compare_eq <R> to <R>
+compare_gt <R> to <R>
+compare_ge <R> to <R>
+```
+
+### Jumps
+```text
+jump to <R>
+jump_if to <R>
+jump_rel to <I>
+jump_rel_if to <I>
+```
+### Memory
+```text
+load <R> + <I> to <R>
+load <R> - <I> to <R>
+store <R> + <I> to <R>
+store <R> - <I> to <R>
+```
+### Miscellaneous
+```text
+halt
+noop
+```
