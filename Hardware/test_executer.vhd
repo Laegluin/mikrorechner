@@ -27,7 +27,9 @@ architecture behavior of test_executer is
         opcode_in     : in       unsigned(opcode_Bits-1 downto 0);
         alu_flag      : in       std_logic;
         jump_to_in    : in       unsigned(bit_Width-1 downto 0);
+        C_in          : in       unsigned(bit_Width-1 downto 0); -- register adress of alu-result
 
+        C_out         : out       unsigned(bit_Width-1 downto 0);
         pc_write_en   : out      std_logic;
         mem_write_en  : out      std_logic;
         reg_write_en  : out      std_logic;
@@ -46,8 +48,10 @@ architecture behavior of test_executer is
     signal opcode_in    : unsigned(opcode_Bits-1 downto 0);
     signal alu_flag     : std_logic;
     signal jump_to_in   : unsigned(bit_Width-1 downto 0);
+    signal C_in         : unsigned(bit_Width-1 downto 0);
 
     -- outputs
+    signal C_out        : unsigned(bit_Width-1 downto 0);
     signal pc_write_en  : std_logic;
     signal mem_write_en : std_logic;
     signal reg_write_en : std_logic;
@@ -72,6 +76,9 @@ begin
         opcode_in  => opcode_in,
         alu_flag   => alu_flag,
         jump_to_in => jump_to_in,
+
+        C_in  => C_in,
+        C_out => C_out,
 
         pc_write_en  => pc_write_en,
         mem_write_en => mem_write_en,

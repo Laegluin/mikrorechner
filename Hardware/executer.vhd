@@ -23,7 +23,9 @@ entity executer is
         opcode_in     : in       unsigned(opcode_Bits-1 downto 0);
         alu_flag      : in       std_logic;
         jump_to_in    : in       unsigned(bit_Width-1 downto 0);
+        C_in          : in       unsigned(bit_Width-1 downto 0);
 
+        C_out         : out      unsigned(bit_Width-1 downto 0);
         pc_write_en   : out      std_logic;
         mem_write_en  : out      std_logic;
         reg_write_en  : out      std_logic;
@@ -47,7 +49,7 @@ begin
             reg_write_en <= '0';
             pc_write_en  <= '0';
             mem_write_en <= '0';
-
+            C_out        <= C_in;
 
 
 
