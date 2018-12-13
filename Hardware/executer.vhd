@@ -26,13 +26,14 @@ entity executer is
         C_in          : in       unsigned(bit_Width-1 downto 0);
 
         C_out         : out      unsigned(bit_Width-1 downto 0);
+        pc_enable     : out      std_logic;  -- fuer den halt befehl
         pc_write_en   : out      std_logic;
         mem_write_en  : out      std_logic;
         mem_read_en   : out      std_logic;
         reg_write_en  : out      std_logic;
         reg_sel       : out      std_logic;                         --Register MUX: 1 for IMM, 0 for WB
         reg_imm_out   : out      unsigned(bit_Width-1 downto 0);
-        wb_control    : out      unsigned(1 downto 0);              
+        wb_control    : out      unsigned(1 downto 0);
         jump_to_out   : out      unsigned(bit_Width-1 downto 0);
         mem_off_out   : out      unsigned(bit_Width-1 downto 0);
         opcode_out    : out      unsigned(bit_Width-1 downto 0)
@@ -50,6 +51,7 @@ begin
         if rising_edge(clk) and enable = '1' then
 
             -- init output
+            pc_enable    <= '1';
             reg_write_en <= '0';
             pc_write_en  <= '0';
             mem_write_en <= '0';
@@ -117,14 +119,14 @@ begin
                 --STORE
                 when "01011" =>
                     mem_write_en <= '1';
-                    
+
                     --Anderes
---                --NOOP
---                when "01100" =>
---                    ? <=
---                --HALT
---                when "01101" =>
---                    ? <=
+                --NOOP
+                when "01100" =>
+                    null;              -- do nothing
+                --HALT
+                when "01101" =>
+                    pc_enable <= '0';  -- pc einfrieren
 
                 when others =>
                     reg_write_en <= '0';
