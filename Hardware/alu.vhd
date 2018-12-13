@@ -35,6 +35,13 @@ begin
 
         case(opcode) 
             is
+
+                -- Register-Operationen
+            -- COPY
+                -- Wert aus Register B kopiert nach Register C
+            when "00001" =>
+                ALU_Result <= B;
+
                 -- Arithmetische Operationen mit Registern
             -- ADD
             when "00000" =>
