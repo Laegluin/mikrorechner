@@ -31,7 +31,6 @@ entity executer is
         mem_write_en  : out      std_logic;
         mem_read_en   : out      std_logic;
         reg_write_en  : out      std_logic;
-        reg_sel       : out      std_logic;                         --Register MUX: 1 for IMM, 0 for WB
         reg_imm_out   : out      unsigned(bit_Width-1 downto 0);
         wb_control    : out      unsigned(1 downto 0);
         jump_to_out   : out      unsigned(bit_Width-1 downto 0);
@@ -57,7 +56,6 @@ begin
             mem_write_en <= '0';
             wb_control   <= "00";
             mem_read_en  <= '0';
-            reg_sel      <= '0';
             C_out        <= C_in;
 
 
@@ -68,13 +66,12 @@ begin
 --                --COPY
                 when "00001" =>
                     reg_write_en <= '1';
-                    wb_control <= "11";
-                    reg_sel <= '0';
+                    wb_control <= "10";
                 --SET
                 when "01010" =>
-                   reg_imm_out <= reg_imm_in;
-                   reg_sel <= '1';
-                   reg_write_en <= '1';
+                    wb_control <= "11";
+                    reg_imm_out <= reg_imm_in;
+                    reg_write_en <= '1';
 
                   --ALU-Operationen
                 -- bei denen Write-Back des Ergebnisses noetig ist
@@ -86,7 +83,6 @@ begin
                    | "10100" | "10101" | "10110" => 
                     reg_write_en <= '1';
                     wb_control   <= "10";
-                    reg_sel      <= '0';
 
                   --Spruenge
                  --JMP
@@ -115,7 +111,6 @@ begin
                     mem_read_en  <= '1';
                     reg_write_en <= '1';
                     wb_control   <= "01";
-                    reg_sel      <= '0';
                 --STORE
                 when "01011" =>
                     mem_write_en <= '1';
@@ -134,7 +129,6 @@ begin
                     mem_write_en <= '0';
                     wb_control   <= "00";
                     mem_read_en  <= '0';
-                    reg_sel <= '0';
 
 
             end case;
