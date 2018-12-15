@@ -13,6 +13,7 @@ entity registerbank is
 port(
     clk, rst: in std_logic;
     reg_write_en: in std_logic;
+    reg_offset_en: in std_logic;
     reg_write_addr: in unsigned(adr_Width-1 downto 0);
     reg_write_data: in unsigned(bit_Width-1 downto 0);
     reg_read_addr_A: in unsigned(5 downto 0);
@@ -29,7 +30,7 @@ signal data_a : unsigned(bit_Width-1 downto 0);
 signal data_b : unsigned(bit_Width-1 downto 0);
 
 begin
-    process(clk, rst, reg_read_addr_A, reg_read_addr_B)
+    process(clk, rst, reg_read_addr_A, reg_read_addr_B, reg_offset_en)
 	variable offset_register : unsigned(bit_Width-1 downto 0) := to_unsigned(0, bit_Width); --not sure if this is smart...
     begin
         if(rst='1') then
@@ -41,12 +42,12 @@ begin
                 else    
                     reg_array(to_integer(unsigned(reg_write_addr(adr_Width-2 downto 0)))) <= reg_write_data;
                 end if;
-	    end if;
+	        end if;
         end if;
 
-	case(reg_read_addr_A) is
+	    case(reg_read_addr_A) is
         	when "100000" =>
-            		data_a <= to_unsigned(0, data_a'length);
+            		data_a <= to_unsigned(0, bit_Width);
         	when "100001" =>
             		data_a <= offset_register;
 		    when "UUUUUU" =>
@@ -55,16 +56,24 @@ begin
             		data_a <= reg_array(to_integer(unsigned(reg_read_addr_A(adr_Width-2 downto 0)))); --only 5 bit for allpurpose registers
     	end case;
 
-    	case(reg_read_addr_B) is
-        	when "100000" =>
-            		data_b <= to_unsigned(0, data_b'length);
-        	when "100001" =>
-            		data_b <= offset_register;
-        	when "UUUUUU" => 
-			--for first commands
-        	when others =>
-            		data_b <= reg_array(to_integer(unsigned(reg_read_addr_B(adr_Width-2 downto 0)))); --only 5 bit for allpurpose registers
-    	end case;
+        if(reg_offset_en='1') then
+        (
+            data_b <= offset_register;
+        )
+        else
+        (
+            case(reg_read_addr_B) is
+                when "100000" =>
+                        data_b <= to_unsigned(0, bit_Width);
+                when "100001" =>
+                        data_b <= offset_register;
+                when "UUUUUU" => 
+                --for first commands
+                when others =>
+                        data_b <= reg_array(to_integer(unsigned(reg_read_addr_B(adr_Width-2 downto 0)))); --only 5 bit for allpurpose registers
+            end case;
+        )
+        end if;
     end process;
     
     reg_read_data_A <= data_a;

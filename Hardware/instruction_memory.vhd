@@ -18,7 +18,6 @@ port
 (
     clk, rst: in std_logic;
     mem_address: in unsigned(bit_Width-1 downto 0); --assuming 32Bit address
-    mem_read_on: in std_logic;
     mem_out: out unsigned(bit_Width-1 downto 0)
 );
 end instruction_memory;
@@ -57,12 +56,7 @@ begin
             ram <= mem_read_file("/informatik2/students/home/6lahann/Projekt/work/instruction_mem.hex");
 		--full filepath must always be specified!
         else
-            if(mem_read_on = '1') then
-                mem_read_data <= ram(to_integer(mem_address(2 downto 0))); 
-            else 
-                mem_read_data <= to_unsigned(0, mem_read_data'length);
-            end if;
-            
+            mem_read_data <= ram(to_integer(mem_address(2 downto 0)));        
         end if;
     end process;
 
