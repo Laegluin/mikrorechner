@@ -140,6 +140,12 @@ impl StrStream<'_> {
     }
 }
 
+impl<'s> From<&'s str> for StrStream<'s> {
+    fn from(string: &str) -> StrStream {
+        StrStream::new(string)
+    }
+}
+
 #[derive(Debug)]
 pub enum LexError {
     UnknownToken,
@@ -147,7 +153,8 @@ pub enum LexError {
     MissingStringEndDelimiter,
 }
 
-pub fn lex(mut stream: StrStream<'_>) -> Result<Vec<Spanned<Token>>, Spanned<LexError>> {
+pub fn lex<'a>(stream: impl Into<StrStream<'a>>) -> Result<Vec<Spanned<Token>>, Spanned<LexError>> {
+    let mut stream = stream.into();
     let mut char_buf = String::new();
     let mut tokens = Vec::new();
 
