@@ -11,7 +11,7 @@ fn variant = -> Variant {
 
 type User = {
     id: i32,
-    name: &str,
+    name: *str,
 }
 
 fn user = -> User {
@@ -29,7 +29,7 @@ fn add_three = first: i32, second: i32, third: i32 -> i32 {
     first + second + third
 }
 
-fn println = msg: &str {
+fn println = msg: *str {
 
 }
 

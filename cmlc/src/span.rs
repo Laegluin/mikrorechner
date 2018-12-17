@@ -1,13 +1,15 @@
-use codespan::ByteSpan;
+pub use codespan::ByteIndex as Index;
+pub use codespan::ByteOffset as Offset;
+pub use codespan::ByteSpan as Span;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Spanned<T> {
     value: T,
-    span: ByteSpan,
+    span: Span,
 }
 
 impl<T> Spanned<T> {
-    pub fn new(value: T, span: ByteSpan) -> Spanned<T> {
+    pub fn new(value: T, span: Span) -> Spanned<T> {
         Spanned { value, span }
     }
 }

@@ -1,5 +1,5 @@
-use crate::span::Spanned;
-use codespan::{ByteIndex, ByteOffset, ByteSpan};
+use crate::ast::Ident;
+use crate::span::{Index, Offset, Span, Spanned};
 use std::rc::Rc;
 
 #[derive(Debug)]
@@ -48,9 +48,6 @@ pub enum Keyword {
 }
 
 #[derive(Debug)]
-pub struct Ident(Rc<str>);
-
-#[derive(Debug)]
 pub enum Lit {
     Str(Rc<str>),
     Int(u32),
@@ -60,8 +57,8 @@ pub enum Lit {
 pub struct StrStream<'s> {
     input: &'s str,
     next_char_idx: usize,
-    next_byte_idx: ByteIndex,
-    start_byte_idx: ByteIndex,
+    next_byte_idx: Index,
+    start_byte_idx: Index,
 }
 
 impl StrStream<'_> {
@@ -69,8 +66,8 @@ impl StrStream<'_> {
         StrStream {
             input,
             next_char_idx: 0,
-            next_byte_idx: ByteIndex(0),
-            start_byte_idx: ByteIndex(0),
+            next_byte_idx: Index(0),
+            start_byte_idx: Index(0),
         }
     }
 
@@ -98,7 +95,7 @@ impl StrStream<'_> {
 
         if let Some(c) = next {
             self.next_char_idx += 1;
-            self.next_byte_idx += ByteOffset::from_char_utf8(c);
+            self.next_byte_idx += Offset::from_char_utf8(c);
         }
 
         next
@@ -117,26 +114,26 @@ impl StrStream<'_> {
     /// next char's position (exclusive).
     ///
     /// Use `advance_start` to set the current span start.
-    pub fn span(&self) -> ByteSpan {
-        ByteSpan::new(self.start_byte_idx, self.next_byte_idx)
+    pub fn span(&self) -> Span {
+        Span::new(self.start_byte_idx, self.next_byte_idx)
     }
 
     /// Returns the span for the current char, or an empty span if there is not current char.
-    pub fn span_at_current(&self) -> ByteSpan {
-        ByteSpan::new(
+    pub fn span_at_current(&self) -> Span {
+        Span::new(
             self.next_byte_idx - self.current_char_offset(),
             self.next_byte_idx,
         )
     }
 
-    fn current_char_offset(&self) -> ByteOffset {
+    fn current_char_offset(&self) -> Offset {
         if self.next_char_idx == 0 {
-            return ByteOffset(0);
+            return Offset(0);
         }
 
         // the previous char must always exist since the index wouldn't have advanced otherwise
         let current_char = self.input[self.next_char_idx - 1..].chars().next().unwrap();
-        ByteOffset::from_char_utf8(current_char)
+        Offset::from_char_utf8(current_char)
     }
 }
 
@@ -205,7 +202,7 @@ pub fn lex<'a>(stream: impl Into<StrStream<'a>>) -> Result<Vec<Spanned<Token>>, 
                     tokens.push(Spanned::new(token, stream.span()));
                 } else {
                     tokens.push(Spanned::new(
-                        Token::Ident(Ident(Rc::from(char_buf.as_str()))),
+                        Token::Ident(Ident::new(&char_buf)),
                         stream.span(),
                     ));
                 }
