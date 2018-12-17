@@ -98,6 +98,7 @@ def check_format(input,path):
         s = re.sub(r'#(.)*','',s)
         s = s.replace('null','R32')
         words = re.sub("[\s]", " ", s).split()
+        #das ganze vielleicht eher wie beim neuen ansatz machen mit optionen
         #liste mit: [[opcodes],befehlswortIndex, registerSchreiben?, registerIndexe?, restImmediate?, [indexe], laengeImmediate,wordImmediate]
         if re.match(r'(R)\d{1,2}\s+(=)\s+(R)\d{1,2}\s+[+-/*^&|]\s+(R)\d{1,2}\s*$',s):  # format für arithmetische Befehle
             l = [['+', '-', '/', '*', '&', '|', '^'], 3 ,1,0,0]
@@ -171,10 +172,18 @@ def show_output_array(a):
 def save_binary(a,s):
     try:
         with open(s, 'wb+') as f:
-            for w in a: pickle.dump(int(w,2),f)
+            for w in a:
+                w = little_endian(w)
+                pickle.dump(int(w,2),f)
             f.close()
     except IOError as e:
         print("Konnte Binärdatei nicht lesen oder schreiben (%s)." % e)
+
+def little_endian(w):
+    a = ""
+    for i in range(1,33):
+        a += w[-i]
+    return a
 
 #source ist pfad zu aktueller Datei
 def start(source):
