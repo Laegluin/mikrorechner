@@ -160,6 +160,9 @@ jmp_rel_if: 0100 1III IIII IIII IIII IIII IIII IIII
 
 ### Memory
 
+Both instructions use byte-addressing. The offset is interpreted as unsigned integer that is
+added to the base address.
+
 ```text
 load: 0101 0DDD DDDS SSSS SIII IIII IIII IIII
       └────┘└─────┘└──────┘└────────────────┘
