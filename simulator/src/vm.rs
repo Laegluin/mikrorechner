@@ -438,7 +438,7 @@ where
 }
 
 fn jmp(instr: Word, regs: &mut RegBank) -> Result<Status, ErrorKind> {
-    let addr = regs[Reg::from_word(instr, RegPos::Dst)?];
+    let addr = regs[Reg::from_word(instr, RegPos::Arg1)?];
     regs.next_instr_addr = addr.wrapping_add(regs[Reg::AddrOffset]);
     Ok(Status::Pause)
 }
