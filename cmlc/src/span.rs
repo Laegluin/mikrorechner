@@ -12,4 +12,11 @@ impl<T> Spanned<T> {
     pub fn new(value: T, span: Span) -> Spanned<T> {
         Spanned { value, span }
     }
+
+    pub fn map<U>(self, mapper: impl FnOnce(T) -> U) -> Spanned<U> {
+        Spanned {
+            value: mapper(self.value),
+            span: self.span,
+        }
+    }
 }

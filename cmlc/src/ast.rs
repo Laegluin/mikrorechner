@@ -126,6 +126,7 @@ pub enum UnOpKind {
     Not,
     AddrOf,
     AddrOfMut,
+    Deref,
 }
 
 #[derive(Debug)]
