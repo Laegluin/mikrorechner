@@ -23,7 +23,7 @@ entity decoder is
         A,B,C        : out      unsigned(adr_Width-1 downto 0);
         reg_imm      : out      unsigned(bit_Width-1 downto 0);
         jump_imm     : out      unsigned(adr_Width-1 downto 0);  -- auch hier mux gespart
-        jump_offset  : out      signed(bit_Width-1 downto 0);
+        jump_offset  : out      unsigned(bit_Width-1 downto 0);
         mem_offset   : out      unsigned(bit_Width-1 downto 0)
     );
 
@@ -32,9 +32,13 @@ end entity decoder;
 architecture behavior of decoder is
 
     -- sign extention
-signal reg_imm_ext     : unsigned(bit_Width - reg_offset_Bits -1 downto 0)  := (others => '0');
-signal jump_offset_ext : signed(bit_Width - jump_offset_Bits -2 downto 0) := (others => '0');
-signal mem_offset_ext  : unsigned(bit_Width - mem_offset_Bits -1 downto 0)  := (others => '0');
+signal sign_temp        : unsigned(bit_Width-1 downto bit_Width-2); 
+
+signal reg_imm_ext      : unsigned(bit_Width - reg_offset_Bits -1 downto 0)  := (others => '0');
+signal jump_offset_ext1 : unsigned(bit_Width - jump_offset_Bits -1 downto 0) := (others => '0');
+signal Jump_offset_ext0 : unsigned(bit_Width - jump_offset_Bits -1 downto 0) := (others => '1');
+
+signal mem_offset_ext   : unsigned(bit_Width - mem_offset_Bits -1 downto 0)  := (others => '0');
 
 
 begin
@@ -51,13 +55,23 @@ begin
             opcode      <= instruction(bit_Width-1 downto bit_Width-opcode_Bits);
 
             alu_opc     <= instruction(bit_Width-1 downto bit_Width-opcode_Bits);
+
             C           <= instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-adr_Width);
-            B           <= instruction(bit_Width-opcode_Bits-adr_Width-1 downto bit_Width-opcode_Bits-(2*adr_Width));
-            A           <= instruction(bit_Width-opcode_Bits-(2*adr_Width)-1 downto bit_Width-opcode_Bits-(3*adr_Width));
+            A           <= instruction(bit_Width-opcode_Bits-adr_Width-1 downto bit_Width-opcode_Bits-(2*adr_Width));
+            B           <= instruction(bit_Width-opcode_Bits-(2*adr_Width)-1 downto bit_Width-opcode_Bits-(3*adr_Width));
+
             reg_imm     <= reg_imm_ext & instruction(bit_Width-opcode_Bits-adr_Width-1 downto 0);
-            jump_offset <= jump_offset_ext & signed(instruction(bit_Width-opcode_Bits-1 downto 1)) & signed(instruction(1 downto 0));
+
+            sign_temp <= instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-2);
+
+            if sign_temp = "0" then
+                jump_offset <= jump_offset_ext0 & instruction(bit_Width-opcode_Bits-1 downto 1);
+            elsif sign_temp = "1" then
+                jump_offset <= jump_offset_ext1 & not instruction(bit_Width-opcode_Bits-1 downto 1) + "1";
+            end if;
+
             mem_offset  <= mem_offset_ext & instruction(bit_Width-opcode_Bits-(2*adr_Width)-1 downto 0);
-            jump_imm    <= instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-adr_Width);
+            jump_imm    <= instruction(bit_Width-opcode_Bits-(2*adr_Width)-1 downto bit_Width-opcode_Bits-(3*adr_Width));
 
             end if;
         else

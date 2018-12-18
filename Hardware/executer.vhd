@@ -17,7 +17,7 @@ entity executer is
     (
         clk, enable   : in       std_logic;
         pc_in         : in       unsigned(bit_Width-1 downto 0);
-        jump_off_in   : in       signed(bit_Width-1 downto 0);
+        jump_off_in   : in       unsigned(bit_Width-1 downto 0);
         mem_off_in    : in       unsigned(bit_Width-1 downto 0);
         reg_imm_in    : in       unsigned(bit_Width-1 downto 0);
         opcode_in     : in       unsigned(opcode_Bits-1 downto 0);
@@ -63,7 +63,7 @@ begin
                 when "00001" =>
                     wb_control <= "10";
                 --SET
-                when "01010" =>
+                when "00010" =>
                     wb_control <= "11";
                     reg_imm_out <= reg_imm_in;
 
@@ -84,7 +84,7 @@ begin
                     pc_write_en <= '1';
                 --JMP_REL
                 when "00111" =>
-                    jump_to_out <= unsigned(signed(pc_in) + jump_off_in);
+                    jump_to_out <= unsigned(pc_in + jump_off_in);
                     pc_write_en <= '1';
                 --JMP_IF
                 when "01000" =>
@@ -95,7 +95,7 @@ begin
                 --JMP_REL_IF
                 when "01001" =>
                     if alu_flag = '1' then
-                        jump_to_out <= unsigned(signed(pc_in) + jump_off_in);
+                        jump_to_out <= unsigned(pc_in + jump_off_in);
                         pc_write_en <= '1';
                     end if;
                     --Speicher
