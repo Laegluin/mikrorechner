@@ -13,18 +13,20 @@ entity decoder is
 
     port
     (
-        clk, enable  : in       std_logic;
-        instruction  : in       unsigned(bit_Width-1 downto 0);
-        pc_in        : in       unsigned(bit_Width-1 downto 0);
+        clk, enable   : in       std_logic;
+        instruction   : in       unsigned(bit_Width-1 downto 0);
+        pc_in         : in       unsigned(bit_Width-1 downto 0);
 
-        pc_out       : out      unsigned(bit_Width-1 downto 0);
-        opcode       : out      unsigned(4 downto 0);
-        alu_opc      : out      unsigned(4 downto 0);    -- spart man sich nen mux
-        A,B,C        : out      unsigned(adr_Width-1 downto 0);
-        reg_imm      : out      unsigned(bit_Width-1 downto 0);
-        jump_imm     : out      unsigned(adr_Width-1 downto 0);  -- auch hier mux gespart
-        jump_offset  : out      unsigned(bit_Width-1 downto 0);
-        mem_offset   : out      unsigned(bit_Width-1 downto 0)
+        pc_out        : out      unsigned(bit_Width-1 downto 0);
+        opcode        : buffer   unsigned(4 downto 0);
+        alu_opc       : out      unsigned(4 downto 0);    -- spart man sich nen mux
+        A,B,C         : out      unsigned(adr_Width-1 downto 0);
+        reg_imm       : out      unsigned(bit_Width-1 downto 0);
+        jump_imm      : out      unsigned(adr_Width-1 downto 0);  -- auch hier mux gespart
+        jump_offset   : out      unsigned(bit_Width-1 downto 0);
+        mem_offset    : out      unsigned(bit_Width-1 downto 0);
+        reg_offset_en : out      std_logic
+
     );
 
 end entity decoder;
@@ -72,6 +74,16 @@ begin
 
             mem_offset  <= mem_offset_ext & instruction(bit_Width-opcode_Bits-(2*adr_Width)-1 downto 0);
             jump_imm    <= instruction(bit_Width-opcode_Bits-(2*adr_Width)-1 downto bit_Width-opcode_Bits-(3*adr_Width));
+
+            -- absolute jumps, load, store => steuersignal an registerbank
+            case (opcode) is
+
+                when "00110" | "01000" | "01010" | "01011" =>
+                reg_offset_en <= '1';
+                when others =>
+                reg_offset_en <= '0';
+
+            end case;
 
             end if;
         else
