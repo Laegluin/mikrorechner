@@ -19,7 +19,7 @@ port
     clk, rst: in std_logic;
     mem_address: in unsigned(bit_Width-1 downto 0); --assuming 32Bit address
     mem_write_data: in unsigned(bit_Width-1 downto 0);
-    mem_read_on, mem_write_on: in std_logic;
+    mem_rw_en: in unsigned(1 downto 0);
     mem_out: out unsigned(bit_Width-1 downto 0)
 );
 end data_memory;
@@ -58,14 +58,13 @@ begin
             ram <= mem_read_file("/informatik2/students/home/6lahann/Projekt/work/data_mem.hex");
 		--full filepath must always be specified!
         else
-            if(rising_edge(clk)) then
-                if(mem_write_on = '1') then
+            if(mem_rw_en = "01") then
+                if(rising_edge(clk)) then
                     ram(to_integer(mem_address(2 downto 0))) <= mem_write_data;
                 end if;
-            end if;
-            if(mem_read_on = '1') then
+            else if(mem_rw_en = "10") then
                 mem_read_data <= ram(to_integer(mem_address(2 downto 0))); 
-            else 
+            else
                 mem_read_data <= to_unsigned(0, mem_read_data'length);
             end if;
                 

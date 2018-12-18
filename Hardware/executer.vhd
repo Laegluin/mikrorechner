@@ -28,9 +28,7 @@ entity executer is
         C_out         : out      unsigned(bit_Width-1 downto 0);
         pc_enable     : out      std_logic;  -- fuer den halt befehl
         pc_write_en   : out      std_logic;
-        mem_write_en  : out      std_logic;
-        mem_read_en   : out      std_logic;
-        reg_write_en  : out      std_logic;
+        mem_rw_en     : out      unsigned(1 downto 0);
         reg_imm_out   : out      unsigned(bit_Width-1 downto 0);
         wb_control    : out      unsigned(1 downto 0);
         jump_to_out   : out      unsigned(bit_Width-1 downto 0);
@@ -51,11 +49,9 @@ begin
 
             -- init output
             pc_enable    <= '1';
-            reg_write_en <= '0';
             pc_write_en  <= '0';
-            mem_write_en <= '0';
             wb_control   <= "00";
-            mem_read_en  <= '0';
+            mem_rw_en    <= "00";
             C_out        <= C_in;
 
 
@@ -65,13 +61,11 @@ begin
                     --Register
 --                --COPY
                 when "00001" =>
-                    reg_write_en <= '1';
                     wb_control <= "10";
                 --SET
                 when "01010" =>
                     wb_control <= "11";
                     reg_imm_out <= reg_imm_in;
-                    reg_write_en <= '1';
 
                   --ALU-Operationen
                 -- bei denen Write-Back des Ergebnisses noetig ist
@@ -81,7 +75,6 @@ begin
                    | "10000" | "10001" | "10010" | "10011"
                    -- shifts
                    | "10100" | "10101" | "10110" => 
-                    reg_write_en <= '1';
                     wb_control   <= "10";
 
                   --Spruenge
@@ -108,12 +101,11 @@ begin
                     --Speicher
 --                --LOAD
                 when "01010" =>
-                    mem_read_en  <= '1';
-                    reg_write_en <= '1';
+                    mem_rw_en    <= "10";
                     wb_control   <= "01";
                 --STORE
                 when "01011" =>
-                    mem_write_en <= '1';
+                    mem_rw_en <= "01";
 
                     --Anderes
                 --NOOP
@@ -124,11 +116,9 @@ begin
                     pc_enable <= '0';  -- pc einfrieren
 
                 when others =>
-                    reg_write_en <= '0';
                     pc_write_en  <= '0';
-                    mem_write_en <= '0';
+                    mem_rw_en    <= "00";
                     wb_control   <= "00";
-                    mem_read_en  <= '0';
 
 
             end case;
