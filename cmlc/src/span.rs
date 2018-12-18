@@ -4,8 +4,8 @@ pub use codespan::ByteSpan as Span;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Spanned<T> {
-    value: T,
-    span: Span,
+    pub value: T,
+    pub span: Span,
 }
 
 impl<T> Spanned<T> {

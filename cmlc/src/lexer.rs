@@ -1,8 +1,8 @@
-use crate::ast::Ident;
+use crate::ast::{Ident, Lit};
 use crate::span::{Index, Offset, Span, Spanned};
 use std::rc::Rc;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Token {
     Ident(Ident),
     Keyword(Keyword),
@@ -36,7 +36,7 @@ pub enum Token {
     Star,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Keyword {
     Fn,
     Type,
@@ -45,13 +45,6 @@ pub enum Keyword {
     Mut,
     If,
     Else,
-}
-
-#[derive(Debug)]
-pub enum Lit {
-    Str(Rc<str>),
-    Int(u32),
-    Bool(bool),
 }
 
 pub struct StrStream<'s> {
