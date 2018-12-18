@@ -135,9 +135,9 @@ Both types come with a conditional variant. Conditional jumps jump only if the c
 otherwise they simply continue with the next instruction.
 
 ```text
-jmp: 0011 0TTT TTT* **** **** **** **** ****
-     └────┘└─────┘
-       op  tgt-addr-reg
+jmp: 0011 0*** ***T TTTT T*** **** **** ****
+     └────┘       └──────┘
+       op       tgt-addr-reg
 ```
 
 ```text
@@ -147,9 +147,9 @@ jmp_rel: 0011 1III IIII IIII IIII IIII IIII IIII
 ```
 
 ```text
-jmp_if: 0100 0TTT TTT* **** **** **** **** ****
-        └────┘└─────┘
-          op  tgt-addr-reg
+jmp_if: 0100 0*** ***T TTTT T*** **** **** ****
+        └────┘       └──────┘
+          op       tgt-addr-reg
 ```
 
 ```text
