@@ -56,6 +56,7 @@ pub struct ParamDef {
 
 #[derive(Debug)]
 pub enum TypeDesc {
+    Hole,
     Name(Ident),
     Ptr(Box<TypeDesc>),
     Function(FunctionDesc),
@@ -83,6 +84,7 @@ pub enum Expr {
     RecordCons(RecordCons),
     Stmt(Box<Expr>),
     LetBinding(LetBinding),
+    IfExpr(IfExpr),
     Block(Block),
 }
 
@@ -166,7 +168,7 @@ pub struct FnCall {
 
 #[derive(Debug)]
 pub struct Arg {
-    pub name: Spanned<Option<Ident>>,
+    pub name: Option<Spanned<Ident>>,
     pub value: Spanned<Expr>,
 }
 
@@ -184,14 +186,23 @@ pub struct MethodCall {
 #[derive(Debug)]
 pub struct LetBinding {
     pub pattern: Spanned<Pattern>,
+    pub ty_hint: Option<Spanned<TypeDesc>>,
     pub expr: Spanned<Box<Expr>>,
 }
 
 #[derive(Debug)]
 pub enum Pattern {
+    Discard,
     Binding(Spanned<Ident>),
     MutBinding(Spanned<Ident>),
     TupleDestructuring(Spanned<Vec<Pattern>>),
+}
+
+#[derive(Debug)]
+pub struct IfExpr {
+    pub cond: Spanned<Box<Expr>>,
+    pub then_block: Spanned<Block>,
+    pub else_block: Option<Spanned<Block>>,
 }
 
 #[derive(Debug)]

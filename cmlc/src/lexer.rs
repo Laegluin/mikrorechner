@@ -30,6 +30,7 @@ pub enum Token {
     Dot,
     Colon,
     DoubleColon,
+    Underscore,
     Amp,
     DoubleAmp,
     Arrow,
@@ -191,7 +192,7 @@ pub fn lex<'a>(stream: impl Into<StrStream<'a>>) -> Result<Vec<Spanned<Token>>, 
                     char_buf.push(c);
                 }
 
-                if let Some(token) = to_keyword_like(&char_buf) {
+                if let Some(token) = reserved_idents(&char_buf) {
                     tokens.push(Spanned::new(token, stream.span()));
                 } else {
                     tokens.push(Spanned::new(
@@ -312,8 +313,9 @@ fn is_ident_char(c: char) -> bool {
     }
 }
 
-fn to_keyword_like(string: &str) -> Option<Token> {
+fn reserved_idents(string: &str) -> Option<Token> {
     match string {
+        "_" => Some(Token::Underscore),
         "true" => Some(Token::Lit(Lit::Bool(true))),
         "false" => Some(Token::Lit(Lit::Bool(false))),
         "fn" => Some(Token::Keyword(Keyword::Fn)),
