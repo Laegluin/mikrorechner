@@ -36,7 +36,7 @@ port
     wb_control_out : out unsigned(1 downto 0);
     C_out : out unsigned(bit_Width-1 downto 0);
     pc_write_enable_out : out std_logic;
-    pc_enable_out : out std_logic;
+    pc_enable_out : out std_logic
 );
 end data_memory;
 
