@@ -128,6 +128,11 @@ begin
                     ALU_Flag <= '0';
                 end if;
 
+                -- Adressen direkter Spruenge mit Offset berechnen
+            -- JMP, JMP_IF
+            when "00110" | "01000" =>
+                ALU_Result <= B;
+
             -- absturz vermeidung, falls fehler im opcode
             when others =>
                 ALU_Result <= (others => '0');

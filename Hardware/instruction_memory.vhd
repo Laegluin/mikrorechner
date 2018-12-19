@@ -50,7 +50,7 @@ signal rom : rom_t := mem_read_file("/informatik2/students/home/6lahann/Projekt/
 signal mem_read_data : unsigned(bit_Width-1 downto 0); 
 
 begin
-    process(clk, rst, mem_read_on, mem_write_on)
+    process(clk, rst)
     begin
         if(rst = '1') then
             rom <= mem_read_file("/informatik2/students/home/6lahann/Projekt/work/instruction_mem.hex");
