@@ -192,25 +192,28 @@ architecture behavior of cpu is
     data_mem : entity work.data_memory
         port map
         (
-            clk               => clk,
-            rst               => mem_rst,
-            mem_address       => mem_address,
-            mem_write_data    => mem_data,
-            mem_rw_en         => MEM_rw_enable,
-            mem_out           => mem_out
+            clk                 => clk,
+            rst                 => mem_rst,
+            mem_address         => mem_address,
+            mem_write_data      => mem_data,
+            mem_rw_en           => MEM_rw_enable,
+            mem_out             => mem_out,
+            mem_offset          => ex_MEM_offset,
 
+            pc_enable_in        => ex_PC_enable,
+            pc_write_enable_in  => ex_PC_write_enable,
+            C_in                => ex_C_data,
+            wb_control_in       => ex_wb_control,
+            reg_imm_in          => ex_REG_immediate,
+            jump_out            => jump_to
+            reg_imm_out         => mem_REG_immediate,
+            wb_control_out      => mem_wb_control,
+            C_out               => mem_C_data,
+            pc_write_enable_out => if_PC_write_enable,
+            pc_enable_out       => if_PC_enable,
+            c_address_in        => ex_C_address,
+            c_address_out       => mem_C_address
         );
-
-
-            --TODO ex_MEM_offset
-
-            --TODO (vielleicht als extra entity)
-            --ex_PC_enable -> if_PC_enable
-            --ex_PC_write_enable -> if_PC_write_enable
-            --ex_C_data -> jump_to 
-            --ex_wb_control -> mem_wb_control
-            --ex_REG_immediate -> mem_REG_immediate
-            --ex_C_data -> mem_C_data
 
     writeback : entity work.reg_write_back
         port map

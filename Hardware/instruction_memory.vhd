@@ -24,8 +24,8 @@ end instruction_memory;
 
 architecture behavior of instruction_memory is
 
-subtype word_t  is unsigned(bit_Width- 1 downto 0);
-type    rom_t   is array(0 to mem_Depth- 1) of word_t;
+subtype word_t  is unsigned(7 downto 0);
+type    rom_t   is array(0 to (mem_Depth*4)- 1) of word_t;
 impure function mem_read_file(FileName : STRING) return rom_t is --function to read file into rom
 file FileHandle       : TEXT open READ_MODE is FileName;
 variable CurrentLine  : LINE;
@@ -33,12 +33,15 @@ variable TempWord     : std_logic_vector(bit_Width- 1 downto 0); -- was (div_cei
 variable Result       : rom_t    := (others => (others => '0'));
 
 begin
-  for i in 0 to mem_Depth- 1 loop
+  for i in 0 to mem_Depth- 1 loop 
     exit when endfile(FileHandle);
 
     readline(FileHandle, CurrentLine);
     hread(CurrentLine, TempWord);
-    Result(i)    := resize(unsigned(TempWord), word_t'length);
+    Result(4*i)    := resize(unsigned(TempWord(31 downto 24)), word_t'length);
+    Result((4*i)+1)  := resize(unsigned(TempWord(23 downto 16)), word_t'length);
+    Result((4*i)+2)  := resize(unsigned(TempWord(15 downto 8)), word_t'length);
+    Result((4*i)+3)  := resize(unsigned(TempWord(7 downto 0)), word_t'length);
   end loop;
 
   return Result;
@@ -57,7 +60,10 @@ begin
 		--full filepath must always be specified!
         else
             if(rising_edge(clk)) then
-                mem_read_data <= rom(to_integer(mem_address(2 downto 0)));
+                mem_read_data(31 downto 24) <= rom(to_integer(mem_address));
+                mem_read_data(23 downto 16) <= rom(to_integer(mem_address)+1);
+                mem_read_data(15 downto 8) <= rom(to_integer(mem_address)+2);
+                mem_read_data(7 downto 0) <= rom(to_integer(mem_address)+3);
             end if;        
         end if;
     end process;
