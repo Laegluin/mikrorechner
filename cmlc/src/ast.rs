@@ -83,6 +83,7 @@ pub enum Expr {
     TupleCons(TupleCons),
     RecordCons(RecordCons),
     Stmt(Box<Expr>),
+    Assignment(Assignment),
     LetBinding(LetBinding),
     IfExpr(IfExpr),
     Block(Block),
@@ -181,6 +182,12 @@ pub struct ItemPath {
 pub struct MethodCall {
     pub object: Spanned<Box<Expr>>,
     pub call: Spanned<FnCall>,
+}
+
+#[derive(Debug)]
+pub struct Assignment {
+    pub var_name: Spanned<Ident>,
+    pub value: Spanned<Box<Expr>>,
 }
 
 #[derive(Debug)]
