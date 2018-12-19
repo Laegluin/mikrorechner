@@ -57,11 +57,11 @@ begin
     	end case;
 
         if(reg_offset_en='1') then
-        (
+      
             data_b <= offset_register;
-        )
+        
         else
-        (
+        
             case(reg_read_addr_B) is
                 when "100000" =>
                         data_b <= to_unsigned(0, bit_Width);
@@ -72,7 +72,7 @@ begin
                 when others =>
                         data_b <= reg_array(to_integer(unsigned(reg_read_addr_B(adr_Width-2 downto 0)))); --only 5 bit for allpurpose registers
             end case;
-        )
+        
         end if;
     end process;
     

@@ -22,10 +22,9 @@ entity executer is
         reg_imm_in    : in       unsigned(bit_Width-1 downto 0);
         opcode_in     : in       unsigned(opcode_Bits-1 downto 0);
         alu_flag      : in       std_logic;
-        jump_to_in    : in       unsigned(bit_Width-1 downto 0);
-        C_in          : in       unsigned(bit_Width-1 downto 0);
+        C_in          : in       unsigned(adr_Width-1 downto 0);
 
-        C_out         : out      unsigned(bit_Width-1 downto 0);
+        C_out         : out      unsigned(adr_Width-1 downto 0);
         pc_enable     : out      std_logic;  -- fuer den halt befehl
         pc_write_en   : out      std_logic;
         mem_rw_en     : out      unsigned(1 downto 0);
@@ -33,7 +32,7 @@ entity executer is
         wb_control    : out      unsigned(1 downto 0);
         jump_to_out   : out      unsigned(bit_Width-1 downto 0);
         mem_off_out   : out      unsigned(bit_Width-1 downto 0);
-        opcode_out    : out      unsigned(bit_Width-1 downto 0)
+        opcode_out    : out      unsigned(opcode_Bits-1 downto 0)
     );
 end entity executer;
 
@@ -80,7 +79,6 @@ begin
                   --Spruenge
                  --JMP
                 when "00110" =>
-                    jump_to_out <= jump_to_in;
                     pc_write_en <= '1';
                 --JMP_REL
                 when "00111" =>
@@ -89,7 +87,6 @@ begin
                 --JMP_IF
                 when "01000" =>
                     if alu_flag = '1' then
-                        jump_to_out <= jump_to_in;
                         pc_write_en <= '1';
                     end if;
                 --JMP_REL_IF
