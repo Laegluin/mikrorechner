@@ -88,7 +88,7 @@ pub enum Expr {
     Block(Block),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Lit {
     Str(Rc<str>),
     Int(u32),
@@ -210,7 +210,7 @@ pub struct Block {
     pub exprs: Vec<Spanned<Expr>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Ident(Rc<str>);
 
 impl Ident {

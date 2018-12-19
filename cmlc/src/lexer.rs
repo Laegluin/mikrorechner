@@ -2,7 +2,7 @@ use crate::ast::{Ident, Lit};
 use crate::span::{Index, Offset, Span, Spanned};
 use std::rc::Rc;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Token {
     Ident(Ident),
     Keyword(Keyword),
@@ -37,7 +37,7 @@ pub enum Token {
     Star,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Keyword {
     Fn,
     Type,

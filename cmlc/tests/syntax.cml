@@ -1,7 +1,7 @@
 type Variant =
-    | One
-    | Two i32
-    | Three i32, i32
+    | One;
+    | Two i32;
+    | Three i32, i32;
     | User User;
 
 fn variant = -> Variant {
@@ -10,14 +10,14 @@ fn variant = -> Variant {
 }
 
 type User = {
-    id: i32,
-    name: *str,
+    id: i32;
+    name: *str;
 }
 
 fn user = -> User {
     User {
-        id = 1,
-        name = "name",
+        id = 1;
+        name = "name";
     }
 }
 
@@ -81,11 +81,11 @@ fn main = -> i32 {
 
 fn dangling_ptr = -> *mut Record {
     type Record = {
-        ptr_field: *i32,
+        ptr_field: *i32;
     }
 
     let some_record = Record {
-        ptr_field = &42,
+        ptr_field = &42;
     };
 
     let some_record_ptr: *Record = &some_record;
