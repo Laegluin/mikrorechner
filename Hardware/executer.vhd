@@ -55,7 +55,7 @@ begin
             wb_control   <= "00";
             mem_rw_en    <= "00";
             C_out        <= C_in;
-
+            opcode_out   <= opcode_in;
 
 
 

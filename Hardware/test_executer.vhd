@@ -21,22 +21,22 @@ architecture behavior of test_executer is
     (
         clk, enable   : in       std_logic;
         pc_in         : in       unsigned(bit_Width-1 downto 0);
-        jump_off_in   : in       signed(bit_Width-1 downto 0);
+        jump_off_in   : in       unsigned(bit_Width-1 downto 0);
         mem_off_in    : in       unsigned(bit_Width-1 downto 0);
         reg_imm_in    : in       unsigned(bit_Width-1 downto 0);
         opcode_in     : in       unsigned(opcode_Bits-1 downto 0);
         alu_flag      : in       std_logic;
-        C_in          : in       unsigned(bit_Width-1 downto 0); -- register adress of alu-result
+        C_in          : in       unsigned(adr_Width-1 downto 0); -- register adress of alu-result
 
-        C_out         : out      unsigned(bit_Width-1 downto 0);
+        C_out         : out      unsigned(adr_Width-1 downto 0);
         pc_enable     : out      std_logic;
         pc_write_en   : out      std_logic;
-        mem_rw_en     : out      std_logic;
+        mem_rw_en     : out      unsigned(1 downto 0);
         reg_imm_out   : out      unsigned(bit_Width-1 downto 0);
         wb_control    : out      unsigned(1 downto 0);
         jump_to_out   : out      unsigned(bit_Width-1 downto 0);
         mem_off_out   : out      unsigned(bit_Width-1 downto 0);
-        opcode_out    : out      unsigned(bit_Width-1 downto 0)
+        opcode_out    : out      unsigned(opcode_Bits-1 downto 0)
 );
 
     end component executer;
@@ -44,22 +44,23 @@ architecture behavior of test_executer is
     -- inputs
     signal clk, enable  : std_logic;
     signal pc_in        : unsigned(bit_Width-1 downto 0);
-    signal jump_off_in  : signed(bit_Width-1 downto 0);
+    signal jump_off_in  : unsigned(bit_Width-1 downto 0);
     signal mem_off_in   : unsigned(bit_Width-1 downto 0);
     signal reg_imm_in   : unsigned(bit_Width-1 downto 0);
     signal opcode_in    : unsigned(opcode_Bits-1 downto 0);
     signal alu_flag     : std_logic;
-    signal C_in         : unsigned(bit_Width-1 downto 0);
+    signal C_in         : unsigned(adr_Width-1 downto 0);
 
     -- outputs
-    signal C_out        : unsigned(bit_Width-1 downto 0);
+    signal C_out        : unsigned(adr_Width-1 downto 0);
     signal pc_enable    : std_logic;
     signal pc_write_en  : std_logic;
-    signal mem_rw_en    : std_logic;
+    signal mem_rw_en    : unsigned(1 downto 0);
     signal reg_imm_out  : unsigned(bit_Width-1 downto 0);
+    signal wb_control   : unsigned(1 downto 0);
     signal jump_to_out  : unsigned(bit_Width-1 downto 0);
     signal mem_off_out  : unsigned(bit_Width-1 downto 0);
-    signal opcode_out   : unsigned(bit_Width-1 downto 0);
+    signal opcode_out   : unsigned(opcode_Bits-1 downto 0);
 
 
 
@@ -85,6 +86,7 @@ begin
         pc_write_en => pc_write_en,
         mem_rw_en   => mem_rw_en,
         reg_imm_out => reg_imm_out,
+        wb_control  => wb_control,
 
         jump_to_out => jump_to_out,
         mem_off_out => mem_off_out,
@@ -108,8 +110,6 @@ begin
 
     enable <= '0';
     wait for 100 ns;
-
-    jump_to_in <=  "00000000000000001111111100000000";
 
     jump_off_in <= "00000000111111110000000011110000";
 
