@@ -80,6 +80,7 @@ begin
                  --JMP
                 when "00110" =>
                     pc_write_en <= '1';
+                    jump_to_out  <= (others => '0');
                 --JMP_REL
                 when "00111" =>
                     jump_to_out <= unsigned(pc_in + jump_off_in);
@@ -88,6 +89,7 @@ begin
                 when "01000" =>
                     if alu_flag = '1' then
                         pc_write_en <= '1';
+                        jump_to_out  <= (others => '0');
                     end if;
                 --JMP_REL_IF
                 when "01001" =>
