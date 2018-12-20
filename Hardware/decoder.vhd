@@ -37,8 +37,8 @@ architecture behavior of decoder is
 signal sign_temp        : unsigned(bit_Width-1 downto bit_Width-2); 
 
 signal reg_imm_ext      : unsigned(bit_Width - reg_offset_Bits -1 downto 0)  := (others => '0');
-signal jump_offset_ext1 : unsigned(bit_Width - jump_offset_Bits -1 downto 0) := (others => '0');
-signal Jump_offset_ext0 : unsigned(bit_Width - jump_offset_Bits -1 downto 0) := (others => '1');
+signal jump_offset_ext0 : unsigned(bit_Width - jump_offset_Bits -1 downto 0) := (others => '0');
+signal Jump_offset_ext1 : unsigned(bit_Width - jump_offset_Bits -1 downto 0) := (others => '1');
 
 signal mem_offset_ext   : unsigned(bit_Width - mem_offset_Bits -1 downto 0)  := (others => '0');
 
