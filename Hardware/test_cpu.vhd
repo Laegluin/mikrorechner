@@ -38,9 +38,20 @@ begin
         reset => reset
     );
 
+
+    -- clk process
+    clk_proc: process
+    begin
+        clk <= '0';
+        wait for 10 ns;
+        clk <= '1';
+        wait for 10 ns;
+    end process;
+
     -- Stimulus process
     stim_proc: process
     begin
+
 
         -- Testwerte
         
