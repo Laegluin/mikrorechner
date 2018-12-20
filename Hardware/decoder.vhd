@@ -21,7 +21,6 @@ entity decoder is
         opcode        : buffer   unsigned(4 downto 0);
         A,B,C         : out      unsigned(adr_Width-1 downto 0);
         reg_imm       : out      unsigned(bit_Width-1 downto 0);
-        jump_imm      : out      unsigned(adr_Width-1 downto 0);  -- auch hier mux gespart
         jump_offset   : out      unsigned(bit_Width-1 downto 0);
         mem_offset    : out      unsigned(bit_Width-1 downto 0);
         reg_offset_en : out      std_logic
@@ -71,7 +70,6 @@ begin
             end if;
 
             mem_offset  <= mem_offset_ext & instruction(bit_Width-opcode_Bits-(2*adr_Width)-1 downto 0);
-            jump_imm    <= instruction(bit_Width-opcode_Bits-(2*adr_Width)-1 downto bit_Width-opcode_Bits-(3*adr_Width));
 
             -- absolute jumps, load, store => steuersignal an registerbank
             case (opcode) is

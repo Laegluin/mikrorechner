@@ -27,7 +27,6 @@ architecture behavior of test_decoder is
         opcode        : buffer   unsigned(4 downto 0);
         A,B,C         : out      unsigned(adr_Width-1 downto 0);
         reg_imm       : out      unsigned(bit_Width-1 downto 0);
-        jump_imm      : out      unsigned(adr_Width-1 downto 0);  -- auch hier mux gespart
         jump_offset   : out      unsigned(bit_Width-1 downto 0);
         mem_offset    : out      unsigned(bit_Width-1 downto 0);
         reg_offset_en : out      std_logic
@@ -45,7 +44,6 @@ architecture behavior of test_decoder is
 
     signal A, B, C       : unsigned(adr_Width-1 downto 0);
     signal reg_imm       : unsigned(bit_Width-1 downto 0);
-    signal jump_imm      : unsigned(adr_Width-1 downto 0);
     signal jump_offset   : unsigned(bit_Width-1 downto 0);
     signal mem_offset    : unsigned(bit_Width-1 downto 0);
     signal reg_offset_en : std_logic;
@@ -68,7 +66,6 @@ begin
         C             => C,
 
         reg_imm       => reg_imm,
-        jump_imm      => jump_imm,
         jump_offset   => jump_offset,
         mem_offset    => mem_offset,
         reg_offset_en => reg_offset_en,
