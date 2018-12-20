@@ -38,10 +38,10 @@ begin
 
     readline(FileHandle, CurrentLine);
     hread(CurrentLine, TempWord);
-    Result(4*i)    := resize(unsigned(TempWord(31 downto 24)), word_t'length);
-    Result((4*i)+1)  := resize(unsigned(TempWord(23 downto 16)), word_t'length);
-    Result((4*i)+2)  := resize(unsigned(TempWord(15 downto 8)), word_t'length);
-    Result((4*i)+3)  := resize(unsigned(TempWord(7 downto 0)), word_t'length);
+    Result((4*i)+3)    := resize(unsigned(TempWord(31 downto 24)), word_t'length);
+    Result((4*i)+2)  := resize(unsigned(TempWord(23 downto 16)), word_t'length);
+    Result((4*i)+1)  := resize(unsigned(TempWord(15 downto 8)), word_t'length);
+    Result((4*i)+0)  := resize(unsigned(TempWord(7 downto 0)), word_t'length);
   end loop;
 
   return Result;
@@ -60,10 +60,10 @@ begin
 		--full filepath must always be specified!
         else
             if(rising_edge(clk)) then
-                mem_read_data(31 downto 24) <= rom(to_integer(mem_address));
-                mem_read_data(23 downto 16) <= rom(to_integer(mem_address)+1);
-                mem_read_data(15 downto 8) <= rom(to_integer(mem_address)+2);
-                mem_read_data(7 downto 0) <= rom(to_integer(mem_address)+3);
+                mem_read_data(31 downto 24) <= rom(to_integer(mem_address)+3);
+                mem_read_data(23 downto 16) <= rom(to_integer(mem_address)+2);
+                mem_read_data(15 downto 8) <= rom(to_integer(mem_address)+1);
+                mem_read_data(7 downto 0) <= rom(to_integer(mem_address)+0);
             end if;        
         end if;
     end process;
