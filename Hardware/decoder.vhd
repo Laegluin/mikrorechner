@@ -19,7 +19,6 @@ entity decoder is
 
         pc_out        : out      unsigned(bit_Width-1 downto 0);
         opcode        : buffer   unsigned(4 downto 0);
-        alu_opc       : out      unsigned(4 downto 0);    -- spart man sich nen mux
         A,B,C         : out      unsigned(adr_Width-1 downto 0);
         reg_imm       : out      unsigned(bit_Width-1 downto 0);
         jump_imm      : out      unsigned(adr_Width-1 downto 0);  -- auch hier mux gespart
@@ -56,8 +55,6 @@ begin
             -- parse Befehl
             opcode      <= instruction(bit_Width-1 downto bit_Width-opcode_Bits);
 
-            alu_opc     <= instruction(bit_Width-1 downto bit_Width-opcode_Bits);
-
             C           <= instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-adr_Width);
             A           <= instruction(bit_Width-opcode_Bits-adr_Width-1 downto bit_Width-opcode_Bits-(2*adr_Width));
             B           <= instruction(bit_Width-opcode_Bits-(2*adr_Width)-1 downto bit_Width-opcode_Bits-(3*adr_Width));
@@ -70,6 +67,7 @@ begin
                 jump_offset <= jump_offset_ext0 & instruction(bit_Width-opcode_Bits-1 downto 0);
             elsif sign_temp = "1" then
                 jump_offset <= jump_offset_ext1 & not instruction(bit_Width-opcode_Bits-1 downto 0) + "1";
+            else jump_offset <= (others => '0');
             end if;
 
             mem_offset  <= mem_offset_ext & instruction(bit_Width-opcode_Bits-(2*adr_Width)-1 downto 0);
