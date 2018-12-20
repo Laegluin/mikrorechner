@@ -75,6 +75,21 @@ impl<'t> TokenStream<'t> {
         }
     }
 
+    fn peek_n(&self, n: usize) -> Option<Vec<Token>> {
+        let consumed = self.consumed.get();
+
+        if consumed < self.tokens.len() && (consumed + n) < self.tokens.len() {
+            let tokens = self.tokens[consumed..consumed + n]
+                .iter()
+                .map(|token| token.value.clone())
+                .collect();
+
+            Some(tokens)
+        } else {
+            None
+        }
+    }
+
     /// Returns the span for the next token.
     ///
     /// ## Panics
@@ -142,10 +157,10 @@ fn lit(tokens: &TokenStream<'_>) -> Result<Expr, ParseError> {
     }
 }
 
-fn var(tokens: &TokenStream<'_>) -> Result<Expr, ParseError> {
+fn var(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
     ident(tokens)
-        .map(Expr::Var)
-        .map_err(|err| err.set_expected("variable"))
+        .map(|ident| Expr::Var(ident.value))
+        .map_err(|spanned| spanned.map(|err| err.set_expected("variable")))
 }
 
 fn un_op(tokens: &TokenStream<'_>) -> Result<UnOp, Spanned<ParseError>> {
@@ -213,10 +228,103 @@ fn un_op(tokens: &TokenStream<'_>) -> Result<UnOp, Spanned<ParseError>> {
     }
 }
 
-fn ident(tokens: &TokenStream<'_>) -> Result<Ident, ParseError> {
+fn bin_op(tokens: &TokenStream<'_>) -> Result<BinOp, Spanned<ParseError>> {
+    let lhs = expr(tokens)?.map(Box::new);
+
+    let op = tokens.next().ok_or_else(|| {
+        Spanned::new(
+            ParseError::eof().expected("binary operator"),
+            tokens.eof_span(),
+        )
+    })?;
+
+    let op = match op {
+        Token::Plus => BinOpKind::Add,
+        Token::Minus => BinOpKind::Sub,
+        Token::Star => BinOpKind::Mul,
+        Token::Slash => BinOpKind::Div,
+        Token::DoubleAmp => BinOpKind::And,
+        Token::DoublePipe => BinOpKind::Or,
+        Token::Less => BinOpKind::Lt,
+        Token::LessEqual => BinOpKind::Le,
+        Token::Greater => BinOpKind::Gt,
+        Token::GreaterEqual => BinOpKind::Ge,
+        _ => {
+            return Err(Spanned::new(
+                ParseError::unexpected_token().expected("binary operator"),
+                tokens.last_token_span(),
+            ))
+        }
+    };
+
+    let rhs = expr(tokens)?.map(Box::new);
+
+    Ok(BinOp { op, lhs, rhs })
+}
+
+fn fn_call(tokens: &TokenStream<'_>) -> Result<FnCall, Spanned<ParseError>> {
+    let fn_name = item_path(tokens)?;
+    unimplemented!()
+}
+
+fn item_path(tokens: &TokenStream<'_>) -> Result<Spanned<ItemPath>, Spanned<ParseError>> {
+    let span_start = tokens.start_span();
+    let mut segments = vec![segment(tokens)?];
+
+    while let Some(Token::DoubleColon) = tokens.peek() {
+        tokens.next();
+        segments.push(segment(tokens)?);
+    }
+
+    Ok(Spanned::new(ItemPath { segments }, span_start.end()))
+}
+
+fn fn_arg(tokens: &TokenStream<'_>) -> Result<Spanned<Arg>, Spanned<ParseError>> {
+    let span_start = tokens.start_span();
+    let maybe_named_arg = tokens.peek_n(2);
+
+    match maybe_named_arg.as_ref().map(|vec| vec.as_slice()) {
+        Some(&[Token::Ident(ref ident), Token::Equal]) => {
+            tokens.next();
+            let ident_span = tokens.last_token_span();
+            tokens.next();
+
+            expr(tokens).map(|expr| {
+                Spanned::new(
+                    Arg {
+                        name: Some(Spanned::new(ident.clone(), ident_span)),
+                        value: expr,
+                    },
+                    span_start.end(),
+                )
+            })
+        }
+        _ => expr(tokens).map(|expr| {
+            Spanned::new(
+                Arg {
+                    name: None,
+                    value: expr,
+                },
+                span_start.end(),
+            )
+        }),
+    }
+}
+
+fn segment(tokens: &TokenStream<'_>) -> Result<Spanned<Ident>, Spanned<ParseError>> {
+    ident(tokens).map_err(|spanned| spanned.map(|err| err.set_expected("item identifier")))
+}
+
+fn ident(tokens: &TokenStream<'_>) -> Result<Spanned<Ident>, Spanned<ParseError>> {
     match tokens.next() {
-        Some(Token::Ident(ident)) => Ok(ident),
-        Some(_) => Err(ParseError::unexpected_token().expected("identifier")),
-        None => Err(ParseError::eof().expected("identifier")),
+        Some(Token::Ident(ident)) => Ok(Spanned::new(ident, tokens.last_token_span())),
+        Some(_) => Err(Spanned::new(
+            ParseError::unexpected_token().expected("identifier"),
+            tokens.last_token_span(),
+        )),
+        None => Err(Spanned::new(
+            ParseError::eof().expected("identifier"),
+            tokens.eof_span(),
+        )),
     }
 }

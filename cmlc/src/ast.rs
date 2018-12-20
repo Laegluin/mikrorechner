@@ -105,9 +105,9 @@ pub enum Lit {
 
 #[derive(Debug)]
 pub struct BinOp {
-    op: BinOpKind,
-    lhs: Spanned<Box<Expr>>,
-    rhs: Spanned<Box<Expr>>,
+    pub op: BinOpKind,
+    pub lhs: Spanned<Box<Expr>>,
+    pub rhs: Spanned<Box<Expr>>,
 }
 
 #[derive(Debug)]
