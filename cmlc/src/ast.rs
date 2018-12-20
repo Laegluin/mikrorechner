@@ -59,8 +59,15 @@ pub enum TypeDesc {
     Hole,
     Name(Ident),
     Ptr(Box<TypeDesc>),
+    Array(ArrayDesc),
     Function(FunctionDesc),
     Tuple(Vec<Spanned<TypeDesc>>),
+}
+
+#[derive(Debug)]
+pub struct ArrayDesc {
+    pub ty: Spanned<Box<TypeDesc>>,
+    pub len: Spanned<u32>,
 }
 
 #[derive(Debug)]
