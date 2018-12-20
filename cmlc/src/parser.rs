@@ -125,7 +125,17 @@ impl<'t> TokenStream<'t> {
             stream: &self,
         }
     }
+
+    fn save_pos(&self) -> StreamPos {
+        StreamPos(self.consumed.get())
+    }
+
+    fn restore_pos(&self, pos: StreamPos) {
+        self.consumed.set(pos.0);
+    }
 }
+
+struct StreamPos(usize);
 
 struct SpanStart<'s, 't> {
     start: usize,
@@ -146,6 +156,7 @@ pub fn parse(tokens: impl AsRef<[Spanned<Token>]>) -> Result<Ast, Spanned<ParseE
 }
 
 fn expr(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
+    // don't forget normal ()
     unimplemented!()
 }
 
@@ -264,7 +275,63 @@ fn bin_op(tokens: &TokenStream<'_>) -> Result<BinOp, Spanned<ParseError>> {
 
 fn fn_call(tokens: &TokenStream<'_>) -> Result<FnCall, Spanned<ParseError>> {
     let fn_name = item_path(tokens)?;
-    unimplemented!()
+
+    match tokens.next() {
+        Some(Token::Bang) => Ok(FnCall {
+            name: fn_name,
+            args: Vec::new(),
+        }),
+        Some(Token::Colon) => {
+            let expected = || format!("argument for `{}`", fn_name.value);
+
+            let first_arg = fn_arg(tokens)
+                .map_err(|spanned| spanned.map(|err| err.set_expected(expected())))?;
+
+            let mut args = vec![first_arg];
+
+            while let Some(Token::Comma) = tokens.peek() {
+                tokens.next();
+
+                if is_fn_call_start(tokens) {
+                    break;
+                }
+
+                let arg = fn_arg(tokens)
+                    .map_err(|spanned| spanned.map(|err| err.set_expected(expected())))?;
+
+                args.push(arg);
+            }
+
+            Ok(FnCall {
+                name: fn_name,
+                args,
+            })
+        }
+        Some(_) => Err(Spanned::new(
+            ParseError::unexpected_token()
+                .expected("colon after function name")
+                .expected("bang after function name"),
+            tokens.last_token_span(),
+        )),
+        None => Err(Spanned::new(
+            ParseError::eof()
+                .expected("colon after function name")
+                .expected("bang after function name"),
+            tokens.eof_span(),
+        )),
+    }
+}
+
+/// Returns true if the next tokens would be the start of a function call, like
+/// `path::function:`,`function:` or `function!`. Does not advance the stream.
+fn is_fn_call_start(tokens: &TokenStream<'_>) -> bool {
+    let pos = tokens.save_pos();
+
+    let is_call = item_path(tokens).is_ok()
+        && (tokens.peek() == Some(Token::Colon) || tokens.peek() == Some(Token::Bang));
+
+    tokens.restore_pos(pos);
+    is_call
 }
 
 fn item_path(tokens: &TokenStream<'_>) -> Result<Spanned<ItemPath>, Spanned<ParseError>> {

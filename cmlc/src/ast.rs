@@ -1,4 +1,5 @@
 use crate::span::Spanned;
+use std::fmt::{self, Display};
 use std::rc::Rc;
 
 pub type Ast = Vec<Spanned<Item>>;
@@ -185,6 +186,19 @@ pub struct ItemPath {
     pub segments: Vec<Spanned<Ident>>,
 }
 
+impl Display for ItemPath {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let string_repr = self
+            .segments
+            .iter()
+            .map(|spanned| spanned.value.to_string())
+            .collect::<Vec<_>>()
+            .join("::");
+
+        write!(f, "{}", string_repr)
+    }
+}
+
 #[derive(Debug)]
 pub struct MethodCall {
     pub object: Spanned<Box<Expr>>,
@@ -230,5 +244,11 @@ pub struct Ident(Rc<str>);
 impl Ident {
     pub fn new(ident: impl AsRef<str>) -> Ident {
         Ident(Rc::from(ident.as_ref()))
+    }
+}
+
+impl Display for Ident {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
