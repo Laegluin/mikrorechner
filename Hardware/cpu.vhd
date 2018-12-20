@@ -14,7 +14,7 @@ entity cpu is
 
 port
 (
-    clk, reset          : in    std_logic
+    clk, sclk, reset          : in    std_logic
 --    pc_out, alu_result  : out   unsigned(bit_Width-1 downto 0)
 );
 
@@ -100,7 +100,7 @@ architecture behavior of cpu is
     pc : entity work.pc
         port map
         (
-            clk             => clk,
+            clk             => sclk,
             enable          => if_PC_enable,
             write_en        => if_PC_write_enable,
             reset           => reset,

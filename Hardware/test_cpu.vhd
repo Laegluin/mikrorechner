@@ -26,6 +26,7 @@ architecture behavior of test_cpu is
 
     -- inputs
     signal clk   : std_logic;
+    signal sclk  : std_logic;
     signal reset : std_logic;
 
     -- outputs
@@ -47,6 +48,16 @@ begin
         clk <= '1';
         wait for 10 ns;
     end process;
+
+    -- single cycle clk for pc in non-pipelined cpu
+    sclk_proc: process
+    begin
+        sclk <= '0';
+        wait for 50 ns;
+        sclk <= '1';
+        wait for 50 ns;
+    end process;
+
 
     -- Stimulus process
     stim_proc: process
