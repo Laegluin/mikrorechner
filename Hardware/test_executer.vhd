@@ -26,20 +26,21 @@ architecture behavior of test_executer is
         reg_imm_in    : in       unsigned(bit_Width-1 downto 0);
         opcode_in     : in       unsigned(opcode_Bits-1 downto 0);
         alu_flag      : in       std_logic;
-        jump_to_in    : in       unsigned(bit_Width-1 downto 0);
         C_in          : in       unsigned(bit_Width-1 downto 0); -- register adress of alu-result
 
         C_out         : out      unsigned(bit_Width-1 downto 0);
+        pc_enable     : out      std_logic;
         pc_write_en   : out      std_logic;
-        mem_write_en  : out      std_logic;
-        reg_write_en  : out      std_logic;
+        mem_rw_en     : out      std_logic;
         reg_imm_out   : out      unsigned(bit_Width-1 downto 0);
+        wb_control    : out      unsigned(1 downto 0);
         jump_to_out   : out      unsigned(bit_Width-1 downto 0);
         mem_off_out   : out      unsigned(bit_Width-1 downto 0);
         opcode_out    : out      unsigned(bit_Width-1 downto 0)
 );
 
     end component executer;
+
     -- inputs
     signal clk, enable  : std_logic;
     signal pc_in        : unsigned(bit_Width-1 downto 0);
@@ -48,14 +49,13 @@ architecture behavior of test_executer is
     signal reg_imm_in   : unsigned(bit_Width-1 downto 0);
     signal opcode_in    : unsigned(opcode_Bits-1 downto 0);
     signal alu_flag     : std_logic;
-    signal jump_to_in   : unsigned(bit_Width-1 downto 0);
     signal C_in         : unsigned(bit_Width-1 downto 0);
 
     -- outputs
     signal C_out        : unsigned(bit_Width-1 downto 0);
+    signal pc_enable    : std_logic;
     signal pc_write_en  : std_logic;
-    signal mem_write_en : std_logic;
-    signal reg_write_en : std_logic;
+    signal mem_rw_en    : std_logic;
     signal reg_imm_out  : unsigned(bit_Width-1 downto 0);
     signal jump_to_out  : unsigned(bit_Width-1 downto 0);
     signal mem_off_out  : unsigned(bit_Width-1 downto 0);
@@ -67,29 +67,28 @@ begin
     -- instanziiere UUT
     uut: executer port map
     (
-        clk    => clk,
-        enable => enable,
+        clk         => clk,
+        enable      => enable,
 
         pc_in       => pc_in,
         jump_off_in => jump_off_in,
         mem_off_in  => mem_off_in,
 
-        reg_imm_in => reg_imm_in,
-        opcode_in  => opcode_in,
-        alu_flag   => alu_flag,
-        jump_to_in => jump_to_in,
+        reg_imm_in  => reg_imm_in,
+        opcode_in   => opcode_in,
+        alu_flag    => alu_flag,
 
-        C_in  => C_in,
-        C_out => C_out,
+        C_in        => C_in,
+        C_out       => C_out,
 
-        pc_write_en  => pc_write_en,
-        mem_write_en => mem_write_en,
-        reg_write_en => reg_write_en,
-        reg_imm_out  => reg_imm_out,
+        pc_enable   => pc_enable,
+        pc_write_en => pc_write_en,
+        mem_rw_en   => mem_rw_en,
+        reg_imm_out => reg_imm_out,
 
-        jump_to_out  => jump_to_out,
-        mem_off_out  => mem_off_out,
-        opcode_out   => opcode_out
+        jump_to_out => jump_to_out,
+        mem_off_out => mem_off_out,
+        opcode_out  => opcode_out
     );
 
     -- clk process

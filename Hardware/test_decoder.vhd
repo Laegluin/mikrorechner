@@ -19,60 +19,64 @@ architecture behavior of test_decoder is
 
     port
     (
-        clk, enable  : in       std_logic;
-        instruction  : in       unsigned(bit_Width-1 downto 0);
-        pc_in        : in       unsigned(bit_Width-1 downto 0);
+        clk, enable   : in       std_logic;
+        instruction   : in       unsigned(bit_Width-1 downto 0);
+        pc_in         : in       unsigned(bit_Width-1 downto 0);
 
-        pc_out       : out      unsigned(bit_Width-1 downto 0);
-        opcode       : out      unsigned(4 downto 0);
-        alu_opc      : out      unsigned(4 downto 0);    -- spart man sich nen mux
-        A,B,C        : out      unsigned(adr_Width-1 downto 0);
-        reg_imm      : out      unsigned(bit_Width-1 downto 0);
-        jump_imm     : out      unsigned(adr_Width-1 downto 0);  -- auch hier mux gespart
-        jump_offset  : out      unsigned(bit_Width-1 downto 0);
-        mem_offset   : out      unsigned(bit_Width-1 downto 0)
+        pc_out        : out      unsigned(bit_Width-1 downto 0);
+        opcode        : out      unsigned(4 downto 0);
+        alu_opc       : out      unsigned(4 downto 0);    -- spart man sich nen mux
+        A,B,C         : out      unsigned(adr_Width-1 downto 0);
+        reg_imm       : out      unsigned(bit_Width-1 downto 0);
+        jump_imm      : out      unsigned(adr_Width-1 downto 0);  -- auch hier mux gespart
+        jump_offset   : out      unsigned(bit_Width-1 downto 0);
+        mem_offset    : out      unsigned(bit_Width-1 downto 0);
+        reg_offset_en : out      std_logic
     );
 
     end component decoder;
+
     -- inputs
-    signal clk, enable  : std_logic;
-    signal instruction  : unsigned(bit_Width-1 downto 0);
-    signal pc_in        : unsigned(bit_Width-1 downto 0);
+    signal clk, enable   : std_logic;
+    signal instruction   : unsigned(bit_Width-1 downto 0);
+    signal pc_in         : unsigned(bit_Width-1 downto 0);
 
     -- outputs
-    signal pc_out       : unsigned(bit_Width-1 downto 0);
+    signal pc_out        : unsigned(bit_Width-1 downto 0);
 
-    signal A, B, C      : unsigned(adr_Width-1 downto 0);
-    signal reg_imm      : unsigned(bit_Width-1 downto 0);
-    signal jump_imm     : unsigned(adr_Width-1 downto 0);
-    signal jump_offset  : unsigned(bit_Width-1 downto 0);
-    signal mem_offset   : unsigned(bit_Width-1 downto 0);
+    signal A, B, C       : unsigned(adr_Width-1 downto 0);
+    signal reg_imm       : unsigned(bit_Width-1 downto 0);
+    signal jump_imm      : unsigned(adr_Width-1 downto 0);
+    signal jump_offset   : unsigned(bit_Width-1 downto 0);
+    signal mem_offset    : unsigned(bit_Width-1 downto 0);
+    signal reg_offset_en : std_logic;
 
-    signal opcode       : unsigned(opcode_Bits-1 downto 0);
-    signal alu_opc      : unsigned(opcode_Bits-1 downto 0);
+    signal opcode        : unsigned(opcode_Bits-1 downto 0);
+    signal alu_opc       : unsigned(opcode_Bits-1 downto 0);
 
 begin
     -- instanziiere UUT
     uut: decoder port map
     (
-        clk    => clk,
-        enable => enable,
+        clk           => clk,
+        enable        => enable,
 
-        pc_in        => pc_in,
-        pc_out       => pc_out,
-        instruction  => instruction,
+        pc_in         => pc_in,
+        pc_out        => pc_out,
+        instruction   => instruction,
 
-        A => A,
-        B => B,
-        C => C,
+        A             => A,
+        B             => B,
+        C             => C,
 
-        reg_imm     => reg_imm,
-        jump_imm    => jump_imm,
-        jump_offset => jump_offset,
-        mem_offset  => mem_offset,
+        reg_imm       => reg_imm,
+        jump_imm      => jump_imm,
+        jump_offset   => jump_offset,
+        mem_offset    => mem_offset,
+        reg_offset_en => reg_offset_en,
 
-        opcode  => opcode,
-        alu_opc => alu_opc
+        opcode        => opcode,
+        alu_opc       => alu_opc
     );
 
     -- clk process

@@ -19,12 +19,14 @@ architecture behavior of test_ALU is
 
     port
     (
-        A, B        : in    unsigned(31 downto 0);    -- Operanden
+        A, B        : in    unsigned(31 downto 0); -- Operanden
         opcode      : in    unsigned(4 downto 0);  -- Opcode
-        ALU_Out     : out   unsigned(31 downto 0);    -- Ausgang
-        ALU_Flag    : out   std_logic                          -- Flag
+        ALU_Out     : out   unsigned(31 downto 0); -- Ausgang
+        ALU_Flag    : out   std_logic              -- Flag
     );
+
     end component ALU;
+
     -- inputs
     signal A, B     : unsigned(bit_Width-1 downto 0);
     signal opcode   : unsigned(opcode_Bits-1 downto 0);
@@ -37,10 +39,10 @@ begin
     -- instanziiere UUT
     uut: ALU port map
     (
-        A => A,
-        B => B,
-        opcode => opcode,
-        ALU_Out => ALU_Out,
+        A        => A,
+        B        => B,
+        opcode   => opcode,
+        ALU_Out  => ALU_Out,
         ALU_Flag => ALU_Flag
     );
 

@@ -34,7 +34,10 @@ entity executer is
         mem_off_out   : out      unsigned(bit_Width-1 downto 0);
         opcode_out    : out      unsigned(opcode_Bits-1 downto 0)
     );
+
 end entity executer;
+
+
 
 architecture behavior of executer is
 
@@ -58,7 +61,7 @@ begin
 
             case opcode_in is
                     --Register
---                --COPY
+                --COPY
                 when "00001" =>
                     wb_control <= "10";
                 --SET
@@ -98,7 +101,7 @@ begin
                         pc_write_en <= '1';
                     end if;
                     --Speicher
---                --LOAD
+                --LOAD
                 when "01010" =>
                     mem_rw_en    <= "10";
                     wb_control   <= "01";
