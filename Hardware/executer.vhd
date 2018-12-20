@@ -116,6 +116,7 @@ begin
                     pc_write_en  <= '0';
                     mem_rw_en    <= "00";
                     wb_control   <= "00";
+                    jump_to_out  <= (others => '0');
 
 
             end case;

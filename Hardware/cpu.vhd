@@ -63,7 +63,6 @@ architecture behavior of cpu is
     signal ALU_flag         : std_logic;
     signal ex_C_data        : unsigned(bit_Width-1 downto 0);
     signal ex_ALU_opcode    : unsigned(opcode_Bits-1 downto 0);
-    signal jump_to_out      : unsigned(bit_Width-1 downto 0);
     
         -- operanden decodieren
 
@@ -76,6 +75,7 @@ architecture behavior of cpu is
     signal mem_address       : unsigned(bit_Width-1 downto 0);
     signal mem_data          : unsigned(bit_Width-1 downto 0);
     signal mem_out           : unsigned(bit_Width-1 downto 0);
+    signal jump_to_in        : unsigned(bit_Width-1 downto 0);
     signal mem_C_address_in  : unsigned(adr_Width-1 downto 0);
     signal mem_C_data_in     : unsigned(bit_Width-1 downto 0);      
     signal mem_C_address_out : unsigned(adr_Width-1 downto 0);
@@ -174,7 +174,7 @@ architecture behavior of cpu is
 --            reg_write_en    => ex_REG_write_enable,
             reg_imm_out     => ex_REG_immediate,
             wb_control      => ex_wb_control,
-            jump_to_out     => jump_to_out,
+            jump_to_out     => ex_jump_to,
             mem_off_out     => ex_MEM_offset,
             opcode_out      => ex_ALU_opcode
         );
@@ -205,7 +205,8 @@ architecture behavior of cpu is
             C_in                => ex_C_data,
             wb_control_in       => ex_wb_control,
             reg_imm_in          => ex_REG_immediate,
-            jump_out            => jump_to
+            jump_in             => ex_jump_to,
+            jump_out            => jump_to,
             reg_imm_out         => mem_REG_immediate,
             wb_control_out      => mem_wb_control,
             C_out               => mem_C_data,

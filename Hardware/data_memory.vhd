@@ -31,6 +31,7 @@ port
     c_address_in : in unsigned(adr_Width-1 downto 0);
 
     c_address_out : out unsigned(adr_Width-1 downto 0);
+    jump_in  : in unsigned(bit_Width-1 downto 0);
     jump_out : out unsigned(bit_Width-1 downto 0);
     reg_imm_out : out unsigned(bit_Width-1 downto 0);
     wb_control_out : out unsigned(1 downto 0);
@@ -107,7 +108,10 @@ begin
     wb_control_out <= wb_control_in;
     reg_imm_out <= reg_imm_in;
     C_out <= C_in;
-    jump_out <= C_in when pc_write_enable_in = '1';
+    
+    -- einer der beiden Werte ist immer Null
+    jump_out <= (C_in + jump_in) when pc_write_enable_in = '1';
+
     c_address_out <= c_address_in;
 
 end behavior;
