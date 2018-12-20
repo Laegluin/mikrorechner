@@ -83,6 +83,10 @@ struct Args {
     #[structopt(short = "c", long = "convert-from-text")]
     convert_from_text: bool,
 
+    /// Dump the entire image to a file and exit
+    #[structopt(short = "d", long = "dump-image", name = "path", parse(from_os_str))]
+    dump_image: Option<PathBuf>,
+
     /// Start the simulation but immediately pause it before executing the first
     /// instruction.
     #[structopt(long = "start-paused")]
@@ -109,6 +113,11 @@ fn run(args: Args) -> Result<(), CliError> {
     } else {
         fs::read(args.image)?
     };
+
+    if let Some(img_path) = args.dump_image {
+        fs::write(img_path, &img)?;
+        return Ok(());
+    }
 
     let mut mem = Memory::new();
     mem.store(0, &img).map_err(VmError::new)?;
