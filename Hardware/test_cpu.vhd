@@ -19,7 +19,7 @@ architecture behavior of test_cpu is
 
     port
     (
-        clk, reset : std_logic
+        clk, sclk, reset : std_logic
     );
     
     end component cpu;
@@ -36,6 +36,7 @@ begin
     uut: cpu port map
     (
         clk   => clk,
+        sclk  => sclk,
         reset => reset
     );
 

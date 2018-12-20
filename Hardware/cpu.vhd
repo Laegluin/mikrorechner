@@ -35,7 +35,6 @@ architecture behavior of cpu is
 
     -- instruction-decode-phase
     signal de_enable        : std_logic;
-    signal jump_imm         : unsigned(adr_Width-1 downto 0);
     signal de_PC_value      : unsigned(bit_Width-1 downto 0);
     signal opcode           : unsigned(opcode_Bits-1 downto 0);
     signal de_ALU_opcode    : unsigned(opcode_Bits-1 downto 0);
@@ -129,12 +128,10 @@ architecture behavior of cpu is
             pc_out          => de_PC_value,
             instruction     => instruction,
             opcode          => opcode,
-            alu_opc         => de_ALU_opcode,
             A               => de_A_address,
             B               => de_B_address,
             C               => de_C_address,      
             reg_imm         => de_REG_immediate,
-            jump_imm        => jump_imm,
             jump_offset     => jump_offset,
             mem_offset      => de_MEM_offset,
             reg_offset_en   => REG_offset_en

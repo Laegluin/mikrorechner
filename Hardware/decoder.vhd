@@ -32,7 +32,7 @@ end entity decoder;
 architecture behavior of decoder is
 
     -- sign extention
-signal sign_temp        : unsigned(bit_Width-1 downto bit_Width-2); 
+signal sign_temp        : unsigned(0 downto 0); 
 
 signal reg_imm_ext      : unsigned(bit_Width - reg_offset_Bits -1 downto 0)  := (others => '0');
 signal jump_offset_ext0 : unsigned(bit_Width - jump_offset_Bits -1 downto 0) := (others => '0');
@@ -44,6 +44,9 @@ signal mem_offset_ext   : unsigned(bit_Width - mem_offset_Bits -1 downto 0)  := 
 begin
     process(clk,enable)
     begin
+
+        -- init values
+        sign_temp <= "0";
 
         if rising_edge(clk) then
             if enable = '1' then
@@ -60,7 +63,7 @@ begin
 
             reg_imm     <= reg_imm_ext & instruction(bit_Width-opcode_Bits-adr_Width-1 downto 0);
 
-            sign_temp <= instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-2);
+            sign_temp <= instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-1);
 
             if sign_temp = "0" then
                 jump_offset <= jump_offset_ext0 & instruction(bit_Width-opcode_Bits-1 downto 0);
