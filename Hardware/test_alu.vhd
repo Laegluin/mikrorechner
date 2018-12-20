@@ -135,6 +135,33 @@ begin
     B <= "00000000000000000000000000000000";
     opcode <= "01111";
     wait for 100 ns;
+    
+    -- test addition overflow
+    A <= "11111111111111111111111111111111";
+    B <= "00000000000000000000000000000001";
+    opcode <= "00000";
+    wait for 100 ns; 
+
+    -- test multiplication overflow
+    A <= "11111111111111111111111111111111";
+    B <= "11111111111111111111111111111111";
+    opcode <= "01110";
+    wait for 100 ns; 
+
+     -- test subtraction underflow
+    A <= "00000000000000000000000000000000";
+    B <= "11111111111111111111111111111111";
+    opcode <= "10111";
+    wait for 100 ns; 
+
+      -- test odd sivision
+    A <= "00000000000000000000000000000100";
+    B <= "00000000000000000000000000000101";
+    opcode <= "10111";
+    wait for 100 ns; 
+
+   
+
 
     assert False report "Ende des Tests erreicht.";
     wait;
