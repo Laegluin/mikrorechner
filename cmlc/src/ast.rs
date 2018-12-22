@@ -141,9 +141,9 @@ pub enum UnOpKind {
 
 #[derive(Debug)]
 pub struct FieldAccess {
-    pub value: Spanned<Ident>,
+    pub value: Spanned<Box<Expr>>,
     pub field: Spanned<Ident>,
-    pub chained_fields: Vec<Spanned<Ident>>,
+    pub num_derefs: u32,
 }
 
 #[derive(Debug)]

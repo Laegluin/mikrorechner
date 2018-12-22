@@ -422,6 +422,42 @@ fn segment(tokens: &TokenStream<'_>) -> Result<Spanned<Ident>, Spanned<ParseErro
     ident(tokens).map_err(|spanned| spanned.map(|err| err.set_expected("item identifier")))
 }
 
+fn field_access(tokens: &TokenStream<'_>) -> Result<FieldAccess, Spanned<ParseError>> {
+    let value = expr(tokens)?.map(Box::new);
+
+    match tokens.next() {
+        Some(Token::Dot) => (),
+        Some(_) => {
+            return Err(Spanned::new(
+                ParseError::unexpected_token().expected("dot"),
+                tokens.last_token_span(),
+            ))
+        }
+        None => {
+            return Err(Spanned::new(
+                ParseError::eof().expected("identifier"),
+                tokens.eof_span(),
+            ))
+        }
+    }
+
+    let mut num_derefs = 0;
+
+    while let Some(Token::Star) = tokens.peek() {
+        tokens.next();
+        num_derefs += 1;
+    }
+
+    let field =
+        ident(tokens).map_err(|spanned| spanned.map(|err| err.set_expected("field name")))?;
+
+    Ok(FieldAccess {
+        value,
+        field,
+        num_derefs,
+    })
+}
+
 fn ident(tokens: &TokenStream<'_>) -> Result<Spanned<Ident>, Spanned<ParseError>> {
     match tokens.next() {
         Some(Token::Ident(ident)) => Ok(Spanned::new(ident, tokens.last_token_span())),
