@@ -435,7 +435,7 @@ fn field_access(tokens: &TokenStream<'_>) -> Result<FieldAccess, Spanned<ParseEr
         }
         None => {
             return Err(Spanned::new(
-                ParseError::eof().expected("identifier"),
+                ParseError::eof().expected("dot"),
                 tokens.eof_span(),
             ))
         }
@@ -456,6 +456,133 @@ fn field_access(tokens: &TokenStream<'_>) -> Result<FieldAccess, Spanned<ParseEr
         field,
         num_derefs,
     })
+}
+
+fn array_cons(tokens: &TokenStream<'_>) -> Result<ArrayCons, Spanned<ParseError>> {
+    match tokens.next() {
+        Some(Token::OpenBracket) => (),
+        Some(_) => {
+            return Err(Spanned::new(
+                ParseError::unexpected_token().expected("opening bracket"),
+                tokens.last_token_span(),
+            ))
+        }
+        None => {
+            return Err(Spanned::new(
+                ParseError::eof().expected("opening bracket"),
+                tokens.eof_span(),
+            ))
+        }
+    }
+
+    let mut elems = Vec::new();
+
+    loop {
+        match tokens.peek() {
+            Some(Token::CloseBracket) => {
+                tokens.next();
+                return Ok(ArrayCons { elems });
+            }
+            Some(_) => (),
+            None => {
+                return Err(Spanned::new(
+                    ParseError::eof().expected("closing bracket"),
+                    tokens.eof_span(),
+                ))
+            }
+        }
+
+        elems.push(expr(tokens)?);
+
+        match tokens.next() {
+            Some(Token::CloseBracket) => {
+                return Ok(ArrayCons { elems });
+            }
+            Some(Token::Comma) => continue,
+            Some(_) => {
+                return Err(Spanned::new(
+                    ParseError::unexpected_token()
+                        .expected("closing bracket")
+                        .expected("comma"),
+                    tokens.last_token_span(),
+                ))
+            }
+            None => {
+                return Err(Spanned::new(
+                    ParseError::eof()
+                        .expected("closing bracket")
+                        .expected("comma"),
+                    tokens.eof_span(),
+                ))
+            }
+        }
+    }
+}
+
+fn parenthesized_or_tuple_cons(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
+    match tokens.next() {
+        Some(Token::OpenParen) => (),
+        Some(_) => {
+            return Err(Spanned::new(
+                ParseError::unexpected_token().expected("opening parenthesis"),
+                tokens.last_token_span(),
+            ))
+        }
+        None => {
+            return Err(Spanned::new(
+                ParseError::eof().expected("opening parenthesis"),
+                tokens.eof_span(),
+            ))
+        }
+    }
+
+    let mut elems = Vec::new();
+
+    loop {
+        match tokens.peek() {
+            Some(Token::CloseParen) => {
+                tokens.next();
+                return Ok(Expr::TupleCons(TupleCons { elems }));
+            }
+            Some(_) => (),
+            None => {
+                return Err(Spanned::new(
+                    ParseError::eof().expected("closing parenthesis"),
+                    tokens.eof_span(),
+                ))
+            }
+        }
+
+        elems.push(expr(tokens)?);
+
+        match tokens.next() {
+            Some(Token::CloseParen) => {
+                // one expression in parenthesis without a comma is just for precedence
+                if elems.len() == 1 {
+                    return Ok(elems.pop().unwrap().value);
+                } else {
+                    return Ok(Expr::TupleCons(TupleCons { elems }));
+                }
+            }
+            Some(Token::Comma) => continue,
+            Some(_) => {
+                return Err(Spanned::new(
+                    ParseError::unexpected_token()
+                        .expected("closing parenthesis")
+                        .expected("comma"),
+                    tokens.last_token_span(),
+                ))
+            }
+            None => {
+                return Err(Spanned::new(
+                    ParseError::eof()
+                        .expected("closing parenthesis")
+                        .expected("comma"),
+                    tokens.eof_span(),
+                ))
+            }
+        }
+    }
 }
 
 fn ident(tokens: &TokenStream<'_>) -> Result<Spanned<Ident>, Spanned<ParseError>> {
