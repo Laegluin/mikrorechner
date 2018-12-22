@@ -585,6 +585,25 @@ fn parenthesized_or_tuple_cons(tokens: &TokenStream<'_>) -> Result<Expr, Spanned
     }
 }
 
+fn assignment(tokens: &TokenStream<'_>) -> Result<Assignment, Spanned<ParseError>> {
+    let var_name = ident(tokens)?;
+
+    match tokens.next() {
+        Some(Token::Equal) => Ok(Assignment {
+            var_name,
+            value: expr(tokens)?.map(Box::new),
+        }),
+        Some(_) => Err(Spanned::new(
+            ParseError::unexpected_token().expected("assigment operator"),
+            tokens.last_token_span(),
+        )),
+        None => Err(Spanned::new(
+            ParseError::eof().expected("assigment operator"),
+            tokens.eof_span(),
+        )),
+    }
+}
+
 fn ident(tokens: &TokenStream<'_>) -> Result<Spanned<Ident>, Spanned<ParseError>> {
     match tokens.next() {
         Some(Token::Ident(ident)) => Ok(Spanned::new(ident, tokens.last_token_span())),
