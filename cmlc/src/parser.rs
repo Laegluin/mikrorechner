@@ -157,6 +157,7 @@ pub fn parse(tokens: impl AsRef<[Spanned<Token>]>) -> Result<Ast, Spanned<ParseE
 
 fn expr(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
     // don't forget normal ()
+    // while loop for chained method calls
     unimplemented!()
 }
 
@@ -169,9 +170,17 @@ fn lit(tokens: &TokenStream<'_>) -> Result<Expr, ParseError> {
 }
 
 fn var(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
-    ident(tokens)
-        .map(|ident| Expr::Var(ident.value))
-        .map_err(|spanned| spanned.map(|err| err.set_expected("variable")))
+    match try_fn_call_start(tokens) {
+        Some(span) => Err(Spanned::new(
+            ParseError::new()
+                .msg("unexpected function call")
+                .expected("variable"),
+            span,
+        )),
+        None => ident(tokens)
+            .map(|ident| Expr::Var(ident.value))
+            .map_err(|spanned| spanned.map(|err| err.set_expected("variable"))),
+    }
 }
 
 fn un_op(tokens: &TokenStream<'_>) -> Result<UnOp, Spanned<ParseError>> {
@@ -292,7 +301,7 @@ fn fn_call(tokens: &TokenStream<'_>) -> Result<FnCall, Spanned<ParseError>> {
             while let Some(Token::Comma) = tokens.peek() {
                 tokens.next();
 
-                if is_fn_call_start(tokens) {
+                if try_fn_call_start(tokens).is_some() {
                     break;
                 }
 
@@ -322,16 +331,26 @@ fn fn_call(tokens: &TokenStream<'_>) -> Result<FnCall, Spanned<ParseError>> {
     }
 }
 
-/// Returns true if the next tokens would be the start of a function call, like
-/// `path::function:`,`function:` or `function!`. Does not advance the stream.
-fn is_fn_call_start(tokens: &TokenStream<'_>) -> bool {
+/// Returns Some if the next tokens would be the start of a function call, like
+/// `path::function:`,`function:` or `function!`. The contained span is the span of
+/// the function call start. Does not advance the stream.
+fn try_fn_call_start(tokens: &TokenStream<'_>) -> Option<Span> {
+    let span_start = tokens.start_span();
     let pos = tokens.save_pos();
 
-    let is_call = item_path(tokens).is_ok()
-        && (tokens.peek() == Some(Token::Colon) || tokens.peek() == Some(Token::Bang));
+    if item_path(tokens).is_err() {
+        tokens.restore_pos(pos);
+        return None;
+    }
 
+    let next = tokens.next();
+    let span = span_start.end();
     tokens.restore_pos(pos);
-    is_call
+
+    match next {
+        Some(Token::Colon) | Some(Token::Bang) => Some(span),
+        _ => None,
+    }
 }
 
 fn item_path(tokens: &TokenStream<'_>) -> Result<Spanned<ItemPath>, Spanned<ParseError>> {
@@ -348,13 +367,22 @@ fn item_path(tokens: &TokenStream<'_>) -> Result<Spanned<ItemPath>, Spanned<Pars
 
 fn fn_arg(tokens: &TokenStream<'_>) -> Result<Spanned<Arg>, Spanned<ParseError>> {
     let span_start = tokens.start_span();
-    let maybe_named_arg = tokens.peek_n(2);
 
-    match maybe_named_arg.as_ref().map(|vec| vec.as_slice()) {
+    match tokens.peek_n(2).as_ref().map(|vec| vec.as_slice()) {
         Some(&[Token::Ident(ref ident), Token::Equal]) => {
             tokens.next();
             let ident_span = tokens.last_token_span();
             tokens.next();
+
+            if let Some(span) = try_fn_call_start(tokens) {
+                return Err(Spanned::new(
+                    ParseError::new()
+                        .msg("unexpected function call after named argument")
+                        .expected("parenthesized function call")
+                        .expected("expression"),
+                    span,
+                ));
+            }
 
             expr(tokens).map(|expr| {
                 Spanned::new(
@@ -366,15 +394,27 @@ fn fn_arg(tokens: &TokenStream<'_>) -> Result<Spanned<Arg>, Spanned<ParseError>>
                 )
             })
         }
-        _ => expr(tokens).map(|expr| {
-            Spanned::new(
-                Arg {
-                    name: None,
-                    value: expr,
-                },
-                span_start.end(),
-            )
-        }),
+        _ => {
+            if let Some(span) = try_fn_call_start(tokens) {
+                return Err(Spanned::new(
+                    ParseError::new()
+                        .msg("unexpected function call")
+                        .expected("parenthesized function call")
+                        .expected("expression"),
+                    span,
+                ));
+            }
+
+            expr(tokens).map(|expr| {
+                Spanned::new(
+                    Arg {
+                        name: None,
+                        value: expr,
+                    },
+                    span_start.end(),
+                )
+            })
+        }
     }
 }
 
