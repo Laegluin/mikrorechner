@@ -89,7 +89,6 @@ pub enum Expr {
     FieldAccess(FieldAccess),
     ArrayCons(ArrayCons),
     TupleCons(TupleCons),
-    RecordCons(RecordCons),
     Assignment(Assignment),
     LetBinding(LetBinding),
     Ret(Box<Expr>),
@@ -155,12 +154,6 @@ pub struct ArrayCons {
 #[derive(Debug)]
 pub struct TupleCons {
     pub elems: Vec<Spanned<Expr>>,
-}
-
-#[derive(Debug)]
-pub struct RecordCons {
-    pub name: Spanned<Ident>,
-    pub fields: Vec<Spanned<FieldCons>>,
 }
 
 #[derive(Debug)]
