@@ -90,7 +90,6 @@ pub enum Expr {
     ArrayCons(ArrayCons),
     TupleCons(TupleCons),
     RecordCons(RecordCons),
-    Stmt(Box<Expr>),
     Assignment(Assignment),
     LetBinding(LetBinding),
     Ret(Box<Expr>),
@@ -237,6 +236,7 @@ pub struct IfExpr {
 #[derive(Debug)]
 pub struct Block {
     pub exprs: Vec<Spanned<Expr>>,
+    pub is_last_expr_stmt: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
