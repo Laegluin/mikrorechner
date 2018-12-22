@@ -93,6 +93,7 @@ pub enum Expr {
     Stmt(Box<Expr>),
     Assignment(Assignment),
     LetBinding(LetBinding),
+    Ret(Box<Expr>),
     IfExpr(IfExpr),
     Block(Block),
 }

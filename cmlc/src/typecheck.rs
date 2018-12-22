@@ -3,6 +3,7 @@ use crate::ast::Ident;
 // TODO: slices
 pub enum Type {
     None,
+    Never,
     Bool,
     I32,
     U32,
