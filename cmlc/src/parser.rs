@@ -713,6 +713,240 @@ fn tuple_pattern(tokens: &TokenStream<'_>) -> Result<Pattern, Spanned<ParseError
     }
 }
 
+fn type_desc(tokens: &TokenStream<'_>) -> Result<Spanned<TypeDesc>, Spanned<ParseError>> {
+    one_of(
+        tokens,
+        &[
+            hole_type_desc,
+            name_type_desc,
+            ptr_type_desc,
+            array_type_desc,
+            function_type_desc,
+            tuple_type_desc,
+        ],
+    )
+}
+
+fn hole_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseError>> {
+    match tokens.next() {
+        Some(Token::Underscore) => Ok(TypeDesc::Hole),
+        Some(_) => Err(Spanned::new(
+            ParseError::unexpected_token().expected("hole"),
+            tokens.last_token_span(),
+        )),
+        None => Err(Spanned::new(
+            ParseError::eof().expected("hole"),
+            tokens.eof_span(),
+        )),
+    }
+}
+
+fn name_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseError>> {
+    ident(tokens)
+        .map(|ident| TypeDesc::Name(ident.value))
+        .map_err(|spanned| spanned.map(|err| err.set_expected("type name")))
+}
+
+fn ptr_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseError>> {
+    match tokens.next() {
+        Some(Token::Star) => Ok(TypeDesc::Ptr(Box::new(
+            type_desc(tokens).map(|spanned| spanned.value)?,
+        ))),
+        Some(_) => Err(Spanned::new(
+            ParseError::unexpected_token().expected("pointer"),
+            tokens.last_token_span(),
+        )),
+        None => Err(Spanned::new(
+            ParseError::eof().expected("pointer"),
+            tokens.eof_span(),
+        )),
+    }
+}
+
+fn array_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseError>> {
+    match tokens.next() {
+        Some(Token::OpenBracket) => (),
+        Some(_) => {
+            return Err(Spanned::new(
+                ParseError::unexpected_token().expected("opening bracket"),
+                tokens.last_token_span(),
+            ))
+        }
+        None => {
+            return Err(Spanned::new(
+                ParseError::eof().expected("opening bracket"),
+                tokens.eof_span(),
+            ))
+        }
+    }
+
+    let ty = type_desc(tokens)?.map(Box::new);
+
+    match tokens.next() {
+        Some(Token::Semicolon) => (),
+        Some(_) => {
+            return Err(Spanned::new(
+                ParseError::unexpected_token().expected("semicolon"),
+                tokens.last_token_span(),
+            ))
+        }
+        None => {
+            return Err(Spanned::new(
+                ParseError::eof().expected("semicolon"),
+                tokens.eof_span(),
+            ))
+        }
+    }
+
+    let len = match tokens.next() {
+        Some(Token::Lit(Lit::Int(len))) => Spanned::new(len, tokens.last_token_span()),
+        Some(_) => {
+            return Err(Spanned::new(
+                ParseError::unexpected_token().expected("array length"),
+                tokens.last_token_span(),
+            ))
+        }
+        None => {
+            return Err(Spanned::new(
+                ParseError::eof().expected("semicolon"),
+                tokens.eof_span(),
+            ))
+        }
+    };
+
+    match tokens.next() {
+        Some(Token::CloseBracket) => (),
+        Some(_) => {
+            return Err(Spanned::new(
+                ParseError::unexpected_token().expected("closing bracket"),
+                tokens.last_token_span(),
+            ))
+        }
+        None => {
+            return Err(Spanned::new(
+                ParseError::eof().expected("closing bracket"),
+                tokens.eof_span(),
+            ))
+        }
+    }
+
+    Ok(TypeDesc::Array(ArrayDesc { ty, len }))
+}
+
+fn function_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseError>> {
+    match tokens.next() {
+        Some(Token::Keyword(Keyword::Fn)) => (),
+        Some(_) => {
+            return Err(Spanned::new(
+                ParseError::unexpected_token().expected("fn"),
+                tokens.last_token_span(),
+            ))
+        }
+        None => {
+            return Err(Spanned::new(
+                ParseError::eof().expected("fn"),
+                tokens.eof_span(),
+            ))
+        }
+    }
+
+    let mut params_ty = Vec::new();
+
+    while tokens.peek() != Some(Token::Arrow) {
+        params_ty.push(type_desc(tokens)?);
+
+        match tokens.peek() {
+            Some(Token::Comma) => {
+                tokens.next();
+            }
+            _ => break,
+        }
+    }
+
+    match tokens.next() {
+        Some(Token::Arrow) => (),
+        Some(_) => {
+            return Err(Spanned::new(
+                ParseError::unexpected_token().expected("arrow"),
+                tokens.last_token_span(),
+            ))
+        }
+        None => {
+            return Err(Spanned::new(
+                ParseError::eof().expected("arrow"),
+                tokens.eof_span(),
+            ))
+        }
+    }
+
+    let ret_ty = type_desc(tokens)?.map(Box::new);
+
+    Ok(TypeDesc::Function(FunctionDesc { params_ty, ret_ty }))
+}
+
+fn tuple_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseError>> {
+    let span_start = tokens.start_span();
+
+    match tokens.next() {
+        Some(Token::OpenParen) => (),
+        Some(_) => {
+            return Err(Spanned::new(
+                ParseError::unexpected_token().expected("opening parenthesis"),
+                tokens.last_token_span(),
+            ))
+        }
+        None => {
+            return Err(Spanned::new(
+                ParseError::eof().expected("opening parenthesis"),
+                tokens.eof_span(),
+            ))
+        }
+    }
+
+    let mut tys = Vec::new();
+
+    loop {
+        match tokens.peek() {
+            Some(Token::CloseParen) => {
+                tokens.next();
+                return Ok(TypeDesc::Tuple(tys));
+            }
+            Some(_) => (),
+            None => {
+                return Err(Spanned::new(
+                    ParseError::eof().expected("closing parenthesis"),
+                    tokens.eof_span(),
+                ))
+            }
+        }
+
+        tys.push(type_desc(tokens)?);
+
+        match tokens.next() {
+            Some(Token::CloseParen) => {
+                return Ok(TypeDesc::Tuple(tys));
+            }
+            Some(Token::Comma) => continue,
+            Some(_) => {
+                return Err(Spanned::new(
+                    ParseError::unexpected_token()
+                        .expected("closing parenthesis")
+                        .expected("comma"),
+                    tokens.last_token_span(),
+                ))
+            }
+            None => {
+                return Err(Spanned::new(
+                    ParseError::eof()
+                        .expected("closing parenthesis")
+                        .expected("comma"),
+                    tokens.eof_span(),
+                ))
+            }
+        }
+    }
+}
+
 /// Parses `tokens` with one of the supplied parsers. The first match will be returned. If there is
 /// no successful match, the error with the longest span will be returned.
 ///
