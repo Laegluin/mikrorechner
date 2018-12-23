@@ -605,6 +605,75 @@ fn assignment(tokens: &TokenStream<'_>) -> Result<Assignment, Spanned<ParseError
     }
 }
 
+fn let_binding(tokens: &TokenStream<'_>) -> Result<LetBinding, Spanned<ParseError>> {
+    match tokens.next() {
+        Some(Token::Keyword(Keyword::Let)) => (),
+        Some(_) => {
+            return Err(Spanned::new(
+                ParseError::unexpected_token().expected("let"),
+                tokens.last_token_span(),
+            ))
+        }
+        None => {
+            return Err(Spanned::new(
+                ParseError::eof().expected("let"),
+                tokens.eof_span(),
+            ))
+        }
+    }
+
+    let pattern = pattern(tokens)?;
+
+    let ty_hint = match tokens.peek() {
+        Some(Token::Colon) => Some(type_desc(tokens)?),
+        _ => None,
+    };
+
+    match tokens.next() {
+        Some(Token::Equal) => (),
+        Some(_) => {
+            return Err(Spanned::new(
+                ParseError::unexpected_token().expected("assignment operator"),
+                tokens.last_token_span(),
+            ))
+        }
+        None => {
+            return Err(Spanned::new(
+                ParseError::eof().expected("assignment operator"),
+                tokens.eof_span(),
+            ))
+        }
+    }
+
+    let expr = expr(tokens)?.map(Box::new);
+
+    Ok(LetBinding {
+        pattern,
+        ty_hint,
+        expr,
+    })
+}
+
+fn ret_expr(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
+    match tokens.next() {
+        Some(Token::Keyword(Keyword::Ret)) => (),
+        Some(_) => {
+            return Err(Spanned::new(
+                ParseError::unexpected_token().expected("ret"),
+                tokens.last_token_span(),
+            ))
+        }
+        None => {
+            return Err(Spanned::new(
+                ParseError::eof().expected("ret"),
+                tokens.eof_span(),
+            ))
+        }
+    }
+
+    Ok(Expr::Ret(expr(tokens)?.map(Box::new).value))
+}
+
 fn pattern(tokens: &TokenStream<'_>) -> Result<Spanned<Pattern>, Spanned<ParseError>> {
     one_of(tokens, &[discard_pattern, binding_pattern, tuple_pattern])
 }
@@ -885,8 +954,6 @@ fn function_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<Pars
 }
 
 fn tuple_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseError>> {
-    let span_start = tokens.start_span();
-
     match tokens.next() {
         Some(Token::OpenParen) => (),
         Some(_) => {
