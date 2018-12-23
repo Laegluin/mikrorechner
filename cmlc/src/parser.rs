@@ -157,16 +157,57 @@ pub fn parse(tokens: impl AsRef<[Spanned<Token>]>) -> Result<Ast, Spanned<ParseE
 }
 
 fn expr(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
-    // don't forget normal ()
-    // while loop for chained method calls
-    unimplemented!()
+    let span_start = tokens.start_span();
+
+    let mut expr = one_of(
+        tokens,
+        &[
+            lit,
+            var,
+            un_op,
+            bin_op,
+            fn_call_expr,
+            field_access,
+            array_cons,
+            parenthesized_or_tuple_cons,
+            assignment,
+            let_binding,
+            ret_expr,
+            if_expr,
+            block_expr,
+        ],
+    )?;
+
+    // if there's a fn call after a successfully parsed expr, it is actually
+    // a method call with the expression as object
+    // loop as long as possible; this allows for chained method calls
+    while try_fn_call_start(tokens).is_some() {
+        let call_span_start = tokens.start_span();
+        let method_call = fn_call(tokens)?;
+
+        expr = Spanned::new(
+            Expr::MethodCall(MethodCall {
+                object: expr.map(Box::new),
+                call: Spanned::new(method_call, call_span_start.end()),
+            }),
+            span_start.end(),
+        );
+    }
+
+    Ok(expr)
 }
 
-fn lit(tokens: &TokenStream<'_>) -> Result<Expr, ParseError> {
+fn lit(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
     match tokens.next() {
         Some(Token::Lit(lit)) => Ok(Expr::Lit(lit)),
-        Some(_) => Err(ParseError::unexpected_token().expected("literal")),
-        None => Err(ParseError::eof().expected("literal")),
+        Some(_) => Err(Spanned::new(
+            ParseError::unexpected_token().expected("literal"),
+            tokens.last_token_span(),
+        )),
+        None => Err(Spanned::new(
+            ParseError::eof().expected("literal"),
+            tokens.eof_span(),
+        )),
     }
 }
 
@@ -184,7 +225,7 @@ fn var(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
     }
 }
 
-fn un_op(tokens: &TokenStream<'_>) -> Result<UnOp, Spanned<ParseError>> {
+fn un_op(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
     let op = tokens.next().ok_or_else(|| {
         Spanned::new(
             ParseError::eof().expected("unary operator"),
@@ -240,16 +281,16 @@ fn un_op(tokens: &TokenStream<'_>) -> Result<UnOp, Spanned<ParseError>> {
             term.operand.span.end(),
         );
 
-        Ok(UnOp {
+        Ok(Expr::UnOp(UnOp {
             op: UnOpKind::AddrOf,
             operand: Spanned::new(Box::new(Expr::UnOp(term)), span),
-        })
+        }))
     } else {
-        Ok(term)
+        Ok(Expr::UnOp(term))
     }
 }
 
-fn bin_op(tokens: &TokenStream<'_>) -> Result<BinOp, Spanned<ParseError>> {
+fn bin_op(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
     let lhs = expr(tokens)?.map(Box::new);
 
     let op = tokens.next().ok_or_else(|| {
@@ -280,7 +321,11 @@ fn bin_op(tokens: &TokenStream<'_>) -> Result<BinOp, Spanned<ParseError>> {
 
     let rhs = expr(tokens)?.map(Box::new);
 
-    Ok(BinOp { op, lhs, rhs })
+    Ok(Expr::BinOp(BinOp { op, lhs, rhs }))
+}
+
+fn fn_call_expr(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
+    fn_call(tokens).map(|call| Expr::FnCall(call))
 }
 
 fn fn_call(tokens: &TokenStream<'_>) -> Result<FnCall, Spanned<ParseError>> {
@@ -423,7 +468,7 @@ fn segment(tokens: &TokenStream<'_>) -> Result<Spanned<Ident>, Spanned<ParseErro
     ident(tokens).map_err(|spanned| spanned.map(|err| err.set_expected("item identifier")))
 }
 
-fn field_access(tokens: &TokenStream<'_>) -> Result<FieldAccess, Spanned<ParseError>> {
+fn field_access(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
     let value = expr(tokens)?.map(Box::new);
 
     match tokens.next() {
@@ -452,14 +497,14 @@ fn field_access(tokens: &TokenStream<'_>) -> Result<FieldAccess, Spanned<ParseEr
     let field =
         ident(tokens).map_err(|spanned| spanned.map(|err| err.set_expected("field name")))?;
 
-    Ok(FieldAccess {
+    Ok(Expr::FieldAccess(FieldAccess {
         value,
         field,
         num_derefs,
-    })
+    }))
 }
 
-fn array_cons(tokens: &TokenStream<'_>) -> Result<ArrayCons, Spanned<ParseError>> {
+fn array_cons(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
     match tokens.next() {
         Some(Token::OpenBracket) => (),
         Some(_) => {
@@ -482,7 +527,7 @@ fn array_cons(tokens: &TokenStream<'_>) -> Result<ArrayCons, Spanned<ParseError>
         match tokens.peek() {
             Some(Token::CloseBracket) => {
                 tokens.next();
-                return Ok(ArrayCons { elems });
+                return Ok(Expr::ArrayCons(ArrayCons { elems }));
             }
             Some(_) => (),
             None => {
@@ -497,7 +542,7 @@ fn array_cons(tokens: &TokenStream<'_>) -> Result<ArrayCons, Spanned<ParseError>
 
         match tokens.next() {
             Some(Token::CloseBracket) => {
-                return Ok(ArrayCons { elems });
+                return Ok(Expr::ArrayCons(ArrayCons { elems }));
             }
             Some(Token::Comma) => continue,
             Some(_) => {
@@ -586,14 +631,14 @@ fn parenthesized_or_tuple_cons(tokens: &TokenStream<'_>) -> Result<Expr, Spanned
     }
 }
 
-fn assignment(tokens: &TokenStream<'_>) -> Result<Assignment, Spanned<ParseError>> {
+fn assignment(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
     let var_name = ident(tokens)?;
 
     match tokens.next() {
-        Some(Token::Equal) => Ok(Assignment {
+        Some(Token::Equal) => Ok(Expr::Assignment(Assignment {
             var_name,
             value: expr(tokens)?.map(Box::new),
-        }),
+        })),
         Some(_) => Err(Spanned::new(
             ParseError::unexpected_token().expected("assigment operator"),
             tokens.last_token_span(),
@@ -605,7 +650,7 @@ fn assignment(tokens: &TokenStream<'_>) -> Result<Assignment, Spanned<ParseError
     }
 }
 
-fn let_binding(tokens: &TokenStream<'_>) -> Result<LetBinding, Spanned<ParseError>> {
+fn let_binding(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
     match tokens.next() {
         Some(Token::Keyword(Keyword::Let)) => (),
         Some(_) => {
@@ -647,11 +692,11 @@ fn let_binding(tokens: &TokenStream<'_>) -> Result<LetBinding, Spanned<ParseErro
 
     let expr = expr(tokens)?.map(Box::new);
 
-    Ok(LetBinding {
+    Ok(Expr::LetBinding(LetBinding {
         pattern,
         ty_hint,
         expr,
-    })
+    }))
 }
 
 fn ret_expr(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
@@ -723,6 +768,10 @@ fn if_expr(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
         then_block,
         else_block,
     }))
+}
+
+fn block_expr(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
+    block(tokens).map(|spanned| Expr::Block(spanned.value))
 }
 
 fn block(tokens: &TokenStream<'_>) -> Result<Spanned<Block>, Spanned<ParseError>> {
