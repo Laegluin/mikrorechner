@@ -6,8 +6,8 @@ pub type Ast = Vec<Spanned<Item>>;
 
 #[derive(Debug)]
 pub enum Item {
-    TypeDef(Spanned<TypeDef>),
-    FnDef(Spanned<FnDef>),
+    TypeDef(TypeDef),
+    FnDef(FnDef),
 }
 
 #[derive(Debug)]
@@ -31,20 +31,20 @@ pub struct FieldDef {
 
 #[derive(Debug)]
 pub struct VariantsDef {
-    pub name: Spanned<FieldDef>,
+    pub name: Spanned<Ident>,
     pub variants: Vec<Spanned<VariantDef>>,
 }
 
 #[derive(Debug)]
 pub struct VariantDef {
     pub name: Spanned<Ident>,
-    pub params_ty: Vec<Spanned<TypeDesc>>,
+    pub param_tys: Vec<Spanned<TypeDesc>>,
 }
 
 #[derive(Debug)]
 pub struct FnDef {
     pub name: Spanned<Ident>,
-    pub params_ty: Vec<Spanned<ParamDef>>,
+    pub param_tys: Vec<Spanned<ParamDef>>,
     pub ret_ty: Spanned<TypeDesc>,
     pub body: Spanned<Block>,
 }

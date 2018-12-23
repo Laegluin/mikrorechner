@@ -156,6 +156,197 @@ pub fn parse(tokens: impl AsRef<[Spanned<Token>]>) -> Result<Ast, Spanned<ParseE
     unimplemented!()
 }
 
+fn type_def(tokens: &TokenStream<'_>) -> Result<Item, Spanned<ParseError>> {
+    match tokens.next() {
+        Some(Token::Keyword(Keyword::Type)) => (),
+        Some(_) => {
+            return Err(Spanned::new(
+                ParseError::unexpected_token().expected("type"),
+                tokens.last_token_span(),
+            ))
+        }
+        None => {
+            return Err(Spanned::new(
+                ParseError::eof().expected("type"),
+                tokens.eof_span(),
+            ))
+        }
+    }
+
+    let name = ident(tokens)?;
+
+    match tokens.next() {
+        Some(Token::Equal) => (),
+        Some(_) => {
+            return Err(Spanned::new(
+                ParseError::unexpected_token().expected("="),
+                tokens.last_token_span(),
+            ))
+        }
+        None => {
+            return Err(Spanned::new(
+                ParseError::eof().expected("="),
+                tokens.eof_span(),
+            ))
+        }
+    }
+
+    match tokens.next() {
+        Some(Token::OpenBrace) => {
+            let span_start = tokens.start_span();
+            let record_def = record_def(name, tokens)?;
+            let span = span_start.end();
+
+            Ok(Item::TypeDef(TypeDef::RecordDef(Spanned::new(
+                record_def, span,
+            ))))
+        }
+        Some(Token::Pipe) => {
+            let span_start = tokens.start_span();
+            let variants_def = variants_def(name, tokens)?;
+            let span = span_start.end();
+
+            Ok(Item::TypeDef(TypeDef::VariantsDef(Spanned::new(
+                variants_def,
+                span,
+            ))))
+        }
+        Some(_) => Ok(Item::TypeDef(TypeDef::Alias(type_desc(tokens)?))),
+        None => Err(Spanned::new(
+            ParseError::eof()
+                .expected("record definition")
+                .expected("variants definition")
+                .expected("type alias"),
+            tokens.eof_span(),
+        )),
+    }
+}
+
+fn record_def(
+    name: Spanned<Ident>,
+    tokens: &TokenStream<'_>,
+) -> Result<RecordDef, Spanned<ParseError>> {
+    let mut fields = Vec::new();
+
+    while tokens.peek() != Some(Token::CloseBrace) {
+        let span_start = tokens.start_span();
+        let field = field_def(tokens)?;
+        let span = span_start.end();
+        fields.push(Spanned::new(field, span));
+
+        match tokens.peek() {
+            Some(Token::Comma) => {
+                tokens.next();
+            }
+            _ => break,
+        }
+    }
+
+    match tokens.next() {
+        Some(Token::CloseBrace) => Ok(RecordDef { name, fields }),
+        Some(_) => Err(Spanned::new(
+            ParseError::unexpected_token().expected("closing brace"),
+            tokens.last_token_span(),
+        )),
+        None => Err(Spanned::new(
+            ParseError::eof().expected("closing brace"),
+            tokens.eof_span(),
+        )),
+    }
+}
+
+fn field_def(tokens: &TokenStream<'_>) -> Result<FieldDef, Spanned<ParseError>> {
+    let name = ident(tokens)?;
+
+    match tokens.next() {
+        Some(Token::Colon) => (),
+        Some(_) => {
+            return Err(Spanned::new(
+                ParseError::unexpected_token().expected(":"),
+                tokens.last_token_span(),
+            ))
+        }
+        None => {
+            return Err(Spanned::new(
+                ParseError::eof().expected(":"),
+                tokens.eof_span(),
+            ))
+        }
+    }
+
+    let ty = type_desc(tokens)?;
+
+    Ok(FieldDef { name, ty })
+}
+
+fn variants_def(
+    name: Spanned<Ident>,
+    tokens: &TokenStream<'_>,
+) -> Result<VariantsDef, Spanned<ParseError>> {
+    let mut variants = Vec::new();
+
+    while tokens.peek() != Some(Token::Semicolon) {
+        let span_start = tokens.start_span();
+        let variant = variant_def(tokens)?;
+        let span = span_start.end();
+        variants.push(Spanned::new(variant, span));
+    }
+
+    match tokens.next() {
+        Some(Token::Semicolon) => Ok(VariantsDef { name, variants }),
+        Some(_) => Err(Spanned::new(
+            ParseError::unexpected_token().expected(";"),
+            tokens.last_token_span(),
+        )),
+        None => Err(Spanned::new(
+            ParseError::eof().expected(";"),
+            tokens.eof_span(),
+        )),
+    }
+}
+
+fn variant_def(tokens: &TokenStream<'_>) -> Result<VariantDef, Spanned<ParseError>> {
+    let name = ident(tokens)?;
+    let mut param_tys = Vec::new();
+
+    while tokens.peek() != Some(Token::Pipe) && tokens.peek() != Some(Token::Semicolon) {
+        param_tys.push(type_desc(tokens)?);
+
+        match tokens.peek() {
+            Some(Token::Comma) => {
+                tokens.next();
+            }
+            _ => break,
+        }
+    }
+
+    match tokens.peek() {
+        Some(Token::Pipe) => {
+            tokens.next();
+        }
+        // don't consume the semicolon so `variants_def` the definition is done
+        Some(Token::Semicolon) => (),
+        Some(_) => {
+            return Err(Spanned::new(
+                ParseError::unexpected_token().expected("|").expected(";"),
+                tokens.last_token_span(),
+            ))
+        }
+        None => {
+            return Err(Spanned::new(
+                ParseError::eof().expected("|").expected(";"),
+                tokens.eof_span(),
+            ))
+        }
+    }
+
+    Ok(VariantDef { name, param_tys })
+}
+
+fn fn_def(tokens: &TokenStream<'_>) -> Result<Item, Spanned<ParseError>> {
+    unimplemented!()
+}
+
 fn expr(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
     let span_start = tokens.start_span();
 
