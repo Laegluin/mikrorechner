@@ -216,7 +216,7 @@ pub enum Pattern {
     Discard,
     Binding(Spanned<Ident>),
     MutBinding(Spanned<Ident>),
-    TupleDestructuring(Spanned<Vec<Pattern>>),
+    Tuple(Spanned<Vec<Pattern>>),
 }
 
 #[derive(Debug)]

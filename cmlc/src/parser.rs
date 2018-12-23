@@ -135,6 +135,7 @@ impl<'t> TokenStream<'t> {
     }
 }
 
+#[derive(Clone, Copy)]
 struct StreamPos(usize);
 
 struct SpanStart<'s, 't> {
@@ -143,7 +144,7 @@ struct SpanStart<'s, 't> {
 }
 
 impl SpanStart<'_, '_> {
-    fn end(self) -> Span {
+    fn end(&self) -> Span {
         self.stream.tokens[self.start]
             .span
             .to(self.stream.tokens[self.stream.consumed.get()].span)
@@ -602,6 +603,148 @@ fn assignment(tokens: &TokenStream<'_>) -> Result<Assignment, Spanned<ParseError
             tokens.eof_span(),
         )),
     }
+}
+
+fn pattern(tokens: &TokenStream<'_>) -> Result<Spanned<Pattern>, Spanned<ParseError>> {
+    one_of(tokens, &[discard_pattern, binding_pattern, tuple_pattern])
+}
+
+fn discard_pattern(tokens: &TokenStream<'_>) -> Result<Pattern, Spanned<ParseError>> {
+    match tokens.next() {
+        Some(Token::Underscore) => Ok(Pattern::Discard),
+        Some(_) => Err(Spanned::new(
+            ParseError::unexpected_token().expected("discard pattern"),
+            tokens.last_token_span(),
+        )),
+        None => Err(Spanned::new(
+            ParseError::eof().expected("discard pattern"),
+            tokens.eof_span(),
+        )),
+    }
+}
+
+fn binding_pattern(tokens: &TokenStream<'_>) -> Result<Pattern, Spanned<ParseError>> {
+    match tokens.peek() {
+        Some(Token::Keyword(Keyword::Mut)) => {
+            tokens.next();
+
+            ident(tokens)
+                .map(Pattern::MutBinding)
+                .map_err(|spanned| spanned.map(|err| err.set_expected("binding pattern")))
+        }
+        Some(Token::Ident(_)) => ident(tokens)
+            .map(Pattern::Binding)
+            .map_err(|spanned| spanned.map(|err| err.set_expected("binding pattern"))),
+        Some(_) => Err(Spanned::new(
+            ParseError::unexpected_token()
+                .expected("binding pattern")
+                .expected("mutable binding pattern"),
+            tokens.last_token_span(),
+        )),
+        None => Err(Spanned::new(
+            ParseError::eof()
+                .expected("binding pattern")
+                .expected("mutable binding pattern"),
+            tokens.eof_span(),
+        )),
+    }
+}
+
+fn tuple_pattern(tokens: &TokenStream<'_>) -> Result<Pattern, Spanned<ParseError>> {
+    let span_start = tokens.start_span();
+
+    match tokens.next() {
+        Some(Token::OpenParen) => (),
+        Some(_) => {
+            return Err(Spanned::new(
+                ParseError::unexpected_token().expected("opening parenthesis"),
+                tokens.last_token_span(),
+            ))
+        }
+        None => {
+            return Err(Spanned::new(
+                ParseError::eof().expected("opening parenthesis"),
+                tokens.eof_span(),
+            ))
+        }
+    }
+
+    let mut patterns = Vec::new();
+
+    loop {
+        match tokens.peek() {
+            Some(Token::CloseParen) => {
+                tokens.next();
+                return Ok(Pattern::Tuple(Spanned::new(patterns, span_start.end())));
+            }
+            Some(_) => (),
+            None => {
+                return Err(Spanned::new(
+                    ParseError::eof().expected("closing parenthesis"),
+                    tokens.eof_span(),
+                ))
+            }
+        }
+
+        patterns.push(pattern(tokens)?.value);
+
+        match tokens.next() {
+            Some(Token::CloseParen) => {
+                return Ok(Pattern::Tuple(Spanned::new(patterns, span_start.end())));
+            }
+            Some(Token::Comma) => continue,
+            Some(_) => {
+                return Err(Spanned::new(
+                    ParseError::unexpected_token()
+                        .expected("closing parenthesis")
+                        .expected("comma"),
+                    tokens.last_token_span(),
+                ))
+            }
+            None => {
+                return Err(Spanned::new(
+                    ParseError::eof()
+                        .expected("closing parenthesis")
+                        .expected("comma"),
+                    tokens.eof_span(),
+                ))
+            }
+        }
+    }
+}
+
+/// Parses `tokens` with one of the supplied parsers. The first match will be returned. If there is
+/// no successful match, the error with the longest span will be returned.
+///
+/// The stream will only consume tokens on a successful parse.
+fn one_of<T>(
+    tokens: &TokenStream<'_>,
+    parsers: &[fn(&TokenStream<'_>) -> Result<T, Spanned<ParseError>>],
+) -> Result<Spanned<T>, Spanned<ParseError>>
+where
+{
+    assert!(!parsers.is_empty());
+
+    let start_pos = tokens.save_pos();
+    let span_start = tokens.start_span();
+    let mut best_err: Option<Spanned<ParseError>> = None;
+
+    for parser in parsers {
+        match parser(tokens) {
+            Ok(value) => return Ok(Spanned::new(value, span_start.end())),
+            Err(err) => match best_err {
+                Some(ref best_err_val) if best_err_val.span < err.span => best_err = Some(err),
+                None => best_err = Some(err),
+                _ => (),
+            },
+        }
+
+        // reset the stream after an error
+        tokens.restore_pos(start_pos);
+    }
+
+    // must be Some because parsers is never empty
+    Err(best_err.unwrap())
 }
 
 fn ident(tokens: &TokenStream<'_>) -> Result<Spanned<Ident>, Spanned<ParseError>> {
