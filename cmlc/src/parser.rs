@@ -674,6 +674,61 @@ fn ret_expr(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
     Ok(Expr::Ret(expr(tokens)?.map(Box::new).value))
 }
 
+fn if_expr(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
+    match tokens.next() {
+        Some(Token::Keyword(Keyword::If)) => (),
+        Some(_) => {
+            return Err(Spanned::new(
+                ParseError::unexpected_token().expected("if"),
+                tokens.last_token_span(),
+            ))
+        }
+        None => {
+            return Err(Spanned::new(
+                ParseError::eof().expected("if"),
+                tokens.eof_span(),
+            ))
+        }
+    }
+
+    let cond = expr(tokens)?.map(Box::new);
+    let then_block = block(tokens)?;
+
+    let else_block = match tokens.peek() {
+        Some(Token::Keyword(Keyword::Else)) => {
+            tokens.next();
+
+            match tokens.peek() {
+                Some(Token::Keyword(Keyword::If)) => {
+                    let span_start = tokens.start_span();
+                    let if_expr = if_expr(tokens)?;
+                    let span = span_start.end();
+
+                    Some(Spanned::new(
+                        Block {
+                            exprs: vec![Spanned::new(if_expr, span)],
+                            is_last_expr_stmt: false,
+                        },
+                        span,
+                    ))
+                }
+                _ => Some(block(tokens)?),
+            }
+        }
+        _ => None,
+    };
+
+    Ok(Expr::IfExpr(IfExpr {
+        cond,
+        then_block,
+        else_block,
+    }))
+}
+
+fn block(tokens: &TokenStream<'_>) -> Result<Spanned<Block>, Spanned<ParseError>> {
+    unimplemented!()
+}
+
 fn pattern(tokens: &TokenStream<'_>) -> Result<Spanned<Pattern>, Spanned<ParseError>> {
     one_of(tokens, &[discard_pattern, binding_pattern, tuple_pattern])
 }
