@@ -126,7 +126,7 @@ impl<'t> TokenStream<'t> {
         }
     }
 
-    fn save_pos(&self) -> StreamPos {
+    fn pos(&self) -> StreamPos {
         StreamPos(self.consumed.get())
     }
 
@@ -573,7 +573,7 @@ fn fn_call(tokens: &TokenStream<'_>) -> Result<FnCall, Spanned<ParseError>> {
 /// the function call start. Does not advance the stream.
 fn try_fn_call_start(tokens: &TokenStream<'_>) -> Option<Span> {
     let span_start = tokens.start_span();
-    let pos = tokens.save_pos();
+    let pos = tokens.pos();
 
     if item_path(tokens).is_err() {
         tokens.restore_pos(pos);
@@ -1365,7 +1365,7 @@ fn tuple_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseEr
 }
 
 /// Parses `tokens` with one of the supplied parsers. The first match will be returned. If there is
-/// no successful match, the error with the longest span will be returned.
+/// no successful match, the error with the furthest end will be returned.
 ///
 /// The stream will only consume tokens on a successful parse.
 fn one_of<T>(
@@ -1376,7 +1376,7 @@ where
 {
     assert!(!parsers.is_empty());
 
-    let start_pos = tokens.save_pos();
+    let start_pos = tokens.pos();
     let span_start = tokens.start_span();
     let mut best_err: Option<Spanned<ParseError>> = None;
 
@@ -1384,9 +1384,15 @@ where
         match parser(tokens) {
             Ok(value) => return Ok(Spanned::new(value, span_start.end())),
             Err(err) => match best_err {
-                Some(ref best_err_val) if best_err_val.span < err.span => best_err = Some(err),
+                Some(ref best_err_val) => {
+                    let end = err.span.end();
+                    let best_end = best_err_val.span.end();
+
+                    if end > best_end {
+                        best_err = Some(err)
+                    }
+                }
                 None => best_err = Some(err),
-                _ => (),
             },
         }
 
