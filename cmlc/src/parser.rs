@@ -726,7 +726,62 @@ fn if_expr(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
 }
 
 fn block(tokens: &TokenStream<'_>) -> Result<Spanned<Block>, Spanned<ParseError>> {
-    unimplemented!()
+    let span_start = tokens.start_span();
+
+    match tokens.next() {
+        Some(Token::OpenBrace) => (),
+        Some(_) => {
+            return Err(Spanned::new(
+                ParseError::unexpected_token().expected("opening brace"),
+                tokens.last_token_span(),
+            ))
+        }
+        None => {
+            return Err(Spanned::new(
+                ParseError::eof().expected("opening brace"),
+                tokens.eof_span(),
+            ))
+        }
+    }
+
+    let mut exprs = Vec::new();
+    let mut is_last_expr_stmt = false;
+
+    while tokens.peek() != Some(Token::CloseBrace) {
+        exprs.push(expr(tokens)?);
+
+        if tokens.peek() == Some(Token::Semicolon) {
+            tokens.next();
+            is_last_expr_stmt = true;
+        } else {
+            is_last_expr_stmt = false;
+            break;
+        }
+    }
+
+    match tokens.next() {
+        Some(Token::CloseBrace) => (),
+        Some(_) => {
+            return Err(Spanned::new(
+                ParseError::unexpected_token().expected("closing brace"),
+                tokens.last_token_span(),
+            ))
+        }
+        None => {
+            return Err(Spanned::new(
+                ParseError::eof().expected("closing brace"),
+                tokens.eof_span(),
+            ))
+        }
+    }
+
+    Ok(Spanned::new(
+        Block {
+            exprs,
+            is_last_expr_stmt,
+        },
+        span_start.end(),
+    ))
 }
 
 fn pattern(tokens: &TokenStream<'_>) -> Result<Spanned<Pattern>, Spanned<ParseError>> {
