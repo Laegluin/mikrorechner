@@ -90,15 +90,6 @@ impl<'t> TokenStream<'t> {
         }
     }
 
-    /// Returns the span for the next token.
-    ///
-    /// ## Panics
-    /// Panics if there is no next token in the stream.
-    fn next_token_span(&self) -> Span {
-        assert!(self.consumed.get() < self.tokens.len());
-        self.tokens[self.consumed.get()].span
-    }
-
     fn eof_span(&self) -> Span {
         let consumed = self.consumed.get();
 
@@ -153,7 +144,17 @@ impl SpanStart<'_, '_> {
 
 pub fn parse(tokens: impl AsRef<[Spanned<Token>]>) -> Result<Ast, Spanned<ParseError>> {
     let tokens = TokenStream::new(tokens.as_ref());
-    unimplemented!()
+    let mut items = Vec::new();
+
+    while tokens.peek() != None {
+        items.push(item(&tokens)?);
+    }
+
+    Ok(items)
+}
+
+fn item(tokens: &TokenStream<'_>) -> Result<Spanned<Item>, Spanned<ParseError>> {
+    one_of(tokens, &[type_def, fn_def])
 }
 
 fn type_def(tokens: &TokenStream<'_>) -> Result<Item, Spanned<ParseError>> {

@@ -157,12 +157,6 @@ pub struct TupleCons {
 }
 
 #[derive(Debug)]
-pub struct FieldCons {
-    pub name: Spanned<Ident>,
-    pub value: Spanned<Expr>,
-}
-
-#[derive(Debug)]
 pub struct FnCall {
     pub name: Spanned<ItemPath>,
     pub args: Vec<Spanned<Arg>>,
