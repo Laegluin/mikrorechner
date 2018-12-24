@@ -9,6 +9,7 @@ pub enum Type {
     U32,
     Str,
     Ptr(Box<Type>),
+    MutPtr(Box<Type>),
     Function(Function),
     Array(Array),
     Tuple(Vec<Type>),

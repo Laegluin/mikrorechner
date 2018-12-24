@@ -60,6 +60,7 @@ pub enum TypeDesc {
     Hole,
     Name(Ident),
     Ptr(Box<TypeDesc>),
+    MutPtr(Box<TypeDesc>),
     Array(ArrayDesc),
     Function(FunctionDesc),
     Tuple(Vec<Spanned<TypeDesc>>),

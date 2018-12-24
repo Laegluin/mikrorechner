@@ -1275,9 +1275,18 @@ fn name_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseErr
 
 fn ptr_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseError>> {
     match tokens.next() {
-        Some(Token::Star) => Ok(TypeDesc::Ptr(Box::new(
-            type_desc(tokens).map(|spanned| spanned.value)?,
-        ))),
+        Some(Token::Star) => match tokens.peek() {
+            Some(Token::Keyword(Keyword::Mut)) => {
+                tokens.next();
+
+                Ok(TypeDesc::MutPtr(Box::new(
+                    type_desc(tokens).map(|spanned| spanned.value)?,
+                )))
+            }
+            _ => Ok(TypeDesc::Ptr(Box::new(
+                type_desc(tokens).map(|spanned| spanned.value)?,
+            ))),
+        },
         Some(_) => Err(Spanned::new(
             ParseError::unexpected_token().expected("pointer"),
             tokens.last_token_span(),
