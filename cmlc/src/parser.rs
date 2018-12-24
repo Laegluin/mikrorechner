@@ -381,7 +381,7 @@ fn fn_def(tokens: &TokenStream<'_>) -> Result<Item, Spanned<ParseError>> {
 
     let mut params = Vec::new();
 
-    while tokens.peek() != Some(Token::Arrow) || tokens.peek() != Some(Token::OpenBrace) {
+    while tokens.peek() != Some(Token::Arrow) && tokens.peek() != Some(Token::OpenBrace) {
         let span_start = tokens.start_span();
         let param = param_def(tokens)?;
         let span = span_start.end();
