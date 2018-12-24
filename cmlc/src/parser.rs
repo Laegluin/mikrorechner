@@ -606,6 +606,7 @@ fn bin_op(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
         Token::Slash => BinOpKind::Div,
         Token::DoubleAmp => BinOpKind::And,
         Token::DoublePipe => BinOpKind::Or,
+        Token::DoubleEqual => BinOpKind::Eq,
         Token::Less => BinOpKind::Lt,
         Token::LessEqual => BinOpKind::Le,
         Token::Greater => BinOpKind::Gt,
