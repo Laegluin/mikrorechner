@@ -44,15 +44,15 @@ pub struct VariantDef {
 #[derive(Debug)]
 pub struct FnDef {
     pub name: Spanned<Ident>,
-    pub param_tys: Vec<Spanned<ParamDef>>,
-    pub ret_ty: Spanned<TypeDesc>,
+    pub params: Vec<Spanned<ParamDef>>,
+    pub ret_ty: Option<Spanned<TypeDesc>>,
     pub body: Spanned<Block>,
 }
 
 #[derive(Debug)]
 pub struct ParamDef {
     pub name: Spanned<Option<Ident>>,
-    pub ty_name: Spanned<TypeDesc>,
+    pub ty: Spanned<TypeDesc>,
 }
 
 #[derive(Debug)]

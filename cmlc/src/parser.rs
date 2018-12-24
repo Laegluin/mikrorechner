@@ -344,7 +344,114 @@ fn variant_def(tokens: &TokenStream<'_>) -> Result<VariantDef, Spanned<ParseErro
 }
 
 fn fn_def(tokens: &TokenStream<'_>) -> Result<Item, Spanned<ParseError>> {
-    unimplemented!()
+    match tokens.next() {
+        Some(Token::Keyword(Keyword::Fn)) => (),
+        Some(_) => {
+            return Err(Spanned::new(
+                ParseError::unexpected_token().expected("fn"),
+                tokens.last_token_span(),
+            ))
+        }
+        None => {
+            return Err(Spanned::new(
+                ParseError::eof().expected("fn"),
+                tokens.eof_span(),
+            ))
+        }
+    }
+
+    let name = ident(tokens)?;
+
+    match tokens.next() {
+        Some(Token::Equal) => (),
+        Some(_) => {
+            return Err(Spanned::new(
+                ParseError::unexpected_token().expected("="),
+                tokens.last_token_span(),
+            ))
+        }
+        None => {
+            return Err(Spanned::new(
+                ParseError::eof().expected("="),
+                tokens.eof_span(),
+            ))
+        }
+    }
+
+    let mut params = Vec::new();
+
+    while tokens.peek() != Some(Token::Arrow) || tokens.peek() != Some(Token::OpenBrace) {
+        let span_start = tokens.start_span();
+        let param = param_def(tokens)?;
+        let span = span_start.end();
+        params.push(Spanned::new(param, span));
+
+        match tokens.peek() {
+            Some(Token::Comma) => {
+                tokens.next();
+            }
+            _ => break,
+        }
+    }
+
+    let ret_ty = match tokens.peek() {
+        Some(Token::Arrow) => {
+            tokens.next();
+            Some(type_desc(tokens)?)
+        }
+        Some(Token::OpenBrace) => None,
+        Some(_) => {
+            return Err(Spanned::new(
+                ParseError::unexpected_token().expected("->"),
+                tokens.last_token_span(),
+            ))
+        }
+        None => {
+            return Err(Spanned::new(
+                ParseError::eof().expected("->"),
+                tokens.eof_span(),
+            ))
+        }
+    };
+
+    let body = block(tokens)?;
+
+    Ok(Item::FnDef(FnDef {
+        name,
+        params,
+        ret_ty,
+        body,
+    }))
+}
+
+fn param_def(tokens: &TokenStream<'_>) -> Result<ParamDef, Spanned<ParseError>> {
+    let name = match tokens.peek() {
+        Some(Token::Underscore) => {
+            tokens.next();
+            Spanned::new(None, tokens.last_token_span())
+        }
+        _ => ident(tokens)?.map(Some),
+    };
+
+    match tokens.next() {
+        Some(Token::Colon) => (),
+        Some(_) => {
+            return Err(Spanned::new(
+                ParseError::unexpected_token().expected(":"),
+                tokens.last_token_span(),
+            ))
+        }
+        None => {
+            return Err(Spanned::new(
+                ParseError::eof().expected(":"),
+                tokens.eof_span(),
+            ))
+        }
+    }
+
+    let ty = type_desc(tokens)?;
+
+    Ok(ParamDef { name, ty })
 }
 
 fn expr(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
