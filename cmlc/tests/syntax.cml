@@ -66,10 +66,6 @@ fn main = -> i32 {
         ret -1;
     }
 
-    fn plus = lhs: i32, rhs: i32 -> i32 {
-        lhs + rhs
-    }
-
     if 1 + 2 > 0 {
         let three = 1 plus: 2 plus: 3;
         let three = plus: (plus: 1, 2), 3
@@ -78,6 +74,10 @@ fn main = -> i32 {
     if !true && false || true {
         explode!;
     }
+}
+
+fn plus = lhs: i32, rhs: i32 -> i32 {
+    lhs + rhs
 }
 
 type Record = {

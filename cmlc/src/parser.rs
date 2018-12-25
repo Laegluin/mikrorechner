@@ -674,6 +674,13 @@ fn fn_call(tokens: &TokenStream<'_>) -> Result<Spanned<FnCall>, Spanned<ParseErr
             while let Some(Token::Comma) = tokens.peek() {
                 tokens.next();
 
+                // explicitly skip fn calls since belong to a method call; this avoids
+                // parsing the name of the function as variable when the call has a trailing
+                // comma
+                if is_fn_call(tokens) {
+                    break;
+                }
+                
                 // if the following tokens cannot be parsed as expression of a higher
                 // precedence, assume the comma is a trailing comma
                 match fn_arg(tokens) {
