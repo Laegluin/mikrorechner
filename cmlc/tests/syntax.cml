@@ -81,7 +81,7 @@ fn plus = lhs: i32, rhs: i32 -> i32 {
 }
 
 type Record = {
-    ptr_field: *i32;
+    ptr_field: *i32,
 }
 
 fn dangling_ptr = -> *mut Record {

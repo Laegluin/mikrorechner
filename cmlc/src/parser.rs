@@ -945,14 +945,24 @@ fn block(tokens: &TokenStream<'_>) -> Result<Spanned<Block>, Spanned<ParseError>
     let mut is_last_expr_stmt = false;
 
     while tokens.peek() != Some(Token::CloseBrace) {
-        exprs.push(expr(tokens)?);
+        let expr = expr(tokens)?;
+
+        let is_block_delimited = match expr.value {
+            Expr::Block(_) | Expr::IfExpr(_) => true,
+            _ => false,
+        };
+
+        exprs.push(expr);
 
         if tokens.peek() == Some(Token::Semicolon) {
             tokens.next();
             is_last_expr_stmt = true;
         } else {
             is_last_expr_stmt = false;
-            break;
+            
+            if !is_block_delimited {
+                break;
+            }
         }
     }
 
