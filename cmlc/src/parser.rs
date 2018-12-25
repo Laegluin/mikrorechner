@@ -158,39 +158,9 @@ fn item(tokens: &TokenStream<'_>) -> Result<Spanned<Item>, Spanned<ParseError>> 
 }
 
 fn type_def(tokens: &TokenStream<'_>) -> Result<Item, Spanned<ParseError>> {
-    match tokens.next() {
-        Some(Token::Keyword(Keyword::Type)) => (),
-        Some(_) => {
-            return Err(Spanned::new(
-                ParseError::unexpected_token().expected("type"),
-                tokens.last_token_span(),
-            ))
-        }
-        None => {
-            return Err(Spanned::new(
-                ParseError::eof().expected("type"),
-                tokens.eof_span(),
-            ))
-        }
-    }
-
+    token(tokens, Token::Keyword(Keyword::Type), "type")?;
     let name = ident(tokens)?;
-
-    match tokens.next() {
-        Some(Token::Equal) => (),
-        Some(_) => {
-            return Err(Spanned::new(
-                ParseError::unexpected_token().expected("="),
-                tokens.last_token_span(),
-            ))
-        }
-        None => {
-            return Err(Spanned::new(
-                ParseError::eof().expected("="),
-                tokens.eof_span(),
-            ))
-        }
-    }
+    token(tokens, Token::Equal, "=")?;
 
     match tokens.next() {
         Some(Token::OpenBrace) => {
@@ -212,7 +182,11 @@ fn type_def(tokens: &TokenStream<'_>) -> Result<Item, Spanned<ParseError>> {
                 span,
             ))))
         }
-        Some(_) => Ok(Item::TypeDef(TypeDef::Alias(type_desc(tokens)?))),
+        Some(_) => {
+            let alias = type_desc(tokens)?;
+            token(tokens, Token::Semicolon, ";")?;
+            Ok(Item::TypeDef(TypeDef::Alias(alias)))
+        }
         None => Err(Spanned::new(
             ParseError::eof()
                 .expected("record definition")
@@ -243,38 +217,13 @@ fn record_def(
         }
     }
 
-    match tokens.next() {
-        Some(Token::CloseBrace) => Ok(RecordDef { name, fields }),
-        Some(_) => Err(Spanned::new(
-            ParseError::unexpected_token().expected("closing brace"),
-            tokens.last_token_span(),
-        )),
-        None => Err(Spanned::new(
-            ParseError::eof().expected("closing brace"),
-            tokens.eof_span(),
-        )),
-    }
+    token(tokens, Token::CloseBrace, "}")?;
+    Ok(RecordDef { name, fields })
 }
 
 fn field_def(tokens: &TokenStream<'_>) -> Result<FieldDef, Spanned<ParseError>> {
     let name = ident(tokens)?;
-
-    match tokens.next() {
-        Some(Token::Colon) => (),
-        Some(_) => {
-            return Err(Spanned::new(
-                ParseError::unexpected_token().expected(":"),
-                tokens.last_token_span(),
-            ))
-        }
-        None => {
-            return Err(Spanned::new(
-                ParseError::eof().expected(":"),
-                tokens.eof_span(),
-            ))
-        }
-    }
-
+    token(tokens, Token::Colon, ":")?;
     let ty = type_desc(tokens)?;
 
     Ok(FieldDef { name, ty })
@@ -293,17 +242,8 @@ fn variants_def(
         variants.push(Spanned::new(variant, span));
     }
 
-    match tokens.next() {
-        Some(Token::Semicolon) => Ok(VariantsDef { name, variants }),
-        Some(_) => Err(Spanned::new(
-            ParseError::unexpected_token().expected(";"),
-            tokens.last_token_span(),
-        )),
-        None => Err(Spanned::new(
-            ParseError::eof().expected(";"),
-            tokens.eof_span(),
-        )),
-    }
+    token(tokens, Token::Semicolon, ";")?;
+    Ok(VariantsDef { name, variants })
 }
 
 fn variant_def(tokens: &TokenStream<'_>) -> Result<VariantDef, Spanned<ParseError>> {
@@ -345,39 +285,9 @@ fn variant_def(tokens: &TokenStream<'_>) -> Result<VariantDef, Spanned<ParseErro
 }
 
 fn fn_def(tokens: &TokenStream<'_>) -> Result<Item, Spanned<ParseError>> {
-    match tokens.next() {
-        Some(Token::Keyword(Keyword::Fn)) => (),
-        Some(_) => {
-            return Err(Spanned::new(
-                ParseError::unexpected_token().expected("fn"),
-                tokens.last_token_span(),
-            ))
-        }
-        None => {
-            return Err(Spanned::new(
-                ParseError::eof().expected("fn"),
-                tokens.eof_span(),
-            ))
-        }
-    }
-
+    token(tokens, Token::Keyword(Keyword::Fn), "fn")?;
     let name = ident(tokens)?;
-
-    match tokens.next() {
-        Some(Token::Equal) => (),
-        Some(_) => {
-            return Err(Spanned::new(
-                ParseError::unexpected_token().expected("="),
-                tokens.last_token_span(),
-            ))
-        }
-        None => {
-            return Err(Spanned::new(
-                ParseError::eof().expected("="),
-                tokens.eof_span(),
-            ))
-        }
-    }
+    token(tokens, Token::Equal, "=")?;
 
     let mut params = Vec::new();
 
@@ -434,66 +344,421 @@ fn param_def(tokens: &TokenStream<'_>) -> Result<ParamDef, Spanned<ParseError>> 
         _ => ident(tokens)?.map(Some),
     };
 
-    match tokens.next() {
-        Some(Token::Colon) => (),
-        Some(_) => {
-            return Err(Spanned::new(
-                ParseError::unexpected_token().expected(":"),
-                tokens.last_token_span(),
-            ))
-        }
-        None => {
-            return Err(Spanned::new(
-                ParseError::eof().expected(":"),
-                tokens.eof_span(),
-            ))
-        }
-    }
-
+    token(tokens, Token::Colon, ":")?;
     let ty = type_desc(tokens)?;
 
     Ok(ParamDef { name, ty })
 }
 
 fn expr(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
+    if tokens.peek() == Some(Token::Keyword(Keyword::Let)) {
+        let_binding(tokens)
+    } else {
+        assignment(tokens)
+    }
+}
+
+fn let_binding(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
     let span_start = tokens.start_span();
 
-    let mut expr = one_of(
-        tokens,
-        &[
-            lit,
-            var,
-            un_op,
-            bin_op,
-            fn_call_expr,
-            field_access,
-            array_cons,
-            parenthesized_or_tuple_cons,
-            assignment,
-            let_binding,
-            ret_expr,
-            if_expr,
-            block_expr,
-        ],
-    )?;
+    token(tokens, Token::Keyword(Keyword::Let), "let")?;
+    let pattern = pattern(tokens)?;
 
-    // if there's a fn call after a successfully parsed expr, it is actually
-    // a method call with the expression as object
-    // loop as long as possible; this allows for chained method calls
-    while try_fn_call_start(tokens).is_some() {
-        let call_span_start = tokens.start_span();
-        let method_call = fn_call(tokens)?;
+    let ty_hint = match tokens.peek() {
+        Some(Token::Colon) => {
+            tokens.next();
+            Some(type_desc(tokens)?)
+        }
+        _ => None,
+    };
 
-        expr = Spanned::new(
-            Expr::MethodCall(MethodCall {
-                object: expr.map(Box::new),
-                call: Spanned::new(method_call, call_span_start.end()),
+    token(tokens, Token::Equal, "=")?;
+    let expr = expr(tokens)?.map(Box::new);
+
+    Ok(Spanned::new(
+        Expr::LetBinding(LetBinding {
+            pattern,
+            ty_hint,
+            expr,
+        }),
+        span_start.end(),
+    ))
+}
+
+fn assignment(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
+    let span_start = tokens.start_span();
+
+    let mut target = logical_or(tokens)?;
+
+    if tokens.peek() == Some(Token::Equal) {
+        tokens.next();
+        let value = expr(tokens)?.map(Box::new);
+
+        target = Spanned::new(
+            Expr::Assignment(Assignment {
+                target: target.map(Box::new),
+                value,
             }),
             span_start.end(),
         );
     }
 
-    Ok(expr)
+    Ok(target)
+}
+
+fn logical_or(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
+    let span_start = tokens.start_span();
+    let mut lhs = logical_and(tokens)?;
+
+    while tokens.peek() == Some(Token::DoublePipe) {
+        tokens.next();
+        let rhs = logical_and(tokens)?.map(Box::new);
+
+        lhs = Spanned::new(
+            Expr::BinOp(BinOp {
+                op: BinOpKind::Or,
+                lhs: lhs.map(Box::new),
+                rhs,
+            }),
+            span_start.end(),
+        );
+    }
+
+    Ok(lhs)
+}
+
+fn logical_and(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
+    let span_start = tokens.start_span();
+    let mut lhs = equality(tokens)?;
+
+    while tokens.peek() == Some(Token::DoubleAmp) {
+        tokens.next();
+        let rhs = equality(tokens)?.map(Box::new);
+
+        lhs = Spanned::new(
+            Expr::BinOp(BinOp {
+                op: BinOpKind::And,
+                lhs: lhs.map(Box::new),
+                rhs,
+            }),
+            span_start.end(),
+        );
+    }
+
+    Ok(lhs)
+}
+
+fn equality(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
+    let span_start = tokens.start_span();
+    let mut lhs = comparison(tokens)?;
+
+    while tokens.peek() == Some(Token::DoubleEqual) || tokens.peek() == Some(Token::BangEqual) {
+        let op = match tokens.next() {
+            Some(Token::DoubleEqual) => BinOpKind::Eq,
+            Some(Token::BangEqual) => BinOpKind::Ne,
+            _ => unreachable!(),
+        };
+
+        let rhs = comparison(tokens)?.map(Box::new);
+
+        lhs = Spanned::new(
+            Expr::BinOp(BinOp {
+                op,
+                lhs: lhs.map(Box::new),
+                rhs,
+            }),
+            span_start.end(),
+        );
+    }
+
+    Ok(lhs)
+}
+
+fn comparison(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
+    let span_start = tokens.start_span();
+    let mut lhs = additive(tokens)?;
+
+    while tokens.peek() == Some(Token::Less)
+        || tokens.peek() == Some(Token::LessEqual)
+        || tokens.peek() == Some(Token::Greater)
+        || tokens.peek() == Some(Token::GreaterEqual)
+    {
+        let op = match tokens.next() {
+            Some(Token::Less) => BinOpKind::Lt,
+            Some(Token::LessEqual) => BinOpKind::Le,
+            Some(Token::Greater) => BinOpKind::Gt,
+            Some(Token::GreaterEqual) => BinOpKind::Ge,
+            _ => unreachable!(),
+        };
+
+        let rhs = additive(tokens)?.map(Box::new);
+
+        lhs = Spanned::new(
+            Expr::BinOp(BinOp {
+                op,
+                lhs: lhs.map(Box::new),
+                rhs,
+            }),
+            span_start.end(),
+        );
+    }
+
+    Ok(lhs)
+}
+
+fn additive(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
+    let span_start = tokens.start_span();
+    let mut lhs = multiplicative(tokens)?;
+
+    while tokens.peek() == Some(Token::Plus) || tokens.peek() == Some(Token::Minus) {
+        let op = match tokens.next() {
+            Some(Token::Plus) => BinOpKind::Add,
+            Some(Token::Minus) => BinOpKind::Sub,
+            _ => unreachable!(),
+        };
+
+        let rhs = multiplicative(tokens)?.map(Box::new);
+
+        lhs = Spanned::new(
+            Expr::BinOp(BinOp {
+                op,
+                lhs: lhs.map(Box::new),
+                rhs,
+            }),
+            span_start.end(),
+        );
+    }
+
+    Ok(lhs)
+}
+
+fn multiplicative(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
+    let span_start = tokens.start_span();
+    let mut lhs = unary(tokens)?;
+
+    while tokens.peek() == Some(Token::Star) || tokens.peek() == Some(Token::Slash) {
+        let op = match tokens.next() {
+            Some(Token::Star) => BinOpKind::Mul,
+            Some(Token::Slash) => BinOpKind::Div,
+            _ => unreachable!(),
+        };
+
+        let rhs = unary(tokens)?.map(Box::new);
+
+        lhs = Spanned::new(
+            Expr::BinOp(BinOp {
+                op,
+                lhs: lhs.map(Box::new),
+                rhs,
+            }),
+            span_start.end(),
+        );
+    }
+
+    Ok(lhs)
+}
+
+fn unary(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
+    let span_start = tokens.start_span();
+
+    if tokens.peek() == Some(Token::Bang)
+        || tokens.peek() == Some(Token::Minus)
+        || tokens.peek() == Some(Token::Star)
+        || tokens.peek() == Some(Token::Amp)
+        || tokens.peek() == Some(Token::DoubleAmp)
+    {
+        let mut is_double_ref = false;
+        let mut inner_ref_start = Index(0);
+
+        let op = match tokens.next() {
+            Some(Token::Bang) => UnOpKind::Not,
+            Some(Token::Minus) => UnOpKind::Negate,
+            Some(Token::Star) => UnOpKind::Deref,
+            Some(Token::Amp) => match tokens.peek() {
+                Some(Token::Keyword(Keyword::Mut)) => {
+                    tokens.next();
+                    UnOpKind::AddrOfMut
+                }
+                _ => UnOpKind::AddrOf,
+            },
+            Some(Token::DoubleAmp) => {
+                is_double_ref = true;
+
+                // start at the half of the token, since both chars in `&&` have the same length
+                let span = tokens.last_token_span();
+                let inner_ref_offset = (span.end() - span.start()).to_usize() / 2;
+                inner_ref_start = span.start() + Offset(inner_ref_offset as i64);
+
+                match tokens.peek() {
+                    Some(Token::Keyword(Keyword::Mut)) => {
+                        tokens.next();
+                        UnOpKind::AddrOfMut
+                    }
+                    _ => UnOpKind::AddrOf,
+                }
+            }
+            _ => unreachable!(),
+        };
+
+        let operand = unary(tokens)?.map(Box::new);
+
+        if is_double_ref {
+            let inner_span = Span::new(inner_ref_start, operand.span.end());
+
+            // wrap in the `&` that is part of `&&` or `&&mut` and was ignored above
+            Ok(Spanned::new(
+                Expr::UnOp(UnOp {
+                    op: UnOpKind::AddrOf,
+                    operand: Spanned::new(Box::new(Expr::UnOp(UnOp { op, operand })), inner_span),
+                }),
+                span_start.end(),
+            ))
+        } else {
+            Ok(Spanned::new(
+                Expr::UnOp(UnOp { op, operand }),
+                span_start.end(),
+            ))
+        }
+    } else {
+        method_call(tokens)
+    }
+}
+
+fn method_call(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
+    let span_start = tokens.start_span();
+    let mut object = fn_call_expr(tokens)?;
+
+    while let Some(&[Token::Ident(_), Token::Colon]) =
+        tokens.peek_n(2).as_ref().map(|vec| vec.as_slice())
+    {
+        let call = fn_call(tokens)?;
+
+        object = Spanned::new(
+            Expr::MethodCall(MethodCall {
+                object: object.map(Box::new),
+                call,
+            }),
+            span_start.end(),
+        )
+    }
+
+    Ok(object)
+}
+
+fn fn_call_expr(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
+    fn_call(tokens).map(|spanned| spanned.map(Expr::FnCall))
+}
+
+fn fn_call(tokens: &TokenStream<'_>) -> Result<Spanned<FnCall>, Spanned<ParseError>> {
+    let span_start = tokens.start_span();
+    let fn_name = item_path(tokens)?;
+
+    match tokens.next() {
+        Some(Token::Bang) => Ok(Spanned::new(
+            FnCall {
+                name: fn_name,
+                args: Vec::new(),
+            },
+            span_start.end(),
+        )),
+        Some(Token::Colon) => {
+            let expected = || format!("argument for `{}`", fn_name.value);
+
+            let first_arg = fn_arg(tokens)
+                .map_err(|spanned| spanned.map(|err| err.set_expected(expected())))?;
+
+            let mut args = vec![first_arg];
+
+            while let Some(Token::Comma) = tokens.peek() {
+                tokens.next();
+
+                // if the following tokens cannot be parsed as expression of a higher
+                // precedence, assume the comma is a trailing comma
+                match fn_arg(tokens) {
+                    Ok(arg) => args.push(arg),
+                    Err(_) => break,
+                }
+            }
+
+            Ok(Spanned::new(
+                FnCall {
+                    name: fn_name,
+                    args,
+                },
+                span_start.end(),
+            ))
+        }
+        Some(_) => Err(Spanned::new(
+            ParseError::unexpected_token().expected(":").expected("!"),
+            tokens.last_token_span(),
+        )),
+        None => Err(Spanned::new(
+            ParseError::eof().expected(":").expected("!"),
+            tokens.eof_span(),
+        )),
+    }
+}
+
+fn item_path(tokens: &TokenStream<'_>) -> Result<Spanned<ItemPath>, Spanned<ParseError>> {
+    let span_start = tokens.start_span();
+    let mut segments = vec![segment(tokens)?];
+
+    while let Some(Token::DoubleColon) = tokens.peek() {
+        tokens.next();
+        segments.push(segment(tokens)?);
+    }
+
+    Ok(Spanned::new(ItemPath { segments }, span_start.end()))
+}
+
+fn segment(tokens: &TokenStream<'_>) -> Result<Spanned<Ident>, Spanned<ParseError>> {
+    ident(tokens).map_err(|spanned| spanned.map(|err| err.set_expected("item identifier")))
+}
+
+fn fn_arg(tokens: &TokenStream<'_>) -> Result<Spanned<Arg>, Spanned<ParseError>> {
+    let span_start = tokens.start_span();
+
+    match tokens.peek_n(2).as_ref().map(|vec| vec.as_slice()) {
+        Some(&[Token::Ident(ref ident), Token::Equal]) => {
+            tokens.next();
+            let ident_span = tokens.last_token_span();
+            tokens.next();
+
+            atom_or_group(tokens).map(|expr| {
+                Spanned::new(
+                    Arg {
+                        name: Some(Spanned::new(ident.clone(), ident_span)),
+                        value: expr,
+                    },
+                    span_start.end(),
+                )
+            })
+        }
+        _ => atom_or_group(tokens).map(|expr| {
+            Spanned::new(
+                Arg {
+                    name: None,
+                    value: expr,
+                },
+                span_start.end(),
+            )
+        }),
+    }
+}
+
+fn atom_or_group(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
+    one_of(
+        tokens,
+        &[
+            lit,
+            var,
+            array_cons,
+            parenthesized_or_tuple_cons,
+            ret_expr,
+            if_expr,
+            block_expr,
+        ],
+    )
 }
 
 fn lit(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
@@ -511,316 +776,13 @@ fn lit(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
 }
 
 fn var(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
-    match try_fn_call_start(tokens) {
-        Some(span) => Err(Spanned::new(
-            ParseError::new()
-                .msg("unexpected function call")
-                .expected("variable"),
-            span,
-        )),
-        None => ident(tokens)
-            .map(|ident| Expr::Var(ident.value))
-            .map_err(|spanned| spanned.map(|err| err.set_expected("variable"))),
-    }
-}
-
-fn un_op(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
-    let op = tokens.next().ok_or_else(|| {
-        Spanned::new(
-            ParseError::eof().expected("unary operator"),
-            tokens.eof_span(),
-        )
-    })?;
-
-    let mut is_double_ref = false;
-
-    let op = match op {
-        Token::Bang => UnOpKind::Not,
-        Token::Star => UnOpKind::Deref,
-        Token::Amp => {
-            let next_token = tokens.peek().ok_or_else(|| {
-                Spanned::new(
-                    ParseError::eof().expected("mut").expected("expression"),
-                    tokens.eof_span(),
-                )
-            })?;
-
-            if next_token == Token::Keyword(Keyword::Mut) {
-                tokens.next();
-                UnOpKind::AddrOfMut
-            } else {
-                UnOpKind::AddrOf
-            }
-        }
-        Token::DoubleAmp => {
-            is_double_ref = true;
-            UnOpKind::AddrOf
-        }
-        _ => {
-            return Err(Spanned::new(
-                ParseError::unexpected_token().expected("unary operator"),
-                tokens.last_token_span(),
-            ))
-        }
-    };
-
-    let op_span = tokens.last_token_span();
-    let term = UnOp {
-        op,
-        operand: expr(tokens)
-            .map(|spanned| spanned.map(Box::new))
-            .map_err(|spanned| spanned.map(|err| err.expected("operand")))?,
-    };
-
-    if is_double_ref {
-        // half the start of the span for op, discarding the first `&` of `&&`
-        let half_offset = (op_span.end() - op_span.start()).to_usize() / 2;
-        let span = Span::new(
-            op_span.start() + Offset(half_offset as i64),
-            term.operand.span.end(),
-        );
-
-        Ok(Expr::UnOp(UnOp {
-            op: UnOpKind::AddrOf,
-            operand: Spanned::new(Box::new(Expr::UnOp(term)), span),
-        }))
-    } else {
-        Ok(Expr::UnOp(term))
-    }
-}
-
-fn bin_op(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
-    let lhs = expr(tokens)?.map(Box::new);
-
-    let op = tokens.next().ok_or_else(|| {
-        Spanned::new(
-            ParseError::eof().expected("binary operator"),
-            tokens.eof_span(),
-        )
-    })?;
-
-    let op = match op {
-        Token::Plus => BinOpKind::Add,
-        Token::Minus => BinOpKind::Sub,
-        Token::Star => BinOpKind::Mul,
-        Token::Slash => BinOpKind::Div,
-        Token::DoubleAmp => BinOpKind::And,
-        Token::DoublePipe => BinOpKind::Or,
-        Token::DoubleEqual => BinOpKind::Eq,
-        Token::Less => BinOpKind::Lt,
-        Token::LessEqual => BinOpKind::Le,
-        Token::Greater => BinOpKind::Gt,
-        Token::GreaterEqual => BinOpKind::Ge,
-        _ => {
-            return Err(Spanned::new(
-                ParseError::unexpected_token().expected("binary operator"),
-                tokens.last_token_span(),
-            ))
-        }
-    };
-
-    let rhs = expr(tokens)?.map(Box::new);
-
-    Ok(Expr::BinOp(BinOp { op, lhs, rhs }))
-}
-
-fn fn_call_expr(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
-    fn_call(tokens).map(|call| Expr::FnCall(call))
-}
-
-fn fn_call(tokens: &TokenStream<'_>) -> Result<FnCall, Spanned<ParseError>> {
-    let fn_name = item_path(tokens)?;
-
-    match tokens.next() {
-        Some(Token::Bang) => Ok(FnCall {
-            name: fn_name,
-            args: Vec::new(),
-        }),
-        Some(Token::Colon) => {
-            let expected = || format!("argument for `{}`", fn_name.value);
-
-            let first_arg = fn_arg(tokens)
-                .map_err(|spanned| spanned.map(|err| err.set_expected(expected())))?;
-
-            let mut args = vec![first_arg];
-
-            while let Some(Token::Comma) = tokens.peek() {
-                tokens.next();
-
-                if try_fn_call_start(tokens).is_some() {
-                    break;
-                }
-
-                let arg = fn_arg(tokens)
-                    .map_err(|spanned| spanned.map(|err| err.set_expected(expected())))?;
-
-                args.push(arg);
-            }
-
-            Ok(FnCall {
-                name: fn_name,
-                args,
-            })
-        }
-        Some(_) => Err(Spanned::new(
-            ParseError::unexpected_token()
-                .expected("colon after function name")
-                .expected("bang after function name"),
-            tokens.last_token_span(),
-        )),
-        None => Err(Spanned::new(
-            ParseError::eof()
-                .expected("colon after function name")
-                .expected("bang after function name"),
-            tokens.eof_span(),
-        )),
-    }
-}
-
-/// Returns Some if the next tokens would be the start of a function call, like
-/// `path::function:`,`function:` or `function!`. The contained span is the span of
-/// the function call start. Does not advance the stream.
-fn try_fn_call_start(tokens: &TokenStream<'_>) -> Option<Span> {
-    let span_start = tokens.start_span();
-    let pos = tokens.pos();
-
-    if item_path(tokens).is_err() {
-        tokens.restore_pos(pos);
-        return None;
-    }
-
-    let next = tokens.next();
-    let span = span_start.end();
-    tokens.restore_pos(pos);
-
-    match next {
-        Some(Token::Colon) | Some(Token::Bang) => Some(span),
-        _ => None,
-    }
-}
-
-fn item_path(tokens: &TokenStream<'_>) -> Result<Spanned<ItemPath>, Spanned<ParseError>> {
-    let span_start = tokens.start_span();
-    let mut segments = vec![segment(tokens)?];
-
-    while let Some(Token::DoubleColon) = tokens.peek() {
-        tokens.next();
-        segments.push(segment(tokens)?);
-    }
-
-    Ok(Spanned::new(ItemPath { segments }, span_start.end()))
-}
-
-fn fn_arg(tokens: &TokenStream<'_>) -> Result<Spanned<Arg>, Spanned<ParseError>> {
-    let span_start = tokens.start_span();
-
-    match tokens.peek_n(2).as_ref().map(|vec| vec.as_slice()) {
-        Some(&[Token::Ident(ref ident), Token::Equal]) => {
-            tokens.next();
-            let ident_span = tokens.last_token_span();
-            tokens.next();
-
-            if let Some(span) = try_fn_call_start(tokens) {
-                return Err(Spanned::new(
-                    ParseError::new()
-                        .msg("unexpected function call after named argument")
-                        .expected("parenthesized function call")
-                        .expected("expression"),
-                    span,
-                ));
-            }
-
-            expr(tokens).map(|expr| {
-                Spanned::new(
-                    Arg {
-                        name: Some(Spanned::new(ident.clone(), ident_span)),
-                        value: expr,
-                    },
-                    span_start.end(),
-                )
-            })
-        }
-        _ => {
-            if let Some(span) = try_fn_call_start(tokens) {
-                return Err(Spanned::new(
-                    ParseError::new()
-                        .msg("unexpected function call")
-                        .expected("parenthesized function call")
-                        .expected("expression"),
-                    span,
-                ));
-            }
-
-            expr(tokens).map(|expr| {
-                Spanned::new(
-                    Arg {
-                        name: None,
-                        value: expr,
-                    },
-                    span_start.end(),
-                )
-            })
-        }
-    }
-}
-
-fn segment(tokens: &TokenStream<'_>) -> Result<Spanned<Ident>, Spanned<ParseError>> {
-    ident(tokens).map_err(|spanned| spanned.map(|err| err.set_expected("item identifier")))
-}
-
-fn field_access(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
-    let value = expr(tokens)?.map(Box::new);
-
-    match tokens.next() {
-        Some(Token::Dot) => (),
-        Some(_) => {
-            return Err(Spanned::new(
-                ParseError::unexpected_token().expected("dot"),
-                tokens.last_token_span(),
-            ))
-        }
-        None => {
-            return Err(Spanned::new(
-                ParseError::eof().expected("dot"),
-                tokens.eof_span(),
-            ))
-        }
-    }
-
-    let mut num_derefs = 0;
-
-    while let Some(Token::Star) = tokens.peek() {
-        tokens.next();
-        num_derefs += 1;
-    }
-
-    let field =
-        ident(tokens).map_err(|spanned| spanned.map(|err| err.set_expected("field name")))?;
-
-    Ok(Expr::FieldAccess(FieldAccess {
-        value,
-        field,
-        num_derefs,
-    }))
+    ident(tokens)
+        .map(|ident| Expr::Var(ident.value))
+        .map_err(|spanned| spanned.map(|err| err.set_expected("variable")))
 }
 
 fn array_cons(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
-    match tokens.next() {
-        Some(Token::OpenBracket) => (),
-        Some(_) => {
-            return Err(Spanned::new(
-                ParseError::unexpected_token().expected("opening bracket"),
-                tokens.last_token_span(),
-            ))
-        }
-        None => {
-            return Err(Spanned::new(
-                ParseError::eof().expected("opening bracket"),
-                tokens.eof_span(),
-            ))
-        }
-    }
-
+    token(tokens, Token::OpenBracket, "[")?;
     let mut elems = Vec::new();
 
     loop {
@@ -832,7 +794,7 @@ fn array_cons(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
             Some(_) => (),
             None => {
                 return Err(Spanned::new(
-                    ParseError::eof().expected("closing bracket"),
+                    ParseError::eof().expected("]"),
                     tokens.eof_span(),
                 ))
             }
@@ -847,17 +809,13 @@ fn array_cons(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
             Some(Token::Comma) => continue,
             Some(_) => {
                 return Err(Spanned::new(
-                    ParseError::unexpected_token()
-                        .expected("closing bracket")
-                        .expected("comma"),
+                    ParseError::unexpected_token().expected("]").expected(","),
                     tokens.last_token_span(),
                 ))
             }
             None => {
                 return Err(Spanned::new(
-                    ParseError::eof()
-                        .expected("closing bracket")
-                        .expected("comma"),
+                    ParseError::eof().expected("]").expected(","),
                     tokens.eof_span(),
                 ))
             }
@@ -866,22 +824,7 @@ fn array_cons(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
 }
 
 fn parenthesized_or_tuple_cons(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
-    match tokens.next() {
-        Some(Token::OpenParen) => (),
-        Some(_) => {
-            return Err(Spanned::new(
-                ParseError::unexpected_token().expected("opening parenthesis"),
-                tokens.last_token_span(),
-            ))
-        }
-        None => {
-            return Err(Spanned::new(
-                ParseError::eof().expected("opening parenthesis"),
-                tokens.eof_span(),
-            ))
-        }
-    }
-
+    token(tokens, Token::OpenParen, "(")?;
     let mut elems = Vec::new();
 
     loop {
@@ -893,7 +836,7 @@ fn parenthesized_or_tuple_cons(tokens: &TokenStream<'_>) -> Result<Expr, Spanned
             Some(_) => (),
             None => {
                 return Err(Spanned::new(
-                    ParseError::eof().expected("closing parenthesis"),
+                    ParseError::eof().expected(")"),
                     tokens.eof_span(),
                 ))
             }
@@ -913,17 +856,13 @@ fn parenthesized_or_tuple_cons(tokens: &TokenStream<'_>) -> Result<Expr, Spanned
             Some(Token::Comma) => continue,
             Some(_) => {
                 return Err(Spanned::new(
-                    ParseError::unexpected_token()
-                        .expected("closing parenthesis")
-                        .expected("comma"),
+                    ParseError::unexpected_token().expected(")").expected(","),
                     tokens.last_token_span(),
                 ))
             }
             None => {
                 return Err(Spanned::new(
-                    ParseError::eof()
-                        .expected("closing parenthesis")
-                        .expected("comma"),
+                    ParseError::eof().expected(")").expected(","),
                     tokens.eof_span(),
                 ))
             }
@@ -931,110 +870,13 @@ fn parenthesized_or_tuple_cons(tokens: &TokenStream<'_>) -> Result<Expr, Spanned
     }
 }
 
-fn assignment(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
-    let var_name = ident(tokens)?;
-
-    match tokens.next() {
-        Some(Token::Equal) => Ok(Expr::Assignment(Assignment {
-            var_name,
-            value: expr(tokens)?.map(Box::new),
-        })),
-        Some(_) => Err(Spanned::new(
-            ParseError::unexpected_token().expected("assigment operator"),
-            tokens.last_token_span(),
-        )),
-        None => Err(Spanned::new(
-            ParseError::eof().expected("assigment operator"),
-            tokens.eof_span(),
-        )),
-    }
-}
-
-fn let_binding(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
-    match tokens.next() {
-        Some(Token::Keyword(Keyword::Let)) => (),
-        Some(_) => {
-            return Err(Spanned::new(
-                ParseError::unexpected_token().expected("let"),
-                tokens.last_token_span(),
-            ))
-        }
-        None => {
-            return Err(Spanned::new(
-                ParseError::eof().expected("let"),
-                tokens.eof_span(),
-            ))
-        }
-    }
-
-    let pattern = pattern(tokens)?;
-
-    let ty_hint = match tokens.peek() {
-        Some(Token::Colon) => Some(type_desc(tokens)?),
-        _ => None,
-    };
-
-    match tokens.next() {
-        Some(Token::Equal) => (),
-        Some(_) => {
-            return Err(Spanned::new(
-                ParseError::unexpected_token().expected("assignment operator"),
-                tokens.last_token_span(),
-            ))
-        }
-        None => {
-            return Err(Spanned::new(
-                ParseError::eof().expected("assignment operator"),
-                tokens.eof_span(),
-            ))
-        }
-    }
-
-    let expr = expr(tokens)?.map(Box::new);
-
-    Ok(Expr::LetBinding(LetBinding {
-        pattern,
-        ty_hint,
-        expr,
-    }))
-}
-
 fn ret_expr(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
-    match tokens.next() {
-        Some(Token::Keyword(Keyword::Ret)) => (),
-        Some(_) => {
-            return Err(Spanned::new(
-                ParseError::unexpected_token().expected("ret"),
-                tokens.last_token_span(),
-            ))
-        }
-        None => {
-            return Err(Spanned::new(
-                ParseError::eof().expected("ret"),
-                tokens.eof_span(),
-            ))
-        }
-    }
-
+    token(tokens, Token::Keyword(Keyword::Ret), "ret")?;
     Ok(Expr::Ret(expr(tokens)?.map(Box::new).value))
 }
 
 fn if_expr(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
-    match tokens.next() {
-        Some(Token::Keyword(Keyword::If)) => (),
-        Some(_) => {
-            return Err(Spanned::new(
-                ParseError::unexpected_token().expected("if"),
-                tokens.last_token_span(),
-            ))
-        }
-        None => {
-            return Err(Spanned::new(
-                ParseError::eof().expected("if"),
-                tokens.eof_span(),
-            ))
-        }
-    }
+    token(tokens, Token::Keyword(Keyword::If), "if")?;
 
     let cond = expr(tokens)?.map(Box::new);
     let then_block = block(tokens)?;
@@ -1077,22 +919,7 @@ fn block_expr(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
 fn block(tokens: &TokenStream<'_>) -> Result<Spanned<Block>, Spanned<ParseError>> {
     let span_start = tokens.start_span();
 
-    match tokens.next() {
-        Some(Token::OpenBrace) => (),
-        Some(_) => {
-            return Err(Spanned::new(
-                ParseError::unexpected_token().expected("opening brace"),
-                tokens.last_token_span(),
-            ))
-        }
-        None => {
-            return Err(Spanned::new(
-                ParseError::eof().expected("opening brace"),
-                tokens.eof_span(),
-            ))
-        }
-    }
-
+    token(tokens, Token::OpenBrace, "{")?;
     let mut exprs = Vec::new();
     let mut is_last_expr_stmt = false;
 
@@ -1108,21 +935,7 @@ fn block(tokens: &TokenStream<'_>) -> Result<Spanned<Block>, Spanned<ParseError>
         }
     }
 
-    match tokens.next() {
-        Some(Token::CloseBrace) => (),
-        Some(_) => {
-            return Err(Spanned::new(
-                ParseError::unexpected_token().expected("closing brace"),
-                tokens.last_token_span(),
-            ))
-        }
-        None => {
-            return Err(Spanned::new(
-                ParseError::eof().expected("closing brace"),
-                tokens.eof_span(),
-            ))
-        }
-    }
+    token(tokens, Token::CloseBrace, "}")?;
 
     Ok(Spanned::new(
         Block {
@@ -1138,17 +951,8 @@ fn pattern(tokens: &TokenStream<'_>) -> Result<Spanned<Pattern>, Spanned<ParseEr
 }
 
 fn discard_pattern(tokens: &TokenStream<'_>) -> Result<Pattern, Spanned<ParseError>> {
-    match tokens.next() {
-        Some(Token::Underscore) => Ok(Pattern::Discard),
-        Some(_) => Err(Spanned::new(
-            ParseError::unexpected_token().expected("discard pattern"),
-            tokens.last_token_span(),
-        )),
-        None => Err(Spanned::new(
-            ParseError::eof().expected("discard pattern"),
-            tokens.eof_span(),
-        )),
-    }
+    token(tokens, Token::Underscore, "_")?;
+    Ok(Pattern::Discard)
 }
 
 fn binding_pattern(tokens: &TokenStream<'_>) -> Result<Pattern, Spanned<ParseError>> {
@@ -1181,22 +985,7 @@ fn binding_pattern(tokens: &TokenStream<'_>) -> Result<Pattern, Spanned<ParseErr
 fn tuple_pattern(tokens: &TokenStream<'_>) -> Result<Pattern, Spanned<ParseError>> {
     let span_start = tokens.start_span();
 
-    match tokens.next() {
-        Some(Token::OpenParen) => (),
-        Some(_) => {
-            return Err(Spanned::new(
-                ParseError::unexpected_token().expected("opening parenthesis"),
-                tokens.last_token_span(),
-            ))
-        }
-        None => {
-            return Err(Spanned::new(
-                ParseError::eof().expected("opening parenthesis"),
-                tokens.eof_span(),
-            ))
-        }
-    }
-
+    token(tokens, Token::OpenParen, "(")?;
     let mut patterns = Vec::new();
 
     loop {
@@ -1208,7 +997,7 @@ fn tuple_pattern(tokens: &TokenStream<'_>) -> Result<Pattern, Spanned<ParseError
             Some(_) => (),
             None => {
                 return Err(Spanned::new(
-                    ParseError::eof().expected("closing parenthesis"),
+                    ParseError::eof().expected(")"),
                     tokens.eof_span(),
                 ))
             }
@@ -1223,17 +1012,13 @@ fn tuple_pattern(tokens: &TokenStream<'_>) -> Result<Pattern, Spanned<ParseError
             Some(Token::Comma) => continue,
             Some(_) => {
                 return Err(Spanned::new(
-                    ParseError::unexpected_token()
-                        .expected("closing parenthesis")
-                        .expected("comma"),
+                    ParseError::unexpected_token().expected(")").expected(","),
                     tokens.last_token_span(),
                 ))
             }
             None => {
                 return Err(Spanned::new(
-                    ParseError::eof()
-                        .expected("closing parenthesis")
-                        .expected("comma"),
+                    ParseError::eof().expected(")").expected(","),
                     tokens.eof_span(),
                 ))
             }
@@ -1256,17 +1041,8 @@ fn type_desc(tokens: &TokenStream<'_>) -> Result<Spanned<TypeDesc>, Spanned<Pars
 }
 
 fn hole_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseError>> {
-    match tokens.next() {
-        Some(Token::Underscore) => Ok(TypeDesc::Hole),
-        Some(_) => Err(Spanned::new(
-            ParseError::unexpected_token().expected("hole"),
-            tokens.last_token_span(),
-        )),
-        None => Err(Spanned::new(
-            ParseError::eof().expected("hole"),
-            tokens.eof_span(),
-        )),
-    }
+    token(tokens, Token::Underscore, "_")?;
+    Ok(TypeDesc::Hole)
 }
 
 fn name_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseError>> {
@@ -1276,64 +1052,26 @@ fn name_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseErr
 }
 
 fn ptr_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseError>> {
-    match tokens.next() {
-        Some(Token::Star) => match tokens.peek() {
-            Some(Token::Keyword(Keyword::Mut)) => {
-                tokens.next();
+    token(tokens, Token::Star, "*")?;
 
-                Ok(TypeDesc::MutPtr(Box::new(
-                    type_desc(tokens).map(|spanned| spanned.value)?,
-                )))
-            }
-            _ => Ok(TypeDesc::Ptr(Box::new(
+    match tokens.peek() {
+        Some(Token::Keyword(Keyword::Mut)) => {
+            tokens.next();
+
+            Ok(TypeDesc::MutPtr(Box::new(
                 type_desc(tokens).map(|spanned| spanned.value)?,
-            ))),
-        },
-        Some(_) => Err(Spanned::new(
-            ParseError::unexpected_token().expected("pointer"),
-            tokens.last_token_span(),
-        )),
-        None => Err(Spanned::new(
-            ParseError::eof().expected("pointer"),
-            tokens.eof_span(),
-        )),
+            )))
+        }
+        _ => Ok(TypeDesc::Ptr(Box::new(
+            type_desc(tokens).map(|spanned| spanned.value)?,
+        ))),
     }
 }
 
 fn array_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseError>> {
-    match tokens.next() {
-        Some(Token::OpenBracket) => (),
-        Some(_) => {
-            return Err(Spanned::new(
-                ParseError::unexpected_token().expected("opening bracket"),
-                tokens.last_token_span(),
-            ))
-        }
-        None => {
-            return Err(Spanned::new(
-                ParseError::eof().expected("opening bracket"),
-                tokens.eof_span(),
-            ))
-        }
-    }
-
+    token(tokens, Token::OpenBracket, "[")?;
     let ty = type_desc(tokens)?.map(Box::new);
-
-    match tokens.next() {
-        Some(Token::Semicolon) => (),
-        Some(_) => {
-            return Err(Spanned::new(
-                ParseError::unexpected_token().expected("semicolon"),
-                tokens.last_token_span(),
-            ))
-        }
-        None => {
-            return Err(Spanned::new(
-                ParseError::eof().expected("semicolon"),
-                tokens.eof_span(),
-            ))
-        }
-    }
+    token(tokens, Token::Semicolon, ";")?;
 
     let len = match tokens.next() {
         Some(Token::Lit(Lit::Int(len))) => Spanned::new(len, tokens.last_token_span()),
@@ -1345,48 +1083,18 @@ fn array_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseEr
         }
         None => {
             return Err(Spanned::new(
-                ParseError::eof().expected("semicolon"),
+                ParseError::eof().expected("array length"),
                 tokens.eof_span(),
             ))
         }
     };
 
-    match tokens.next() {
-        Some(Token::CloseBracket) => (),
-        Some(_) => {
-            return Err(Spanned::new(
-                ParseError::unexpected_token().expected("closing bracket"),
-                tokens.last_token_span(),
-            ))
-        }
-        None => {
-            return Err(Spanned::new(
-                ParseError::eof().expected("closing bracket"),
-                tokens.eof_span(),
-            ))
-        }
-    }
-
+    token(tokens, Token::CloseBracket, "]")?;
     Ok(TypeDesc::Array(ArrayDesc { ty, len }))
 }
 
 fn function_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseError>> {
-    match tokens.next() {
-        Some(Token::Keyword(Keyword::Fn)) => (),
-        Some(_) => {
-            return Err(Spanned::new(
-                ParseError::unexpected_token().expected("fn"),
-                tokens.last_token_span(),
-            ))
-        }
-        None => {
-            return Err(Spanned::new(
-                ParseError::eof().expected("fn"),
-                tokens.eof_span(),
-            ))
-        }
-    }
-
+    token(tokens, Token::Keyword(Keyword::Fn), "fn")?;
     let mut params_ty = Vec::new();
 
     while tokens.peek() != Some(Token::Arrow) {
@@ -1400,44 +1108,14 @@ fn function_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<Pars
         }
     }
 
-    match tokens.next() {
-        Some(Token::Arrow) => (),
-        Some(_) => {
-            return Err(Spanned::new(
-                ParseError::unexpected_token().expected("arrow"),
-                tokens.last_token_span(),
-            ))
-        }
-        None => {
-            return Err(Spanned::new(
-                ParseError::eof().expected("arrow"),
-                tokens.eof_span(),
-            ))
-        }
-    }
-
+    token(tokens, Token::Arrow, "->")?;
     let ret_ty = type_desc(tokens)?.map(Box::new);
 
     Ok(TypeDesc::Function(FunctionDesc { params_ty, ret_ty }))
 }
 
 fn tuple_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseError>> {
-    match tokens.next() {
-        Some(Token::OpenParen) => (),
-        Some(_) => {
-            return Err(Spanned::new(
-                ParseError::unexpected_token().expected("opening parenthesis"),
-                tokens.last_token_span(),
-            ))
-        }
-        None => {
-            return Err(Spanned::new(
-                ParseError::eof().expected("opening parenthesis"),
-                tokens.eof_span(),
-            ))
-        }
-    }
-
+    token(tokens, Token::OpenParen, "(")?;
     let mut tys = Vec::new();
 
     loop {
@@ -1449,7 +1127,7 @@ fn tuple_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseEr
             Some(_) => (),
             None => {
                 return Err(Spanned::new(
-                    ParseError::eof().expected("closing parenthesis"),
+                    ParseError::eof().expected(")"),
                     tokens.eof_span(),
                 ))
             }
@@ -1464,17 +1142,13 @@ fn tuple_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseEr
             Some(Token::Comma) => continue,
             Some(_) => {
                 return Err(Spanned::new(
-                    ParseError::unexpected_token()
-                        .expected("closing parenthesis")
-                        .expected("comma"),
+                    ParseError::unexpected_token().expected(")").expected(","),
                     tokens.last_token_span(),
                 ))
             }
             None => {
                 return Err(Spanned::new(
-                    ParseError::eof()
-                        .expected("closing parenthesis")
-                        .expected("comma"),
+                    ParseError::eof().expected(")").expected(","),
                     tokens.eof_span(),
                 ))
             }
@@ -1531,6 +1205,24 @@ fn ident(tokens: &TokenStream<'_>) -> Result<Spanned<Ident>, Spanned<ParseError>
         )),
         None => Err(Spanned::new(
             ParseError::eof().expected("identifier"),
+            tokens.eof_span(),
+        )),
+    }
+}
+
+fn token(
+    tokens: &TokenStream<'_>,
+    token: Token,
+    expected: &'static str,
+) -> Result<Token, Spanned<ParseError>> {
+    match tokens.next() {
+        Some(ref found_token) if *found_token == token => Ok(token),
+        Some(_) => Err(Spanned::new(
+            ParseError::unexpected_token().expected(expected),
+            tokens.last_token_span(),
+        )),
+        None => Err(Spanned::new(
+            ParseError::eof().expected(expected),
             tokens.eof_span(),
         )),
     }

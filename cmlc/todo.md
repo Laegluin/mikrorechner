@@ -8,4 +8,3 @@
 - slices
 - impl blocks (type scoped function)
 - nested items in functions
-- operator precedence

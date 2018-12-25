@@ -6,7 +6,8 @@ type Variant =
 
 fn variant = -> Variant {
     let a = Variant::Three: 1, 2;
-    let b = Variant::One;
+    // TODO: consider empty cons as constant and allow variables to be a path
+    let b = Variant::One!;
 }
 
 type User = {
@@ -79,15 +80,15 @@ fn main = -> i32 {
     }
 }
 
-fn dangling_ptr = -> *mut Record {
-    type Record = {
-        ptr_field: *i32;
-    }
+type Record = {
+    ptr_field: *i32;
+}
 
+fn dangling_ptr = -> *mut Record {
     let some_record = Record: ptr_field = &42;
     let eq_record = Record: &42;
 
     let some_record_ptr: *Record = &some_record;
-    *some_record_ptr.*ptr_field = 42;
+    // *some_record_ptr.*ptr_field = 42;
     &mut some_record
 }

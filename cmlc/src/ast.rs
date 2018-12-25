@@ -86,6 +86,7 @@ pub enum Expr {
     BinOp(BinOp),
     FnCall(FnCall),
     MethodCall(MethodCall),
+    // TODO: Field access with derefs
     FieldAccess(FieldAccess),
     ArrayCons(ArrayCons),
     TupleCons(TupleCons),
@@ -112,17 +113,18 @@ pub struct BinOp {
 
 #[derive(Debug)]
 pub enum BinOpKind {
-    Add,
-    Sub,
-    Mul,
-    Div,
+    Or,
     And,
     Eq,
-    Or,
+    Ne,
     Lt,
     Le,
     Gt,
     Ge,
+    Add,
+    Sub,
+    Mul,
+    Div,
 }
 
 #[derive(Debug)]
@@ -134,6 +136,7 @@ pub struct UnOp {
 #[derive(Debug)]
 pub enum UnOpKind {
     Not,
+    Negate,
     AddrOf,
     AddrOfMut,
     Deref,
@@ -194,7 +197,7 @@ pub struct MethodCall {
 
 #[derive(Debug)]
 pub struct Assignment {
-    pub var_name: Spanned<Ident>,
+    pub target: Spanned<Box<Expr>>,
     pub value: Spanned<Box<Expr>>,
 }
 

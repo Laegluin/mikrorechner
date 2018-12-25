@@ -2,6 +2,7 @@ use crate::ast::{Ident, Lit};
 use crate::span::{Index, Offset, Span, Spanned};
 use std::rc::Rc;
 
+// TODO: not equal (!=)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Token {
     Ident(Ident),
@@ -14,6 +15,7 @@ pub enum Token {
     OpenBracket,
     CloseBracket,
     Equal,
+    BangEqual,
     DoubleEqual,
     Plus,
     Minus,
@@ -281,7 +283,13 @@ pub fn lex<'a>(stream: impl Into<StrStream<'a>>) -> Result<Vec<Spanned<Token>>, 
             }
             ',' => tokens.push(Spanned::new(Token::Comma, stream.span())),
             ';' => tokens.push(Spanned::new(Token::Semicolon, stream.span())),
-            '!' => tokens.push(Spanned::new(Token::Bang, stream.span())),
+            '!' => {
+                if stream.next_if_eq('=') {
+                    tokens.push(Spanned::new(Token::BangEqual, stream.span()))
+                } else {
+                    tokens.push(Spanned::new(Token::Bang, stream.span()))
+                }
+            }
             '.' => tokens.push(Spanned::new(Token::Dot, stream.span())),
             ':' => {
                 if stream.next_if_eq(':') {

@@ -1,6 +1,5 @@
 use crate::ast::Ident;
 
-// TODO: slices
 pub enum Type {
     None,
     Never,
