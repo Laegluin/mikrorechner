@@ -1108,8 +1108,13 @@ fn function_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<Pars
         }
     }
 
-    token(tokens, Token::Arrow, "->")?;
-    let ret_ty = type_desc(tokens)?.map(Box::new);
+    let ret_ty = match tokens.peek() {
+        Some(Token::Arrow) => {
+            tokens.next();
+            Some(type_desc(tokens)?.map(Box::new))
+        }
+        _ => None,
+    };
 
     Ok(TypeDesc::Function(FunctionDesc { params_ty, ret_ty }))
 }

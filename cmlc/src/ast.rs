@@ -75,7 +75,7 @@ pub struct ArrayDesc {
 #[derive(Debug)]
 pub struct FunctionDesc {
     pub params_ty: Vec<Spanned<TypeDesc>>,
-    pub ret_ty: Spanned<Box<TypeDesc>>,
+    pub ret_ty: Option<Spanned<Box<TypeDesc>>>,
 }
 
 #[derive(Debug)]
