@@ -628,9 +628,7 @@ fn method_call(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseE
     let span_start = tokens.start_span();
     let mut object = fn_call_expr(tokens)?;
 
-    while let Some(&[Token::Ident(_), Token::Colon]) =
-        tokens.peek_n(2).as_ref().map(|vec| vec.as_slice())
-    {
+    while is_fn_call(tokens) {
         let call = fn_call(tokens)?;
 
         object = Spanned::new(
@@ -646,7 +644,11 @@ fn method_call(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseE
 }
 
 fn fn_call_expr(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
-    fn_call(tokens).map(|spanned| spanned.map(Expr::FnCall))
+    if is_fn_call(tokens) {
+        fn_call(tokens).map(|spanned| spanned.map(Expr::FnCall))
+    } else {
+        atom_or_group(tokens)
+    }
 }
 
 fn fn_call(tokens: &TokenStream<'_>) -> Result<Spanned<FnCall>, Spanned<ParseError>> {
@@ -744,6 +746,18 @@ fn fn_arg(tokens: &TokenStream<'_>) -> Result<Spanned<Arg>, Spanned<ParseError>>
             )
         }),
     }
+}
+
+/// Returns true if the next tokens are a function call without consuming any tokens.
+/// For example, possible calls would be: `function_name:`, `function_name!` or `long::path::with::function:`.
+fn is_fn_call(tokens: &TokenStream<'_>) -> bool {
+    let pos = tokens.pos();
+
+    let is_call = item_path(tokens).is_ok()
+        && (tokens.peek() == Some(Token::Colon) || tokens.peek() == Some(Token::Bang));
+
+    tokens.restore_pos(pos);
+    is_call
 }
 
 fn atom_or_group(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
