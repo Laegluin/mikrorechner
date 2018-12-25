@@ -91,13 +91,11 @@ impl<'t> TokenStream<'t> {
     }
 
     fn eof_span(&self) -> Span {
-        let consumed = self.consumed.get();
-
-        if consumed < self.tokens.len() {
-            let this_is_the_end = self.tokens[consumed].span.end();
-            Span::new(this_is_the_end, this_is_the_end)
-        } else {
+        if self.tokens.is_empty() {
             Span::new(Index(0), Index(0))
+        } else {
+            let this_is_the_end = self.tokens[self.tokens.len() - 1].span.end();
+            Span::new(this_is_the_end, this_is_the_end)
         }
     }
 
@@ -136,9 +134,14 @@ struct SpanStart<'s, 't> {
 
 impl SpanStart<'_, '_> {
     fn end(&self) -> Span {
+        let consumed = self.stream.consumed.get();
+        assert!(consumed > 0);
+        let last_token = consumed - 1;
+        assert!(self.start <= last_token);
+
         self.stream.tokens[self.start]
             .span
-            .to(self.stream.tokens[self.stream.consumed.get()].span)
+            .to(self.stream.tokens[last_token].span)
     }
 }
 
@@ -680,7 +683,7 @@ fn fn_call(tokens: &TokenStream<'_>) -> Result<Spanned<FnCall>, Spanned<ParseErr
                 if is_fn_call(tokens) {
                     break;
                 }
-                
+
                 // if the following tokens cannot be parsed as expression of a higher
                 // precedence, assume the comma is a trailing comma
                 match fn_arg(tokens) {
@@ -959,7 +962,7 @@ fn block(tokens: &TokenStream<'_>) -> Result<Spanned<Block>, Spanned<ParseError>
             is_last_expr_stmt = true;
         } else {
             is_last_expr_stmt = false;
-            
+
             if !is_block_delimited {
                 break;
             }
