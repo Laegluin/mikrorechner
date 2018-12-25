@@ -107,7 +107,7 @@ impl<'t> TokenStream<'t> {
     /// Panics if there was no last token, meaning `next` was never called.
     fn last_token_span(&self) -> Span {
         assert!(self.consumed.get() > 0);
-        self.tokens[self.consumed.get()].span
+        self.tokens[self.consumed.get() - 1].span
     }
 
     fn start_span(&self) -> SpanStart<'_, 't> {
