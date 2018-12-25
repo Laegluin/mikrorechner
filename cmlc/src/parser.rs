@@ -165,7 +165,7 @@ fn type_def(tokens: &TokenStream<'_>) -> Result<Item, Spanned<ParseError>> {
     let name = ident(tokens)?;
     token(tokens, Token::Equal, "=")?;
 
-    match tokens.next() {
+    match tokens.peek() {
         Some(Token::OpenBrace) => {
             let span_start = tokens.start_span();
             let record_def = record_def(name, tokens)?;
@@ -204,6 +204,7 @@ fn record_def(
     name: Spanned<Ident>,
     tokens: &TokenStream<'_>,
 ) -> Result<RecordDef, Spanned<ParseError>> {
+    token(tokens, Token::OpenBrace, "{")?;
     let mut fields = Vec::new();
 
     while tokens.peek() != Some(Token::CloseBrace) {
@@ -236,6 +237,7 @@ fn variants_def(
     name: Spanned<Ident>,
     tokens: &TokenStream<'_>,
 ) -> Result<VariantsDef, Spanned<ParseError>> {
+    token(tokens, Token::Pipe, "|")?;
     let mut variants = Vec::new();
 
     while tokens.peek() != Some(Token::Semicolon) {
