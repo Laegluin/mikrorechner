@@ -733,7 +733,7 @@ fn fn_arg(tokens: &TokenStream<'_>) -> Result<Spanned<Arg>, Spanned<ParseError>>
             let ident_span = tokens.last_token_span();
             tokens.next();
 
-            atom_or_group(tokens).map(|expr| {
+            expr(tokens).map(|expr| {
                 Spanned::new(
                     Arg {
                         name: Some(Spanned::new(ident.clone(), ident_span)),
@@ -743,7 +743,7 @@ fn fn_arg(tokens: &TokenStream<'_>) -> Result<Spanned<Arg>, Spanned<ParseError>>
                 )
             })
         }
-        _ => atom_or_group(tokens).map(|expr| {
+        _ => expr(tokens).map(|expr| {
             Spanned::new(
                 Arg {
                     name: None,
