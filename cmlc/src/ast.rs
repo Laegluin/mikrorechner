@@ -93,7 +93,7 @@ pub enum Expr {
     FnCall(FnCall),
     MethodCall(MethodCall),
     // TODO: Field access with derefs
-    FieldAccess(FieldAccess),
+    MemberAccess(MemberAccess),
     ArrayCons(ArrayCons),
     TupleCons(TupleCons),
     Assignment(Assignment),
@@ -149,10 +149,10 @@ pub enum UnOpKind {
 }
 
 #[derive(Debug)]
-pub struct FieldAccess {
+pub struct MemberAccess {
     pub value: Spanned<Box<Expr>>,
-    pub field: Spanned<Ident>,
-    pub num_derefs: u32,
+    pub member: Spanned<Ident>,
+    pub is_deref: bool,
 }
 
 #[derive(Debug)]

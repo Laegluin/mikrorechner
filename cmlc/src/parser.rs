@@ -699,7 +699,7 @@ fn fn_call_expr(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<Parse
     if is_fn_call(tokens) {
         fn_call(tokens).map(|spanned| spanned.map(Expr::FnCall))
     } else {
-        atom_or_group(tokens)
+        member_access(tokens)
     }
 }
 
@@ -839,6 +839,32 @@ fn try_fn_call_head(tokens: &TokenStream<'_>) -> Option<Span> {
 
     tokens.restore_pos(pos);
     maybe_span
+}
+
+fn member_access(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
+    let span_start = tokens.start_span();
+    let mut value = atom_or_group(tokens)?;
+
+    while tokens.peek() == Some(Token::Dot) || tokens.peek() == Some(Token::Arrow) {
+        let is_deref = match tokens.next() {
+            Some(Token::Dot) => false,
+            Some(Token::Arrow) => true,
+            _ => unreachable!(),
+        };
+
+        let member = ident(tokens)?;
+
+        value = Spanned::new(
+            Expr::MemberAccess(MemberAccess {
+                value: value.map(Box::new),
+                member,
+                is_deref,
+            }),
+            span_start.end(),
+        )
+    }
+
+    Ok(value)
 }
 
 fn atom_or_group(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
