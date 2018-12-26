@@ -12,9 +12,15 @@ pub enum Item {
 
 #[derive(Debug)]
 pub enum TypeDef {
-    Alias(Spanned<TypeDesc>),
+    Alias(Spanned<AliasDef>),
     RecordDef(Spanned<RecordDef>),
     VariantsDef(Spanned<VariantsDef>),
+}
+
+#[derive(Debug)]
+pub struct AliasDef {
+    pub name: Spanned<Ident>,
+    pub ty: Spanned<TypeDesc>,
 }
 
 #[derive(Debug)]

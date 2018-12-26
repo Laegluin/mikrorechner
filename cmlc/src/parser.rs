@@ -186,9 +186,15 @@ fn type_def(tokens: &TokenStream<'_>) -> Result<Item, Spanned<ParseError>> {
             ))))
         }
         Some(_) => {
+            let span_start = tokens.start_span();
             let alias = type_desc(tokens)?;
+            let span = span_start.end();
             token(tokens, Token::Semicolon, ";")?;
-            Ok(Item::TypeDef(TypeDef::Alias(alias)))
+
+            Ok(Item::TypeDef(TypeDef::Alias(Spanned::new(
+                AliasDef { name, ty: alias },
+                span,
+            ))))
         }
         None => Err(Spanned::new(
             ParseError::eof()
