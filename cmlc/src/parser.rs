@@ -362,14 +362,28 @@ fn param_def(tokens: &TokenStream<'_>) -> Result<ParamDef, Spanned<ParseError>> 
 }
 
 fn expr(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
+    expr_inner(tokens, true)
+}
+
+fn expr_in_fn_arg(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
+    expr_inner(tokens, false)
+}
+
+fn expr_inner(
+    tokens: &TokenStream<'_>,
+    parse_method_calls: bool,
+) -> Result<Spanned<Expr>, Spanned<ParseError>> {
     if tokens.peek() == Some(Token::Keyword(Keyword::Let)) {
-        let_binding(tokens)
+        let_binding(tokens, parse_method_calls)
     } else {
-        assignment(tokens)
+        assignment(tokens, parse_method_calls)
     }
 }
 
-fn let_binding(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
+fn let_binding(
+    tokens: &TokenStream<'_>,
+    parse_method_calls: bool,
+) -> Result<Spanned<Expr>, Spanned<ParseError>> {
     let span_start = tokens.start_span();
 
     token(tokens, Token::Keyword(Keyword::Let), "let")?;
@@ -384,7 +398,7 @@ fn let_binding(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseE
     };
 
     token(tokens, Token::Equal, "=")?;
-    let expr = expr(tokens)?.map(Box::new);
+    let expr = expr_inner(tokens, parse_method_calls)?.map(Box::new);
 
     Ok(Spanned::new(
         Expr::LetBinding(LetBinding {
@@ -396,14 +410,17 @@ fn let_binding(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseE
     ))
 }
 
-fn assignment(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
+fn assignment(
+    tokens: &TokenStream<'_>,
+    parse_method_calls: bool,
+) -> Result<Spanned<Expr>, Spanned<ParseError>> {
     let span_start = tokens.start_span();
 
-    let mut target = logical_or(tokens)?;
+    let mut target = logical_or(tokens, parse_method_calls)?;
 
     if tokens.peek() == Some(Token::Equal) {
         tokens.next();
-        let value = expr(tokens)?.map(Box::new);
+        let value = expr_inner(tokens, parse_method_calls)?.map(Box::new);
 
         target = Spanned::new(
             Expr::Assignment(Assignment {
@@ -417,13 +434,16 @@ fn assignment(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseEr
     Ok(target)
 }
 
-fn logical_or(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
+fn logical_or(
+    tokens: &TokenStream<'_>,
+    parse_method_calls: bool,
+) -> Result<Spanned<Expr>, Spanned<ParseError>> {
     let span_start = tokens.start_span();
-    let mut lhs = logical_and(tokens)?;
+    let mut lhs = logical_and(tokens, parse_method_calls)?;
 
     while tokens.peek() == Some(Token::DoublePipe) {
         tokens.next();
-        let rhs = logical_and(tokens)?.map(Box::new);
+        let rhs = logical_and(tokens, parse_method_calls)?.map(Box::new);
 
         lhs = Spanned::new(
             Expr::BinOp(BinOp {
@@ -438,13 +458,16 @@ fn logical_or(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseEr
     Ok(lhs)
 }
 
-fn logical_and(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
+fn logical_and(
+    tokens: &TokenStream<'_>,
+    parse_method_calls: bool,
+) -> Result<Spanned<Expr>, Spanned<ParseError>> {
     let span_start = tokens.start_span();
-    let mut lhs = equality(tokens)?;
+    let mut lhs = equality(tokens, parse_method_calls)?;
 
     while tokens.peek() == Some(Token::DoubleAmp) {
         tokens.next();
-        let rhs = equality(tokens)?.map(Box::new);
+        let rhs = equality(tokens, parse_method_calls)?.map(Box::new);
 
         lhs = Spanned::new(
             Expr::BinOp(BinOp {
@@ -459,9 +482,12 @@ fn logical_and(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseE
     Ok(lhs)
 }
 
-fn equality(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
+fn equality(
+    tokens: &TokenStream<'_>,
+    parse_method_calls: bool,
+) -> Result<Spanned<Expr>, Spanned<ParseError>> {
     let span_start = tokens.start_span();
-    let mut lhs = comparison(tokens)?;
+    let mut lhs = comparison(tokens, parse_method_calls)?;
 
     while tokens.peek() == Some(Token::DoubleEqual) || tokens.peek() == Some(Token::BangEqual) {
         let op = match tokens.next() {
@@ -470,7 +496,7 @@ fn equality(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseErro
             _ => unreachable!(),
         };
 
-        let rhs = comparison(tokens)?.map(Box::new);
+        let rhs = comparison(tokens, parse_method_calls)?.map(Box::new);
 
         lhs = Spanned::new(
             Expr::BinOp(BinOp {
@@ -485,9 +511,12 @@ fn equality(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseErro
     Ok(lhs)
 }
 
-fn comparison(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
+fn comparison(
+    tokens: &TokenStream<'_>,
+    parse_method_calls: bool,
+) -> Result<Spanned<Expr>, Spanned<ParseError>> {
     let span_start = tokens.start_span();
-    let mut lhs = additive(tokens)?;
+    let mut lhs = additive(tokens, parse_method_calls)?;
 
     while tokens.peek() == Some(Token::Less)
         || tokens.peek() == Some(Token::LessEqual)
@@ -502,7 +531,7 @@ fn comparison(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseEr
             _ => unreachable!(),
         };
 
-        let rhs = additive(tokens)?.map(Box::new);
+        let rhs = additive(tokens, parse_method_calls)?.map(Box::new);
 
         lhs = Spanned::new(
             Expr::BinOp(BinOp {
@@ -517,9 +546,12 @@ fn comparison(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseEr
     Ok(lhs)
 }
 
-fn additive(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
+fn additive(
+    tokens: &TokenStream<'_>,
+    parse_method_calls: bool,
+) -> Result<Spanned<Expr>, Spanned<ParseError>> {
     let span_start = tokens.start_span();
-    let mut lhs = multiplicative(tokens)?;
+    let mut lhs = multiplicative(tokens, parse_method_calls)?;
 
     while tokens.peek() == Some(Token::Plus) || tokens.peek() == Some(Token::Minus) {
         let op = match tokens.next() {
@@ -528,7 +560,7 @@ fn additive(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseErro
             _ => unreachable!(),
         };
 
-        let rhs = multiplicative(tokens)?.map(Box::new);
+        let rhs = multiplicative(tokens, parse_method_calls)?.map(Box::new);
 
         lhs = Spanned::new(
             Expr::BinOp(BinOp {
@@ -543,9 +575,12 @@ fn additive(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseErro
     Ok(lhs)
 }
 
-fn multiplicative(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
+fn multiplicative(
+    tokens: &TokenStream<'_>,
+    parse_method_calls: bool,
+) -> Result<Spanned<Expr>, Spanned<ParseError>> {
     let span_start = tokens.start_span();
-    let mut lhs = unary(tokens)?;
+    let mut lhs = unary(tokens, parse_method_calls)?;
 
     while tokens.peek() == Some(Token::Star) || tokens.peek() == Some(Token::Slash) {
         let op = match tokens.next() {
@@ -554,7 +589,7 @@ fn multiplicative(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<Par
             _ => unreachable!(),
         };
 
-        let rhs = unary(tokens)?.map(Box::new);
+        let rhs = unary(tokens, parse_method_calls)?.map(Box::new);
 
         lhs = Spanned::new(
             Expr::BinOp(BinOp {
@@ -569,7 +604,10 @@ fn multiplicative(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<Par
     Ok(lhs)
 }
 
-fn unary(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
+fn unary(
+    tokens: &TokenStream<'_>,
+    parse_method_calls: bool,
+) -> Result<Spanned<Expr>, Spanned<ParseError>> {
     let span_start = tokens.start_span();
 
     if tokens.peek() == Some(Token::Bang)
@@ -611,7 +649,7 @@ fn unary(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>>
             _ => unreachable!(),
         };
 
-        let operand = unary(tokens)?.map(Box::new);
+        let operand = unary(tokens, parse_method_calls)?.map(Box::new);
 
         if is_double_ref {
             let inner_span = Span::new(inner_ref_start, operand.span.end());
@@ -631,15 +669,18 @@ fn unary(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>>
             ))
         }
     } else {
-        method_call(tokens)
+        method_call(tokens, parse_method_calls)
     }
 }
 
-fn method_call(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
+fn method_call(
+    tokens: &TokenStream<'_>,
+    parse_method_calls: bool,
+) -> Result<Spanned<Expr>, Spanned<ParseError>> {
     let span_start = tokens.start_span();
     let mut object = fn_call_expr(tokens)?;
 
-    while is_fn_call(tokens) {
+    while parse_method_calls && is_fn_call(tokens) {
         let call = fn_call(tokens)?;
 
         object = Spanned::new(
@@ -675,12 +716,20 @@ fn fn_call(tokens: &TokenStream<'_>) -> Result<Spanned<FnCall>, Spanned<ParseErr
             span_start.end(),
         )),
         Some(Token::Colon) => {
-            let expected = || format!("argument for `{}`", fn_name.value);
+            // calls with a `:` must have at least one argument, which is not
+            // possible if it immediately followed by another call
+            // catching this here instead of when parsing the argument produces better
+            // errors because the parser does not try to parse the function name as variable
+            if let Some(span) = try_fn_call_head(tokens) {
+                return Err(Spanned::new(
+                    ParseError::new()
+                        .msg("unexpected function call")
+                        .expected("at least one argument"),
+                    span,
+                ));
+            }
 
-            let first_arg = fn_arg(tokens)
-                .map_err(|spanned| spanned.map(|err| err.set_expected(expected())))?;
-
-            let mut args = vec![first_arg];
+            let mut args = vec![fn_arg(tokens)?];
 
             while let Some(Token::Comma) = tokens.peek() {
                 tokens.next();
@@ -692,11 +741,14 @@ fn fn_call(tokens: &TokenStream<'_>) -> Result<Spanned<FnCall>, Spanned<ParseErr
                     break;
                 }
 
-                // if the following tokens cannot be parsed as expression of a higher
-                // precedence, assume the comma is a trailing comma
+                let pos = tokens.pos();
+                // if the following tokens cannot be parsed as expression, assume the comma is trailing
                 match fn_arg(tokens) {
                     Ok(arg) => args.push(arg),
-                    Err(_) => break,
+                    Err(_) => {
+                        tokens.restore_pos(pos);
+                        break;
+                    }
                 }
             }
 
@@ -744,7 +796,7 @@ fn fn_arg(tokens: &TokenStream<'_>) -> Result<Spanned<Arg>, Spanned<ParseError>>
             let ident_span = tokens.last_token_span();
             tokens.next();
 
-            expr(tokens).map(|expr| {
+            expr_in_fn_arg(tokens).map(|expr| {
                 Spanned::new(
                     Arg {
                         name: Some(Spanned::new(ident.clone(), ident_span)),
@@ -754,7 +806,7 @@ fn fn_arg(tokens: &TokenStream<'_>) -> Result<Spanned<Arg>, Spanned<ParseError>>
                 )
             })
         }
-        _ => expr(tokens).map(|expr| {
+        _ => expr_in_fn_arg(tokens).map(|expr| {
             Spanned::new(
                 Arg {
                     name: None,
@@ -769,13 +821,24 @@ fn fn_arg(tokens: &TokenStream<'_>) -> Result<Spanned<Arg>, Spanned<ParseError>>
 /// Returns true if the next tokens are a function call without consuming any tokens.
 /// For example, possible calls would be: `function_name:`, `function_name!` or `long::path::with::function:`.
 fn is_fn_call(tokens: &TokenStream<'_>) -> bool {
+    try_fn_call_head(tokens).is_some()
+}
+
+fn try_fn_call_head(tokens: &TokenStream<'_>) -> Option<Span> {
+    let span_start = tokens.start_span();
     let pos = tokens.pos();
 
-    let is_call = item_path(tokens).is_ok()
-        && (tokens.peek() == Some(Token::Colon) || tokens.peek() == Some(Token::Bang));
+    let maybe_span = if item_path(tokens).is_ok()
+        && (tokens.peek() == Some(Token::Colon) || tokens.peek() == Some(Token::Bang))
+    {
+        tokens.next();
+        Some(span_start.end())
+    } else {
+        None
+    };
 
     tokens.restore_pos(pos);
-    is_call
+    maybe_span
 }
 
 fn atom_or_group(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
