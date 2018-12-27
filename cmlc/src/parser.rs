@@ -897,7 +897,7 @@ fn lit(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
 }
 
 fn var(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
-    ident(tokens)
+    item_path(tokens)
         .map(|ident| Expr::Var(ident.value))
         .map_err(|spanned| spanned.map(|err| err.set_expected("variable")))
 }

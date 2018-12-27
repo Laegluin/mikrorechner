@@ -87,7 +87,7 @@ pub struct FunctionDesc {
 #[derive(Debug)]
 pub enum Expr {
     Lit(Lit),
-    Var(Ident),
+    Var(ItemPath),
     UnOp(UnOp),
     BinOp(BinOp),
     FnCall(FnCall),

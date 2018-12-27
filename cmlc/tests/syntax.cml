@@ -6,8 +6,7 @@ type Variant =
 
 fn variant = -> Variant {
     let a = Variant::Three: 1, 2;
-    // TODO: consider empty cons as constant and allow variables to be a path
-    let b = Variant::One!;
+    let b = Variant::One;
 }
 
 type User = {
