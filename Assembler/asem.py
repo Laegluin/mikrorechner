@@ -169,13 +169,17 @@ def show_output_array(a):
                 print(" ", end='')
         print('\n', end='')
 
+#binärdatei immer überschreiben!
 def save_binary(a,s):
     try:
         with open(s, 'wb+') as f:
             for w in a:
                 w = little_endian(w)
-                pickle.dump(int(w,2),f)
-            f.close()
+                i = int(w,2)
+                print(hex(i))
+                x = i.to_bytes(4,'big')
+                f.write(x)
+            f.truncate()
     except IOError as e:
         print("Konnte Binärdatei nicht lesen oder schreiben (%s)." % e)
 
