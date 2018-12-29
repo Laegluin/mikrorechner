@@ -192,10 +192,9 @@ halt: 0110 1*** **** **** **** **** **** ****
 ## Assembler Syntax
 
 ```text
-<R> ::= R1 | R2 | ... | R31 | null
+<R> ::= R1 | R2 | ... | R31 | null | offset
 <I> ::= -<X> | ... | <X>
 <X> ::= gültiger Immediatewert für entsprechenden Befehl
-Zeilenkommentare werden mit # angefangen
 ```
 ### Kommentare
 ```text
@@ -236,7 +235,7 @@ signed shift right: <R> = <R> >>_s <R> times
 
 ```text
 copy <R> to <R>
-set <R> to <I>
+set: <R> = <I>
 ```
 
 ### Comparisons
