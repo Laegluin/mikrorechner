@@ -242,9 +242,9 @@ set <R> to <I>
 ### Comparisons
 
 ```text
-compare_eq <R> to <R>
-compare_gt <R> to <R>
-compare_ge <R> to <R>
+compare <R> = <R>
+compare <R> > <R>
+compare <R> >= <R>
 ```
 
 ### Jumps
