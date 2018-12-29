@@ -195,6 +195,20 @@ halt: 0110 1*** **** **** **** **** **** ****
 <R> ::= R1 | R2 | ... | R31 | null
 <I> ::= -<X> | ... | <X>
 <X> ::= gültiger Immediatewert für entsprechenden Befehl
+Zeilenkommentare werden mit # angefangen
+```
+### Kommentare
+```text
+Zeilenkommentare fangen mit # an.
+```
+
+### Labels
+```text
+Einführen von Labels: _<Labelname> hinter den Befehl (vor den Kommentar natürlich).
+Dann kann man mit
+jump to <Labelname>
+jump_if to <Labelname>
+zu den Labels springen.
 ```
 
 ### Arithmetic
