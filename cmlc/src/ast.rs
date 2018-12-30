@@ -235,7 +235,7 @@ pub struct Arg {
     pub value: Spanned<Expr>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ItemPath {
     pub segments: Vec<Spanned<Ident>>,
 }

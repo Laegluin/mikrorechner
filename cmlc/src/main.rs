@@ -9,6 +9,7 @@ fn main() {
     println!("=> tokens:");
     println!("{:#?}", tokens);
     let ast = parser::parse(&tokens).unwrap();
+    let typed_ast = typecheck::typecheck(ast).unwrap();
     println!("=> ast:");
-    println!("{:#?}", ast);
+    println!("{:#?}", typed_ast);
 }
