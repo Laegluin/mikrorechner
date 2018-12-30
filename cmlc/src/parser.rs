@@ -401,7 +401,7 @@ fn let_binding(
     let expr = expr_inner(tokens, parse_method_calls)?.map(Box::new);
 
     Ok(Spanned::new(
-        Expr::LetBinding(LetBinding {
+        Expr::let_binding(LetBinding {
             pattern,
             ty_hint,
             expr,
@@ -423,7 +423,7 @@ fn assignment(
         let value = expr_inner(tokens, parse_method_calls)?.map(Box::new);
 
         target = Spanned::new(
-            Expr::Assignment(Assignment {
+            Expr::assignment(Assignment {
                 target: target.map(Box::new),
                 value,
             }),
@@ -446,7 +446,7 @@ fn logical_or(
         let rhs = logical_and(tokens, parse_method_calls)?.map(Box::new);
 
         lhs = Spanned::new(
-            Expr::BinOp(BinOp {
+            Expr::bin_op(BinOp {
                 op: BinOpKind::Or,
                 lhs: lhs.map(Box::new),
                 rhs,
@@ -470,7 +470,7 @@ fn logical_and(
         let rhs = equality(tokens, parse_method_calls)?.map(Box::new);
 
         lhs = Spanned::new(
-            Expr::BinOp(BinOp {
+            Expr::bin_op(BinOp {
                 op: BinOpKind::And,
                 lhs: lhs.map(Box::new),
                 rhs,
@@ -499,7 +499,7 @@ fn equality(
         let rhs = comparison(tokens, parse_method_calls)?.map(Box::new);
 
         lhs = Spanned::new(
-            Expr::BinOp(BinOp {
+            Expr::bin_op(BinOp {
                 op,
                 lhs: lhs.map(Box::new),
                 rhs,
@@ -534,7 +534,7 @@ fn comparison(
         let rhs = additive(tokens, parse_method_calls)?.map(Box::new);
 
         lhs = Spanned::new(
-            Expr::BinOp(BinOp {
+            Expr::bin_op(BinOp {
                 op,
                 lhs: lhs.map(Box::new),
                 rhs,
@@ -563,7 +563,7 @@ fn additive(
         let rhs = multiplicative(tokens, parse_method_calls)?.map(Box::new);
 
         lhs = Spanned::new(
-            Expr::BinOp(BinOp {
+            Expr::bin_op(BinOp {
                 op,
                 lhs: lhs.map(Box::new),
                 rhs,
@@ -592,7 +592,7 @@ fn multiplicative(
         let rhs = unary(tokens, parse_method_calls)?.map(Box::new);
 
         lhs = Spanned::new(
-            Expr::BinOp(BinOp {
+            Expr::bin_op(BinOp {
                 op,
                 lhs: lhs.map(Box::new),
                 rhs,
@@ -656,15 +656,15 @@ fn unary(
 
             // wrap in the `&` that is part of `&&` or `&&mut` and was ignored above
             Ok(Spanned::new(
-                Expr::UnOp(UnOp {
+                Expr::un_op(UnOp {
                     op: UnOpKind::AddrOf,
-                    operand: Spanned::new(Box::new(Expr::UnOp(UnOp { op, operand })), inner_span),
+                    operand: Spanned::new(Box::new(Expr::un_op(UnOp { op, operand })), inner_span),
                 }),
                 span_start.end(),
             ))
         } else {
             Ok(Spanned::new(
-                Expr::UnOp(UnOp { op, operand }),
+                Expr::un_op(UnOp { op, operand }),
                 span_start.end(),
             ))
         }
@@ -684,7 +684,7 @@ fn method_call(
         let call = fn_call(tokens)?;
 
         object = Spanned::new(
-            Expr::MethodCall(MethodCall {
+            Expr::method_call(MethodCall {
                 object: object.map(Box::new),
                 call,
             }),
@@ -697,7 +697,7 @@ fn method_call(
 
 fn fn_call_expr(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
     if is_fn_call(tokens) {
-        fn_call(tokens).map(|spanned| spanned.map(Expr::FnCall))
+        fn_call(tokens).map(|spanned| spanned.map(Expr::fn_call))
     } else {
         member_access(tokens)
     }
@@ -855,7 +855,7 @@ fn member_access(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<Pars
         let member = ident(tokens)?;
 
         value = Spanned::new(
-            Expr::MemberAccess(MemberAccess {
+            Expr::member_access(MemberAccess {
                 value: value.map(Box::new),
                 member,
                 is_deref,
@@ -884,7 +884,7 @@ fn atom_or_group(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<Pars
 
 fn lit(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
     match tokens.next() {
-        Some(Token::Lit(lit)) => Ok(Expr::Lit(lit)),
+        Some(Token::Lit(lit)) => Ok(Expr::lit(lit)),
         Some(_) => Err(Spanned::new(
             ParseError::unexpected_token().expected("literal"),
             tokens.last_token_span(),
@@ -898,7 +898,7 @@ fn lit(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
 
 fn var(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
     item_path(tokens)
-        .map(|ident| Expr::Var(ident.value))
+        .map(|ident| Expr::var(ident.value))
         .map_err(|spanned| spanned.map(|err| err.set_expected("variable")))
 }
 
@@ -910,7 +910,7 @@ fn array_cons(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
         match tokens.peek() {
             Some(Token::CloseBracket) => {
                 tokens.next();
-                return Ok(Expr::ArrayCons(ArrayCons { elems }));
+                return Ok(Expr::array_cons(ArrayCons { elems }));
             }
             Some(_) => (),
             None => {
@@ -925,7 +925,7 @@ fn array_cons(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
 
         match tokens.next() {
             Some(Token::CloseBracket) => {
-                return Ok(Expr::ArrayCons(ArrayCons { elems }));
+                return Ok(Expr::array_cons(ArrayCons { elems }));
             }
             Some(Token::Comma) => continue,
             Some(_) => {
@@ -952,7 +952,7 @@ fn parenthesized_or_tuple_cons(tokens: &TokenStream<'_>) -> Result<Expr, Spanned
         match tokens.peek() {
             Some(Token::CloseParen) => {
                 tokens.next();
-                return Ok(Expr::TupleCons(TupleCons { elems }));
+                return Ok(Expr::tuple_cons(TupleCons { elems }));
             }
             Some(_) => (),
             None => {
@@ -971,7 +971,7 @@ fn parenthesized_or_tuple_cons(tokens: &TokenStream<'_>) -> Result<Expr, Spanned
                 if elems.len() == 1 {
                     return Ok(elems.pop().unwrap().value);
                 } else {
-                    return Ok(Expr::TupleCons(TupleCons { elems }));
+                    return Ok(Expr::tuple_cons(TupleCons { elems }));
                 }
             }
             Some(Token::Comma) => continue,
@@ -993,14 +993,14 @@ fn parenthesized_or_tuple_cons(tokens: &TokenStream<'_>) -> Result<Expr, Spanned
 
 fn ret_expr(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
     token(tokens, Token::Keyword(Keyword::Ret), "ret")?;
-    Ok(Expr::Ret(expr(tokens)?.map(Box::new).value))
+    Ok(Expr::ret(expr(tokens)?.map(Box::new).value))
 }
 
 fn if_expr(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
     token(tokens, Token::Keyword(Keyword::If), "if")?;
 
     let cond = expr(tokens)?.map(Box::new);
-    let then_block = block(tokens)?;
+    let then_block = block(tokens)?.map(Box::new);
 
     let else_block = match tokens.peek() {
         Some(Token::Keyword(Keyword::Else)) => {
@@ -1013,20 +1013,20 @@ fn if_expr(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
                     let span = span_start.end();
 
                     Some(Spanned::new(
-                        Block {
+                        Box::new(Expr::block(Block {
                             exprs: vec![Spanned::new(if_expr, span)],
                             is_last_expr_stmt: false,
-                        },
+                        })),
                         span,
                     ))
                 }
-                _ => Some(block(tokens)?),
+                _ => Some(block(tokens)?.map(Box::new)),
             }
         }
         _ => None,
     };
 
-    Ok(Expr::IfExpr(IfExpr {
+    Ok(Expr::if_expr(IfExpr {
         cond,
         then_block,
         else_block,
@@ -1034,10 +1034,10 @@ fn if_expr(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
 }
 
 fn block_expr(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
-    block(tokens).map(|spanned| Expr::Block(spanned.value))
+    block(tokens).map(|spanned| spanned.value)
 }
 
-fn block(tokens: &TokenStream<'_>) -> Result<Spanned<Block>, Spanned<ParseError>> {
+fn block(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
     let span_start = tokens.start_span();
 
     token(tokens, Token::OpenBrace, "{")?;
@@ -1048,7 +1048,7 @@ fn block(tokens: &TokenStream<'_>) -> Result<Spanned<Block>, Spanned<ParseError>
         let expr = expr(tokens)?;
 
         let is_block_delimited = match expr.value {
-            Expr::Block(_) | Expr::IfExpr(_) => true,
+            Expr::Block(..) | Expr::IfExpr(..) => true,
             _ => false,
         };
 
@@ -1069,10 +1069,10 @@ fn block(tokens: &TokenStream<'_>) -> Result<Spanned<Block>, Spanned<ParseError>
     token(tokens, Token::CloseBrace, "}")?;
 
     Ok(Spanned::new(
-        Block {
+        Expr::block(Block {
             exprs,
             is_last_expr_stmt,
-        },
+        }),
         span_start.end(),
     ))
 }

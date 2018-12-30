@@ -1,4 +1,5 @@
 use crate::span::Spanned;
+use crate::typecheck::Typed;
 use std::fmt::{self, Display};
 use std::rc::Rc;
 
@@ -52,7 +53,7 @@ pub struct FnDef {
     pub name: Spanned<Ident>,
     pub params: Vec<Spanned<ParamDef>>,
     pub ret_ty: Option<Spanned<TypeDesc>>,
-    pub body: Spanned<Block>,
+    pub body: Spanned<Expr>,
 }
 
 #[derive(Debug)]
@@ -86,21 +87,78 @@ pub struct FunctionDesc {
 
 #[derive(Debug)]
 pub enum Expr {
-    Lit(Lit),
-    Var(ItemPath),
-    UnOp(UnOp),
-    BinOp(BinOp),
-    FnCall(FnCall),
-    MethodCall(MethodCall),
-    // TODO: Field access with derefs
-    MemberAccess(MemberAccess),
-    ArrayCons(ArrayCons),
-    TupleCons(TupleCons),
-    Assignment(Assignment),
-    LetBinding(LetBinding),
-    Ret(Box<Expr>),
-    IfExpr(IfExpr),
-    Block(Block),
+    Lit(Lit, Typed),
+    Var(ItemPath, Typed),
+    UnOp(UnOp, Typed),
+    BinOp(BinOp, Typed),
+    FnCall(FnCall, Typed),
+    MethodCall(MethodCall, Typed),
+    MemberAccess(MemberAccess, Typed),
+    ArrayCons(ArrayCons, Typed),
+    TupleCons(TupleCons, Typed),
+    Assignment(Assignment, Typed),
+    LetBinding(LetBinding, Typed),
+    Ret(Box<Expr>, Typed),
+    IfExpr(IfExpr, Typed),
+    Block(Block, Typed),
+}
+
+impl Expr {
+    pub fn lit(lit: Lit) -> Expr {
+        Expr::Lit(lit, Typed::None)
+    }
+
+    pub fn var(var: ItemPath) -> Expr {
+        Expr::Var(var, Typed::None)
+    }
+
+    pub fn un_op(un_op: UnOp) -> Expr {
+        Expr::UnOp(un_op, Typed::None)
+    }
+
+    pub fn bin_op(bin_op: BinOp) -> Expr {
+        Expr::BinOp(bin_op, Typed::None)
+    }
+
+    pub fn fn_call(fn_call: FnCall) -> Expr {
+        Expr::FnCall(fn_call, Typed::None)
+    }
+
+    pub fn method_call(method_call: MethodCall) -> Expr {
+        Expr::MethodCall(method_call, Typed::None)
+    }
+
+    pub fn member_access(member_access: MemberAccess) -> Expr {
+        Expr::MemberAccess(member_access, Typed::None)
+    }
+
+    pub fn array_cons(array_cons: ArrayCons) -> Expr {
+        Expr::ArrayCons(array_cons, Typed::None)
+    }
+
+    pub fn tuple_cons(tuple_cons: TupleCons) -> Expr {
+        Expr::TupleCons(tuple_cons, Typed::None)
+    }
+
+    pub fn assignment(assignment: Assignment) -> Expr {
+        Expr::Assignment(assignment, Typed::None)
+    }
+
+    pub fn let_binding(let_binding: LetBinding) -> Expr {
+        Expr::LetBinding(let_binding, Typed::None)
+    }
+
+    pub fn ret(ret: Box<Expr>) -> Expr {
+        Expr::Ret(ret, Typed::None)
+    }
+
+    pub fn if_expr(if_expr: IfExpr) -> Expr {
+        Expr::IfExpr(if_expr, Typed::None)
+    }
+
+    pub fn block(block: Block) -> Expr {
+        Expr::Block(block, Typed::None)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -225,8 +283,8 @@ pub enum Pattern {
 #[derive(Debug)]
 pub struct IfExpr {
     pub cond: Spanned<Box<Expr>>,
-    pub then_block: Spanned<Block>,
-    pub else_block: Option<Spanned<Block>>,
+    pub then_block: Spanned<Box<Expr>>,
+    pub else_block: Option<Spanned<Box<Expr>>>,
 }
 
 #[derive(Debug)]
