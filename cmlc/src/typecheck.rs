@@ -97,7 +97,9 @@ pub enum TypeVar {
     I32,
     U32,
     Str,
+    /// A pointer, either const `*T` or mut `*mut T`.
     Ptr(TypeVarRef),
+    ConstPtr(TypeVarRef),
     MutPtr(TypeVarRef),
     Array(TypeVarRef, u32),
     Tuple(Vec<TypeVarRef>),
@@ -158,11 +160,11 @@ where
 /// (see <https://en.wikipedia.org/wiki/Disjoint-set_data_structure>) backed by a Vec. Because
 /// of this unused nodes are only freed when the whole set is dropped. This is fine, since there
 /// won't be enough nodes for this to matter; in return, everything is stored in a nice, flat piece of memory.
-/// 
+///
 /// Merging of two types is done using a modified type inference algorithm for a Hindley-Milner type system.
 /// (see <https://en.wikipedia.org/wiki/Hindley%E2%80%93Milner_type_system#Degrees_of_freedom_instantiating_the_rules>).
-/// 
-/// Notably, there is subtyping with Never and primitives (Int can be subtyped to more specific integers,
+///
+/// Notably, there is subtyping with Never and pointers and primitives (Int can be subtyped to more specific integers,
 /// otherwise a default is chosen).
 struct CheckEnv {
     nodes: Vec<Node>,
@@ -269,15 +271,34 @@ impl CheckEnv {
             | (eq @ TypeVar::I32, TypeVar::I32)
             | (eq @ TypeVar::U32, TypeVar::U32)
             | (eq @ TypeVar::Str, TypeVar::Str) => Ok(eq),
-            // for generic types, unify the type parameters first
+            // pointer coerces to the more specific pointer type (const, mut or it stays a generic pointer)
             (TypeVar::Ptr(left_inner), TypeVar::Ptr(right_inner)) => {
                 let inner = self.union(left_inner, right_inner)?;
                 Ok(TypeVar::Ptr(inner))
             }
+            (TypeVar::Ptr(left_inner), TypeVar::MutPtr(right_inner))
+            | (TypeVar::MutPtr(left_inner), TypeVar::Ptr(right_inner)) => {
+                let inner = self.union(left_inner, right_inner)?;
+                Ok(TypeVar::MutPtr(inner))
+            }
+            (TypeVar::Ptr(left_inner), TypeVar::ConstPtr(right_inner))
+            | (TypeVar::ConstPtr(left_inner), TypeVar::Ptr(right_inner)) => {
+                let inner = self.union(left_inner, right_inner)?;
+                Ok(TypeVar::ConstPtr(inner))
+            }
+            // mut pointers can be coerced to const pointers
+            (TypeVar::ConstPtr(left_inner), TypeVar::ConstPtr(right_inner))
+            | (TypeVar::ConstPtr(left_inner), TypeVar::MutPtr(right_inner))
+            | (TypeVar::MutPtr(left_inner), TypeVar::ConstPtr(right_inner)) => {
+                let inner = self.union(left_inner, right_inner)?;
+                Ok(TypeVar::ConstPtr(inner))
+            }
+            // mut pointers are only equal to themselves (given equal pointees)
             (TypeVar::MutPtr(left_inner), TypeVar::MutPtr(right_inner)) => {
                 let inner = self.union(left_inner, right_inner)?;
                 Ok(TypeVar::MutPtr(inner))
             }
+            // for generic types, unify the type parameters first
             (TypeVar::Array(left_inner, left_len), TypeVar::Array(right_inner, right_len)) => {
                 if left_len != right_len {
                     // TODO: error
