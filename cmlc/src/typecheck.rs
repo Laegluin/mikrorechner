@@ -221,46 +221,46 @@ impl TypeEnv {
         }
     }
 
-    fn union(&mut self, left: TypeVarRef, right: TypeVarRef) -> Result<TypeVarRef, TypeError> {
-        let (left_idx, left_root) = self.find(left.0);
-        let left_rank = left_root.rank;
-        let left_var = mem::replace(&mut left_root.var, TypeVar::Any);
+    fn union(&mut self, expected: TypeVarRef, actual: TypeVarRef) -> Result<TypeVarRef, TypeError> {
+        let (expected_idx, expected_root) = self.find(expected.0);
+        let expected_rank = expected_root.rank;
+        let expected_var = mem::replace(&mut expected_root.var, TypeVar::Any);
 
-        let (right_idx, right_root) = self.find(right.0);
-        let right_rank = right_root.rank;
-        let right_var = mem::replace(&mut right_root.var, TypeVar::Any);
+        let (actual_idx, actual_root) = self.find(actual.0);
+        let actual_rank = actual_root.rank;
+        let actual_var = mem::replace(&mut actual_root.var, TypeVar::Any);
 
-        if left_idx == right_idx {
-            return Ok(TypeVarRef(left_idx));
+        if expected_idx == actual_idx {
+            return Ok(TypeVarRef(expected_idx));
         }
 
-        let merged = self.merge(left_var, right_var)?;
+        let merged = self.merge(expected_var, actual_var)?;
 
-        if left_rank < right_rank {
-            self.nodes[left_idx] = Node::Next(right_idx);
-            self.nodes[right_idx] = Node::Root(Root {
+        if expected_rank < actual_rank {
+            self.nodes[expected_idx] = Node::Next(actual_idx);
+            self.nodes[actual_idx] = Node::Root(Root {
                 var: merged,
-                rank: right_rank,
+                rank: actual_rank,
             });
 
-            Ok(TypeVarRef(right_idx))
+            Ok(TypeVarRef(actual_idx))
         } else {
-            self.nodes[right_idx] = Node::Next(left_idx);
-            self.nodes[left_idx] = Node::Root(Root {
+            self.nodes[actual_idx] = Node::Next(expected_idx);
+            self.nodes[expected_idx] = Node::Root(Root {
                 var: merged,
-                rank: if left_rank == right_rank {
-                    left_rank + 1
+                rank: if expected_rank == actual_rank {
+                    expected_rank + 1
                 } else {
-                    left_rank
+                    expected_rank
                 },
             });
 
-            Ok(TypeVarRef(left_idx))
+            Ok(TypeVarRef(expected_idx))
         }
     }
 
-    fn merge(&mut self, left: TypeVar, right: TypeVar) -> Result<TypeVar, TypeError> {
-        match (left, right) {
+    fn merge(&mut self, expected: TypeVar, actual: TypeVar) -> Result<TypeVar, TypeError> {
+        match (expected, actual) {
             // always choose the other one, it can never be less specific
             (TypeVar::Any, other) | (other, TypeVar::Any) => Ok(other),
             // Never is the supertype of all other types (except Any), so use the more specific subtype
@@ -277,77 +277,80 @@ impl TypeEnv {
             | (eq @ TypeVar::U32, TypeVar::U32)
             | (eq @ TypeVar::Str, TypeVar::Str) => Ok(eq),
             // pointer coerces to the more specific pointer type (const, mut or it stays a generic pointer)
-            (TypeVar::Ptr(left_inner), TypeVar::Ptr(right_inner)) => {
-                let inner = self.union(left_inner, right_inner)?;
+            (TypeVar::Ptr(expected_inner), TypeVar::Ptr(actual_inner)) => {
+                let inner = self.union(expected_inner, actual_inner)?;
                 Ok(TypeVar::Ptr(inner))
             }
-            (TypeVar::Ptr(left_inner), TypeVar::MutPtr(right_inner))
-            | (TypeVar::MutPtr(left_inner), TypeVar::Ptr(right_inner)) => {
-                let inner = self.union(left_inner, right_inner)?;
+            (TypeVar::Ptr(expected_inner), TypeVar::MutPtr(actual_inner))
+            | (TypeVar::MutPtr(expected_inner), TypeVar::Ptr(actual_inner)) => {
+                let inner = self.union(expected_inner, actual_inner)?;
                 Ok(TypeVar::MutPtr(inner))
             }
-            (TypeVar::Ptr(left_inner), TypeVar::ConstPtr(right_inner))
-            | (TypeVar::ConstPtr(left_inner), TypeVar::Ptr(right_inner)) => {
-                let inner = self.union(left_inner, right_inner)?;
+            (TypeVar::Ptr(expected_inner), TypeVar::ConstPtr(actual_inner))
+            | (TypeVar::ConstPtr(expected_inner), TypeVar::Ptr(actual_inner)) => {
+                let inner = self.union(expected_inner, actual_inner)?;
                 Ok(TypeVar::ConstPtr(inner))
             }
             // mut pointers can be coerced to const pointers
-            (TypeVar::ConstPtr(left_inner), TypeVar::ConstPtr(right_inner))
-            | (TypeVar::ConstPtr(left_inner), TypeVar::MutPtr(right_inner))
-            | (TypeVar::MutPtr(left_inner), TypeVar::ConstPtr(right_inner)) => {
-                let inner = self.union(left_inner, right_inner)?;
+            (TypeVar::ConstPtr(expected_inner), TypeVar::ConstPtr(actual_inner))
+            | (TypeVar::ConstPtr(expected_inner), TypeVar::MutPtr(actual_inner))
+            | (TypeVar::MutPtr(expected_inner), TypeVar::ConstPtr(actual_inner)) => {
+                let inner = self.union(expected_inner, actual_inner)?;
                 Ok(TypeVar::ConstPtr(inner))
             }
             // mut pointers are only equal to themselves (given equal pointees)
-            (TypeVar::MutPtr(left_inner), TypeVar::MutPtr(right_inner)) => {
-                let inner = self.union(left_inner, right_inner)?;
+            (TypeVar::MutPtr(expected_inner), TypeVar::MutPtr(actual_inner)) => {
+                let inner = self.union(expected_inner, actual_inner)?;
                 Ok(TypeVar::MutPtr(inner))
             }
             // for generic types, unify the type parameters first
-            (TypeVar::Array(left_inner, left_len), TypeVar::Array(right_inner, right_len)) => {
-                if left_len != right_len {
+            (
+                TypeVar::Array(expected_inner, expected_len),
+                TypeVar::Array(actual_inner, actual_len),
+            ) => {
+                if expected_len != actual_len {
                     // TODO: error
                     panic!();
                 }
 
-                let inner = self.union(left_inner, right_inner)?;
-                Ok(TypeVar::Array(inner, left_len))
+                let inner = self.union(expected_inner, actual_inner)?;
+                Ok(TypeVar::Array(inner, expected_len))
             }
-            (TypeVar::Tuple(left_inner), TypeVar::Tuple(right_inner)) => {
-                if left_inner.len() != right_inner.len() {
+            (TypeVar::Tuple(expected_inner), TypeVar::Tuple(actual_inner)) => {
+                if expected_inner.len() != actual_inner.len() {
                     // TODO: error
                     panic!();
                 }
 
-                let inner = left_inner
+                let inner = expected_inner
                     .into_iter()
-                    .zip(right_inner)
-                    .map(|(left, right)| self.union(left, right))
+                    .zip(actual_inner)
+                    .map(|(expected, actual)| self.union(expected, actual))
                     .collect::<Result<Vec<_>, _>>()?;
 
                 Ok(TypeVar::Tuple(inner))
             }
             // functions are required to have full type annotations, so the can simply be compared
-            (TypeVar::Function(left_fn), TypeVar::Function(right_fn)) => {
-                if left_fn == right_fn {
-                    Ok(TypeVar::Function(left_fn))
+            (TypeVar::Function(expected_fn), TypeVar::Function(actual_fn)) => {
+                if expected_fn == actual_fn {
+                    Ok(TypeVar::Function(expected_fn))
                 } else {
                     // TODO: error
                     panic!()
                 }
             }
             // nominal types are always fully known, so the can also be compared directly
-            (TypeVar::Record(left_record), TypeVar::Record(right_record)) => {
-                if left_record == right_record {
-                    Ok(TypeVar::Record(left_record))
+            (TypeVar::Record(expected_record), TypeVar::Record(actual_record)) => {
+                if expected_record == actual_record {
+                    Ok(TypeVar::Record(expected_record))
                 } else {
                     // TODO: error
                     panic!()
                 }
             }
-            (TypeVar::Variants(left_variants), TypeVar::Variants(right_variants)) => {
-                if left_variants == right_variants {
-                    Ok(TypeVar::Variants(left_variants))
+            (TypeVar::Variants(expected_variants), TypeVar::Variants(actual_variants)) => {
+                if expected_variants == actual_variants {
+                    Ok(TypeVar::Variants(expected_variants))
                 } else {
                     // TODO: error
                     panic!()
