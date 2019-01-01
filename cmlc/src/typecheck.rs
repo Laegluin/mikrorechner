@@ -10,23 +10,24 @@ pub struct TypeRef(usize);
 
 #[derive(Debug)]
 pub enum Type {
-    /// A free type variable.
+    /// A free type variable. All instances of this type will be removed during typechecking.
     Var,
-    /// An unspecified integer type.
+    /// An unspecified integer type. All instances of this type will be removed during typechecking.
     Int,
     Never,
     Bool,
     I32,
     U32,
     Str,
-    /// A pointer, either const `*T` or mut `*mut T`.
+    /// A pointer, either const `*T` or mut `*mut T`. All instances of this type will
+    /// be removed during typechecking.
     Ptr(TypeRef),
     ConstPtr(TypeRef),
     MutPtr(TypeRef),
     Array(TypeRef, u32),
     Tuple(Vec<TypeRef>),
     /// A call to a function. This type is required to handle function calls
-    /// with or without named arguments.
+    /// with or without named arguments. All instances of this type will be removed during typechecking.
     Call(Function),
     Function(Function),
     Record(Record),
