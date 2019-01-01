@@ -1,9 +1,22 @@
 use crate::span::Spanned;
-use crate::typecheck::Typed;
+use crate::typecheck::{TypeEnv, Typed};
 use std::fmt::{self, Display};
 use std::rc::Rc;
 
-pub type Ast = Vec<Spanned<Item>>;
+#[derive(Debug)]
+pub struct Ast {
+    pub items: Vec<Spanned<Item>>,
+    pub type_env: TypeEnv,
+}
+
+impl Ast {
+    pub fn new(items: Vec<Spanned<Item>>) -> Ast {
+        Ast {
+            items,
+            type_env: TypeEnv::new(),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub enum Item {
@@ -235,7 +248,7 @@ pub struct Arg {
     pub value: Spanned<Expr>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct ItemPath {
     pub segments: Vec<Spanned<Ident>>,
 }
@@ -293,7 +306,7 @@ pub struct Block {
     pub is_last_expr_stmt: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Ident(Rc<str>);
 
 impl Ident {

@@ -1,4 +1,6 @@
-use crate::ast::{Ast, Ident, ItemPath};
+use crate::ast::*;
+use crate::span::Spanned;
+use std::collections::HashMap;
 use std::mem;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -166,23 +168,26 @@ where
 ///
 /// Notably, there is subtyping with Never and pointers and primitives (Int can be subtyped to more specific integers,
 /// otherwise a default is chosen).
-struct CheckEnv {
+#[derive(Debug)]
+pub struct TypeEnv {
     nodes: Vec<Node>,
 }
 
+#[derive(Debug)]
 enum Node {
     Root(Root),
     Next(usize),
 }
 
+#[derive(Debug)]
 struct Root {
     var: TypeVar,
     rank: u8,
 }
 
-impl CheckEnv {
-    fn new() -> CheckEnv {
-        CheckEnv { nodes: Vec::new() }
+impl TypeEnv {
+    pub fn new() -> TypeEnv {
+        TypeEnv { nodes: Vec::new() }
     }
 
     fn insert_type(&mut self, var: TypeVar) -> TypeVarRef {
@@ -360,19 +365,69 @@ impl CheckEnv {
 pub enum TypeError {}
 
 pub fn typecheck(ast: Ast) -> Result<Ast, TypeError> {
-    let mut check_env = CheckEnv::new();
-    let mut type_env = ScopeMap::new();
-    let mut value_env = ScopeMap::new();
+    let mut type_bindings = ScopeMap::new();
+    let mut value_bindings = ScopeMap::new();
 
-    let ast = unify_types(ast, &mut check_env, &mut type_env, &mut value_env)?;
+    let ast = unify_types(ast, &mut type_bindings, &mut value_bindings)?;
     unimplemented!()
+}
+
+#[derive(Debug)]
+enum UnresolvedTypeDef<'a> {
+    Alias(&'a Spanned<TypeDesc>),
+    RecordDef(&'a [Spanned<FieldDef>]),
+    VariantsDef(&'a [Spanned<VariantDef>]),
 }
 
 fn unify_types(
     ast: Ast,
-    check_env: &mut CheckEnv,
-    type_env: &mut ScopeMap<ItemPath, Type>,
-    value_env: &mut ScopeMap<ItemPath, TypeVarRef>,
+    type_bindings: &mut ScopeMap<ItemPath, Type>,
+    value_bindings: &mut ScopeMap<ItemPath, TypeVarRef>,
 ) -> Result<Ast, TypeError> {
+    let mut type_defs = HashMap::new();
+
+    // collect all type defs, but delay resolution to allow for (mutally) recursive definitions
+    // TODO: detect shadowed types
+    for item in &ast.items {
+        match item.value {
+            Item::TypeDef(TypeDef::Alias(Spanned {
+                value: AliasDef { ref name, ref ty },
+                ..
+            })) => {
+                type_defs.insert(name, UnresolvedTypeDef::Alias(ty));
+            }
+            Item::TypeDef(TypeDef::RecordDef(Spanned {
+                value:
+                    RecordDef {
+                        ref name,
+                        ref fields,
+                    },
+                ..
+            })) => {
+                type_defs.insert(name, UnresolvedTypeDef::RecordDef(fields));
+            }
+            Item::TypeDef(TypeDef::VariantsDef(Spanned {
+                value:
+                    VariantsDef {
+                        ref name,
+                        ref variants,
+                    },
+                ..
+            })) => {
+                type_defs.insert(name, UnresolvedTypeDef::VariantsDef(variants));
+            }
+            // no point in resolving functions before all types are known
+            Item::FnDef(_) => continue,
+        }
+    }
+
+    // generate the types for all type definitions
+    for (ty_name, ty_def) in &type_defs {
+        match ty_def {
+            UnresolvedTypeDef::Alias(ref alias) => unimplemented!(),
+            _ => unimplemented!(),
+        }
+    }
+
     unimplemented!()
 }

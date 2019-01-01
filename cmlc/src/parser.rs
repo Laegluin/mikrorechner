@@ -153,7 +153,7 @@ pub fn parse(tokens: impl AsRef<[Spanned<Token>]>) -> Result<Ast, Spanned<ParseE
         items.push(item(&tokens)?);
     }
 
-    Ok(items)
+    Ok(Ast::new(items))
 }
 
 fn item(tokens: &TokenStream<'_>) -> Result<Spanned<Item>, Spanned<ParseError>> {
