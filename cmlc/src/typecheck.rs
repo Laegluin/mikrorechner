@@ -1,35 +1,48 @@
 use crate::ast::*;
 use crate::span::Spanned;
+use crate::support;
 use std::collections::HashMap;
 use std::mem;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, Copy)]
+pub struct TypeRef(usize);
+
+#[derive(Debug)]
 pub enum Type {
+    /// A free type variable.
+    Var,
+    /// An unspecified integer type.
+    Int,
     Never,
     Bool,
     I32,
     U32,
     Str,
-    Ptr(Box<Type>),
-    MutPtr(Box<Type>),
-    Array(Array),
-    Tuple(Vec<Type>),
+    /// A pointer, either const `*T` or mut `*mut T`.
+    Ptr(TypeRef),
+    ConstPtr(TypeRef),
+    MutPtr(TypeRef),
+    Array(TypeRef, u32),
+    Tuple(Vec<TypeRef>),
+    /// A call to a function. This type is required to handle function calls
+    /// with or without named arguments.
+    Call(Function),
     Function(Function),
     Record(Record),
     Variants(Variants),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct Function {
-    pub params: Vec<Type>,
-    pub ret: Box<Type>,
+    pub params: Vec<Param>,
+    pub ret: TypeRef,
 }
 
-#[derive(Debug, PartialEq)]
-pub struct Array {
-    pub ty: Box<Type>,
-    pub len: u32,
+#[derive(Debug)]
+pub struct Param {
+    pub name: Option<Ident>,
+    pub ty: TypeRef,
 }
 
 #[derive(Debug)]
@@ -47,7 +60,7 @@ impl PartialEq for Record {
 #[derive(Debug)]
 pub struct Field {
     pub name: Ident,
-    pub ty: Type,
+    pub ty: TypeRef,
 }
 
 #[derive(Debug)]
@@ -65,7 +78,7 @@ impl PartialEq for Variants {
 #[derive(Debug)]
 pub struct Variant {
     pub name: Ident,
-    pub params: Vec<Type>,
+    pub params: Vec<TypeRef>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -86,34 +99,9 @@ impl TypeId {
 }
 
 #[derive(Debug)]
-pub struct TypeVarRef(usize);
-
-#[derive(Debug)]
-pub enum TypeVar {
-    /// A free type variable.
-    Any,
-    /// An unspecified integer type.
-    Int,
-    Never,
-    Bool,
-    I32,
-    U32,
-    Str,
-    /// A pointer, either const `*T` or mut `*mut T`.
-    Ptr(TypeVarRef),
-    ConstPtr(TypeVarRef),
-    MutPtr(TypeVarRef),
-    Array(TypeVarRef, u32),
-    Tuple(Vec<TypeVarRef>),
-    Function(Function),
-    Record(Record),
-    Variants(Variants),
-}
-
-#[derive(Debug)]
 pub enum Typed {
     None,
-    Var(TypeVarRef),
+    Var(TypeRef),
     Type(Type),
 }
 
@@ -181,7 +169,7 @@ enum Node {
 
 #[derive(Debug)]
 struct Root {
-    var: TypeVar,
+    var: Type,
     rank: u8,
 }
 
@@ -190,9 +178,9 @@ impl TypeEnv {
         TypeEnv { nodes: Vec::new() }
     }
 
-    fn insert_type(&mut self, var: TypeVar) -> TypeVarRef {
+    fn insert(&mut self, var: Type) -> TypeRef {
         self.nodes.push(Node::Root(Root { var, rank: 0 }));
-        TypeVarRef(self.nodes.len() - 1)
+        TypeRef(self.nodes.len() - 1)
     }
 
     fn find(&mut self, node: usize) -> (usize, &mut Root) {
@@ -221,17 +209,17 @@ impl TypeEnv {
         }
     }
 
-    fn union(&mut self, expected: TypeVarRef, actual: TypeVarRef) -> Result<TypeVarRef, TypeError> {
+    fn union(&mut self, expected: TypeRef, actual: TypeRef) -> Result<TypeRef, TypeError> {
         let (expected_idx, expected_root) = self.find(expected.0);
         let expected_rank = expected_root.rank;
-        let expected_var = mem::replace(&mut expected_root.var, TypeVar::Any);
+        let expected_var = mem::replace(&mut expected_root.var, Type::Var);
 
         let (actual_idx, actual_root) = self.find(actual.0);
         let actual_rank = actual_root.rank;
-        let actual_var = mem::replace(&mut actual_root.var, TypeVar::Any);
+        let actual_var = mem::replace(&mut actual_root.var, Type::Var);
 
         if expected_idx == actual_idx {
-            return Ok(TypeVarRef(expected_idx));
+            return Ok(TypeRef(expected_idx));
         }
 
         let merged = self.merge(expected_var, actual_var)?;
@@ -243,7 +231,7 @@ impl TypeEnv {
                 rank: actual_rank,
             });
 
-            Ok(TypeVarRef(actual_idx))
+            Ok(TypeRef(actual_idx))
         } else {
             self.nodes[actual_idx] = Node::Next(expected_idx);
             self.nodes[expected_idx] = Node::Root(Root {
@@ -255,71 +243,67 @@ impl TypeEnv {
                 },
             });
 
-            Ok(TypeVarRef(expected_idx))
+            Ok(TypeRef(expected_idx))
         }
     }
 
-    fn merge(&mut self, expected: TypeVar, actual: TypeVar) -> Result<TypeVar, TypeError> {
+    // TODO: impl error handling
+    fn merge(&mut self, expected: Type, actual: Type) -> Result<Type, TypeError> {
         match (expected, actual) {
             // always choose the other one, it can never be less specific
-            (TypeVar::Any, other) | (other, TypeVar::Any) => Ok(other),
+            (Type::Var, other) | (other, Type::Var) => Ok(other),
             // Never is the supertype of all other types (except Any), so use the more specific subtype
-            (TypeVar::Never, other) | (other, TypeVar::Never) => Ok(other),
+            (Type::Never, other) | (other, Type::Never) => Ok(other),
             // choose the more specific int
-            (TypeVar::Int, int @ TypeVar::U32)
-            | (TypeVar::Int, int @ TypeVar::I32)
-            | (int @ TypeVar::U32, TypeVar::Int)
-            | (int @ TypeVar::I32, TypeVar::Int) => Ok(int),
+            (Type::Int, int @ Type::U32)
+            | (Type::Int, int @ Type::I32)
+            | (int @ Type::U32, Type::Int)
+            | (int @ Type::I32, Type::Int) => Ok(int),
             // all non-generic types can always be merged as themselves
-            (eq @ TypeVar::Int, TypeVar::Int)
-            | (eq @ TypeVar::Bool, TypeVar::Bool)
-            | (eq @ TypeVar::I32, TypeVar::I32)
-            | (eq @ TypeVar::U32, TypeVar::U32)
-            | (eq @ TypeVar::Str, TypeVar::Str) => Ok(eq),
+            (eq @ Type::Int, Type::Int)
+            | (eq @ Type::Bool, Type::Bool)
+            | (eq @ Type::I32, Type::I32)
+            | (eq @ Type::U32, Type::U32)
+            | (eq @ Type::Str, Type::Str) => Ok(eq),
             // pointer coerces to the more specific pointer type (const, mut or it stays a generic pointer)
-            (TypeVar::Ptr(expected_inner), TypeVar::Ptr(actual_inner)) => {
+            (Type::Ptr(expected_inner), Type::Ptr(actual_inner)) => {
                 let inner = self.union(expected_inner, actual_inner)?;
-                Ok(TypeVar::Ptr(inner))
+                Ok(Type::Ptr(inner))
             }
-            (TypeVar::Ptr(expected_inner), TypeVar::MutPtr(actual_inner))
-            | (TypeVar::MutPtr(expected_inner), TypeVar::Ptr(actual_inner)) => {
+            (Type::Ptr(expected_inner), Type::MutPtr(actual_inner))
+            | (Type::MutPtr(expected_inner), Type::Ptr(actual_inner)) => {
                 let inner = self.union(expected_inner, actual_inner)?;
-                Ok(TypeVar::MutPtr(inner))
+                Ok(Type::MutPtr(inner))
             }
-            (TypeVar::Ptr(expected_inner), TypeVar::ConstPtr(actual_inner))
-            | (TypeVar::ConstPtr(expected_inner), TypeVar::Ptr(actual_inner)) => {
+            (Type::Ptr(expected_inner), Type::ConstPtr(actual_inner))
+            | (Type::ConstPtr(expected_inner), Type::Ptr(actual_inner)) => {
                 let inner = self.union(expected_inner, actual_inner)?;
-                Ok(TypeVar::ConstPtr(inner))
+                Ok(Type::ConstPtr(inner))
             }
             // mut pointers can be coerced to const pointers
-            (TypeVar::ConstPtr(expected_inner), TypeVar::ConstPtr(actual_inner))
-            | (TypeVar::ConstPtr(expected_inner), TypeVar::MutPtr(actual_inner))
-            | (TypeVar::MutPtr(expected_inner), TypeVar::ConstPtr(actual_inner)) => {
+            (Type::ConstPtr(expected_inner), Type::ConstPtr(actual_inner))
+            | (Type::ConstPtr(expected_inner), Type::MutPtr(actual_inner))
+            | (Type::MutPtr(expected_inner), Type::ConstPtr(actual_inner)) => {
                 let inner = self.union(expected_inner, actual_inner)?;
-                Ok(TypeVar::ConstPtr(inner))
+                Ok(Type::ConstPtr(inner))
             }
             // mut pointers are only equal to themselves (given equal pointees)
-            (TypeVar::MutPtr(expected_inner), TypeVar::MutPtr(actual_inner)) => {
+            (Type::MutPtr(expected_inner), Type::MutPtr(actual_inner)) => {
                 let inner = self.union(expected_inner, actual_inner)?;
-                Ok(TypeVar::MutPtr(inner))
+                Ok(Type::MutPtr(inner))
             }
             // for generic types, unify the type parameters first
-            (
-                TypeVar::Array(expected_inner, expected_len),
-                TypeVar::Array(actual_inner, actual_len),
-            ) => {
+            (Type::Array(expected_inner, expected_len), Type::Array(actual_inner, actual_len)) => {
                 if expected_len != actual_len {
-                    // TODO: error
-                    panic!();
+                    unimplemented!();
                 }
 
                 let inner = self.union(expected_inner, actual_inner)?;
-                Ok(TypeVar::Array(inner, expected_len))
+                Ok(Type::Array(inner, expected_len))
             }
-            (TypeVar::Tuple(expected_inner), TypeVar::Tuple(actual_inner)) => {
+            (Type::Tuple(expected_inner), Type::Tuple(actual_inner)) => {
                 if expected_inner.len() != actual_inner.len() {
-                    // TODO: error
-                    panic!();
+                    unimplemented!();
                 }
 
                 let inner = expected_inner
@@ -328,38 +312,100 @@ impl TypeEnv {
                     .map(|(expected, actual)| self.union(expected, actual))
                     .collect::<Result<Vec<_>, _>>()?;
 
-                Ok(TypeVar::Tuple(inner))
+                Ok(Type::Tuple(inner))
             }
-            // functions are required to have full type annotations, so the can simply be compared
-            (TypeVar::Function(expected_fn), TypeVar::Function(actual_fn)) => {
-                if expected_fn == actual_fn {
-                    Ok(TypeVar::Function(expected_fn))
-                } else {
-                    // TODO: error
-                    panic!()
+            (Type::Function(func), Type::Call(call)) | (Type::Call(call), Type::Function(func)) => {
+                if func.params.len() != call.params.len() {
+                    unimplemented!();
                 }
+
+                let mut params: Vec<_> = func.params.into_iter().enumerate().collect();
+                let mut unified_params = Vec::with_capacity(params.len());
+
+                // collect the named args first, since they determine the order of the unnamed args
+                for arg in call.params.iter().filter(|param| param.name.is_some()) {
+                    let (idx, mut param) =
+                        support::find_remove(&mut params, |(_, param)| param.name == arg.name)
+                            .unwrap_or_else(|| unimplemented!());
+
+                    param.ty = self.union(param.ty, arg.ty)?;
+                    unified_params.push((idx, param));
+                }
+
+                // unify the remaining unnamed args from left to right
+                for (arg, (idx, mut param)) in call
+                    .params
+                    .iter()
+                    .filter(|param| param.name.is_none())
+                    .zip(params)
+                {
+                    param.ty = self.union(param.ty, arg.ty)?;
+                    unified_params.push((idx, param));
+                }
+
+                // sort the params in the order of the definition, otherwise the type
+                // of the function could have changed due to named arguments
+                unified_params.sort_unstable_by_key(|&(idx, _)| idx);
+                let unified_params: Vec<_> =
+                    unified_params.into_iter().map(|(_, param)| param).collect();
+
+                let ret = self.union(func.ret, call.ret)?;
+
+                Ok(Type::Function(Function {
+                    params: unified_params,
+                    ret,
+                }))
             }
-            // nominal types are always fully known, so the can also be compared directly
-            (TypeVar::Record(expected_record), TypeVar::Record(actual_record)) => {
+            // unify all params and the return type. For params, the names have to be
+            // equal or not exist at all. If only one param name exists, it is coerced
+            // to an unnamed parameter.
+            (Type::Function(expected_fn), Type::Function(actual_fn)) => {
+                if expected_fn.params.len() != actual_fn.params.len() {
+                    unimplemented!();
+                }
+
+                let params = expected_fn
+                    .params
+                    .into_iter()
+                    .zip(actual_fn.params)
+                    .map(|(expected, actual)| {
+                        let name = match (expected.name, actual.name) {
+                            (Some(expected), Some(actual)) => {
+                                if expected != actual {
+                                    unimplemented!();
+                                }
+
+                                Some(expected)
+                            }
+                            (Some(_), None) | (None, Some(_)) => None,
+                            (None, None) => None,
+                        };
+
+                        let ty = self.union(expected.ty, actual.ty)?;
+                        Ok(Param { name, ty })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                let ret = self.union(expected_fn.ret, actual_fn.ret)?;
+
+                Ok(Type::Function(Function { params, ret }))
+            }
+            // nominal types are always fully known, so they can be compared directly
+            (Type::Record(expected_record), Type::Record(actual_record)) => {
                 if expected_record == actual_record {
-                    Ok(TypeVar::Record(expected_record))
+                    Ok(Type::Record(expected_record))
                 } else {
-                    // TODO: error
-                    panic!()
+                    unimplemented!()
                 }
             }
-            (TypeVar::Variants(expected_variants), TypeVar::Variants(actual_variants)) => {
+            (Type::Variants(expected_variants), Type::Variants(actual_variants)) => {
                 if expected_variants == actual_variants {
-                    Ok(TypeVar::Variants(expected_variants))
+                    Ok(Type::Variants(expected_variants))
                 } else {
-                    // TODO: error
-                    panic!()
+                    unimplemented!()
                 }
             }
-            _ => {
-                // TODO: error
-                panic!()
-            }
+            _ => unimplemented!(),
         }
     }
 }
@@ -385,7 +431,7 @@ enum UnresolvedTypeDef<'a> {
 fn unify_types(
     ast: Ast,
     type_bindings: &mut ScopeMap<ItemPath, Type>,
-    value_bindings: &mut ScopeMap<ItemPath, TypeVarRef>,
+    value_bindings: &mut ScopeMap<ItemPath, TypeRef>,
 ) -> Result<Ast, TypeError> {
     let mut type_defs = HashMap::new();
 
@@ -434,3 +480,5 @@ fn unify_types(
 
     unimplemented!()
 }
+
+// TODO: do not allow duplicate parameter names
