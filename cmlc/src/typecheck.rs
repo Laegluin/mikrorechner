@@ -412,7 +412,10 @@ impl TypeEnv {
 }
 
 #[derive(Debug)]
-pub enum TypeError {}
+pub enum TypeError {
+    HoleInTypeDef,
+    UndefinedType(ItemPath),
+}
 
 pub fn typecheck(ast: Ast) -> Result<Ast, TypeError> {
     let mut type_bindings = ScopeMap::new();
@@ -483,3 +486,89 @@ fn unify_types(
 }
 
 // TODO: do not allow duplicate parameter names
+
+fn type_from_desc(
+    desc: Spanned<&TypeDesc>,
+    is_type_def: bool,
+    type_env: &mut TypeEnv,
+    type_bindings: &ScopeMap<ItemPath, TypeRef>,
+) -> Result<TypeRef, Spanned<TypeError>> {
+    let Spanned { value: desc, span } = desc;
+
+    let ty = match *desc {
+        TypeDesc::Hole => {
+            if is_type_def {
+                return Err(Spanned::new(TypeError::HoleInTypeDef, span));
+            } else {
+                type_env.insert(Type::Var)
+            }
+        }
+        TypeDesc::Name(ref ident) => {
+            let path = ItemPath::from(Spanned::new(ident.clone(), span));
+
+            *type_bindings
+                .get(&path)
+                .ok_or_else(|| Spanned::new(TypeError::UndefinedType(path), span))?
+        }
+        TypeDesc::ConstPtr(ref desc) => {
+            let inner_ty = type_from_desc(
+                desc.as_ref().map(Box::as_ref),
+                is_type_def,
+                type_env,
+                type_bindings,
+            )?;
+            type_env.insert(Type::ConstPtr(inner_ty))
+        }
+        TypeDesc::MutPtr(ref desc) => {
+            let inner_ty = type_from_desc(
+                desc.as_ref().map(Box::as_ref),
+                is_type_def,
+                type_env,
+                type_bindings,
+            )?;
+            type_env.insert(Type::MutPtr(inner_ty))
+        }
+        TypeDesc::Array(ArrayDesc { ref ty, ref len }) => {
+            let elem_ty = type_from_desc(
+                ty.as_ref().map(Box::as_ref),
+                is_type_def,
+                type_env,
+                type_bindings,
+            )?;
+            type_env.insert(Type::Array(elem_ty, len.into_inner()))
+        }
+        TypeDesc::Function(FunctionDesc {
+            ref param_tys,
+            ref ret_ty,
+        }) => {
+            let params = param_tys
+                .iter()
+                .map(|param_desc| {
+                    type_from_desc(param_desc.as_ref(), is_type_def, type_env, type_bindings)
+                        .map(|ty| Param { name: None, ty })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+
+            let ret = type_from_desc(
+                ret_ty.as_ref().map(Box::as_ref),
+                is_type_def,
+                type_env,
+                type_bindings,
+            )?;
+
+            type_env.insert(Type::Function(Function { params, ret }))
+        }
+        TypeDesc::Tuple(ref ty_descs) => {
+            let tys = ty_descs
+                .iter()
+                .map(|ty_desc| {
+                    type_from_desc(ty_desc.as_ref(), is_type_def, type_env, type_bindings)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+
+            type_env.insert(Type::Tuple(tys))
+        }
+    };
+
+    Ok(ty)
+}

@@ -1193,14 +1193,9 @@ fn ptr_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseErro
     match tokens.peek() {
         Some(Token::Keyword(Keyword::Mut)) => {
             tokens.next();
-
-            Ok(TypeDesc::MutPtr(Box::new(
-                type_desc(tokens).map(|spanned| spanned.value)?,
-            )))
+            Ok(TypeDesc::MutPtr(type_desc(tokens)?.map(Box::new)))
         }
-        _ => Ok(TypeDesc::Ptr(Box::new(
-            type_desc(tokens).map(|spanned| spanned.value)?,
-        ))),
+        _ => Ok(TypeDesc::ConstPtr(type_desc(tokens)?.map(Box::new))),
     }
 }
 
@@ -1231,10 +1226,10 @@ fn array_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseEr
 
 fn function_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseError>> {
     token(tokens, Token::Keyword(Keyword::Fn), "fn")?;
-    let mut params_ty = Vec::new();
+    let mut param_tys = Vec::new();
 
     while tokens.peek() != Some(Token::Arrow) {
-        params_ty.push(type_desc(tokens)?);
+        param_tys.push(type_desc(tokens)?);
 
         match tokens.peek() {
             Some(Token::Comma) => {
@@ -1244,15 +1239,10 @@ fn function_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<Pars
         }
     }
 
-    let ret_ty = match tokens.peek() {
-        Some(Token::Arrow) => {
-            tokens.next();
-            Some(type_desc(tokens)?.map(Box::new))
-        }
-        _ => None,
-    };
+    token(tokens, Token::Arrow, "->")?;
+    let ret_ty = type_desc(tokens)?.map(Box::new);
 
-    Ok(TypeDesc::Function(FunctionDesc { params_ty, ret_ty }))
+    Ok(TypeDesc::Function(FunctionDesc { param_tys, ret_ty }))
 }
 
 fn tuple_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseError>> {

@@ -22,7 +22,7 @@ fn user = -> User {
 }
 
 type SpecialFn = *fn i32, i32 -> i32;
-type NoReturnFn = *fn i32, i32;
+type NoReturnFn = *fn i32, i32 -> ();
 type ZeroArgFn = *fn -> i32;
 
 fn add_three = first: i32, second: i32, third: i32 -> i32 {

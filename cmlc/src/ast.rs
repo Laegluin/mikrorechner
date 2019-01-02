@@ -79,8 +79,8 @@ pub struct ParamDef {
 pub enum TypeDesc {
     Hole,
     Name(Ident),
-    Ptr(Box<TypeDesc>),
-    MutPtr(Box<TypeDesc>),
+    ConstPtr(Spanned<Box<TypeDesc>>),
+    MutPtr(Spanned<Box<TypeDesc>>),
     Array(ArrayDesc),
     Function(FunctionDesc),
     Tuple(Vec<Spanned<TypeDesc>>),
@@ -94,8 +94,8 @@ pub struct ArrayDesc {
 
 #[derive(Debug)]
 pub struct FunctionDesc {
-    pub params_ty: Vec<Spanned<TypeDesc>>,
-    pub ret_ty: Option<Spanned<Box<TypeDesc>>>,
+    pub param_tys: Vec<Spanned<TypeDesc>>,
+    pub ret_ty: Spanned<Box<TypeDesc>>,
 }
 
 #[derive(Debug)]
@@ -251,6 +251,14 @@ pub struct Arg {
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct ItemPath {
     pub segments: Vec<Spanned<Ident>>,
+}
+
+impl From<Spanned<Ident>> for ItemPath {
+    fn from(ident: Spanned<Ident>) -> ItemPath {
+        ItemPath {
+            segments: vec![ident],
+        }
+    }
 }
 
 impl Display for ItemPath {

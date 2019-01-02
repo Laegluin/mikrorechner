@@ -4,7 +4,7 @@ pub use codespan::ByteIndex as Index;
 pub use codespan::ByteOffset as Offset;
 pub use codespan::ByteSpan as Span;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Spanned<T> {
     pub value: T,
     pub span: Span,
@@ -20,6 +20,14 @@ impl<T> Spanned<T> {
             value: mapper(self.value),
             span: self.span,
         }
+    }
+
+    pub fn as_ref(&self) -> Spanned<&T> {
+        Spanned::new(&self.value, self.span)
+    }
+
+    pub fn into_inner(self) -> T {
+        self.value
     }
 }
 
