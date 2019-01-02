@@ -72,7 +72,7 @@ pub struct FnDef {
 #[derive(Debug)]
 pub struct ParamDef {
     pub name: Spanned<Option<Ident>>,
-    pub ty: Spanned<TypeDesc>,
+    pub ty: Option<Spanned<TypeDesc>>,
 }
 
 #[derive(Debug)]

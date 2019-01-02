@@ -29,11 +29,11 @@ fn add_three = first: i32, second: i32, third: i32 -> i32 {
     first + second + third
 }
 
-fn println = msg: *str {
+fn println = msg: *str -> () {
 
 }
 
-fn do_stuff = {
+fn do_stuff = -> () {
 
 }
 
@@ -91,4 +91,16 @@ fn dangling_ptr = -> *mut Record {
     *some_record_ptr->ptr_field = 42;
     *some_record.ptr_field = &13;
     &mut some_record
+}
+
+fn inferred_args = left, right -> u32 {
+    left + right
+}
+
+fn inferred_return = {
+    1 + 2
+}
+
+fn inferred_everything = arg1, arg2 {
+    arg1 - arg2
 }

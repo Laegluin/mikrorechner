@@ -355,8 +355,13 @@ fn param_def(tokens: &TokenStream<'_>) -> Result<ParamDef, Spanned<ParseError>> 
         _ => ident(tokens)?.map(Some),
     };
 
-    token(tokens, Token::Colon, ":")?;
-    let ty = type_desc(tokens)?;
+    let ty = match tokens.peek() {
+        Some(Token::Colon) => {
+            tokens.next();
+            Some(type_desc(tokens)?)
+        }
+        _ => None,
+    };
 
     Ok(ParamDef { name, ty })
 }
