@@ -1368,3 +1368,15 @@ fn token(
         )),
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::lexer;
+    use crate::parser;
+
+    #[test]
+    fn default_syntax() {
+        let tokens = lexer::lex(include_str!("../tests/syntax.cml")).unwrap();
+        parser::parse(&tokens).unwrap();
+    }
+}
