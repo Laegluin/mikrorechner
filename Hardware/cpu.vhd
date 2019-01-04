@@ -62,6 +62,7 @@ architecture behavior of cpu is
     signal ALU_flag         : std_logic;
     signal ex_C_data        : unsigned(bit_Width-1 downto 0);
     signal ex_ALU_opcode    : unsigned(opcode_Bits-1 downto 0);
+    signal ex_mem_address   : unsigned(bit_Width-1 downto 0);
     
         -- operanden decodieren
 
@@ -72,7 +73,7 @@ architecture behavior of cpu is
     signal mem_wb_control    : unsigned(1 downto 0);
     signal mem_REG_immediate : unsigned(bit_Width-1 downto 0);
     signal mem_address       : unsigned(bit_Width-1 downto 0);
-    signal mem_data          : unsigned(bit_Width-1 downto 0);
+    --signal mem_data          : unsigned(bit_Width-1 downto 0);
     signal mem_out           : unsigned(bit_Width-1 downto 0);
     signal ex_jump_to        : unsigned(bit_Width-1 downto 0);
     signal mem_C_address_in  : unsigned(adr_Width-1 downto 0);
@@ -149,7 +150,18 @@ architecture behavior of cpu is
             reg_read_addr_A     => de_A_address,
             reg_read_data_A     => ex_A_data,
             reg_read_addr_B     => de_B_address,
-            reg_read_data_B     => ex_B_data
+            reg_read_data_B     => ex_B_data,
+            reg_read_addr_C     => de_C_address,
+            reg_read_data_C     => ex_mem_address
+        );
+
+    delay_reg : entity work.delay_reg
+        port map
+        (
+            clk             => clk,
+            rst             => reset,
+            A               => ex_mem_address,
+            B               => mem_address
         );
     
     executer : entity work.executer
@@ -192,7 +204,7 @@ architecture behavior of cpu is
             clk                 => clk,
             rst                 => mem_rst,
             mem_address         => mem_address,
-            mem_write_data      => mem_data,
+            --mem_write_data      => mem_data,
             mem_rw_en           => MEM_rw_enable,
             mem_out             => mem_out,
             mem_offset          => ex_MEM_offset,

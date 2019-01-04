@@ -133,6 +133,11 @@ begin
             when "00110" | "01000" =>
                 ALU_Result <= B;
 
+                -- Speicheroperationen
+            -- LOAD, STORE
+            when "01010" | "01011" =>
+                ALU_Result <= A;
+
             -- absturz vermeidung, falls fehler im opcode
             when others =>
                 ALU_Result <= (others => '0');

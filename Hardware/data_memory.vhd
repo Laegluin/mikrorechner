@@ -19,7 +19,7 @@ port
     clk, rst: in std_logic;
     mem_address: in unsigned(bit_Width-1 downto 0); --assuming 32Bit address
     mem_offset: in unsigned(bit_Width-1 downto 0);
-    mem_write_data: in unsigned(bit_Width-1 downto 0);
+    --mem_write_data: in unsigned(bit_Width-1 downto 0);
     mem_rw_en: in unsigned(1 downto 0);
     mem_out: out unsigned(bit_Width-1 downto 0);
 
@@ -70,18 +70,21 @@ end function;
 signal ram : ram_t := mem_read_file("/informatik2/students/home/6lahann/Projekt/work/data_mem.hex");
 		--full filepath must always be specified!
 signal mem_read_data : unsigned(bit_Width-1 downto 0);
+signal mem_write_data : unsigned(bit_Width-1 downto 0);
 signal address : unsigned(bit_Width-1 downto 0); 
 
 begin
     process(clk, rst)
     begin
-        address <= mem_address + mem_offset;
+        mem_write_data <= C_in;
         if(rst = '1') then
             ram <= mem_read_file("/informatik2/students/home/6lahann/Projekt/work/data_mem.hex");
 		--full filepath must always be specified!
         else
-            if(mem_rw_en = "01") then
+            if(mem_rw_en = "01") then --STORE
                 if(rising_edge(clk)) then
+                    address <= mem_address + mem_offset;
+
                     ram(to_integer(address)) <= mem_write_data(31 downto 24);
                     ram(to_integer(address)+1) <= mem_write_data(23 downto 16);
                     ram(to_integer(address)+2) <= mem_write_data(15 downto 8);
@@ -89,7 +92,9 @@ begin
                     
                     --ram(to_integer(mem_address(2 downto 0))) <= mem_write_data;
                 end if;
-            elsif(mem_rw_en = "10") then
+            elsif(mem_rw_en = "10") then --LOAD
+                address <= C_in + mem_offset;
+
                 mem_read_data(31 downto 24) <= ram(to_integer(address));
                 mem_read_data(23 downto 16) <= ram(to_integer(address)+1);
                 mem_read_data(15 downto 8) <= ram(to_integer(address)+2);
