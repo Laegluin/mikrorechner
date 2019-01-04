@@ -261,6 +261,25 @@ impl From<Spanned<Ident>> for ItemPath {
     }
 }
 
+impl IntoIterator for ItemPath {
+    type Item = Ident;
+    type IntoIter = std::iter::Map<std::vec::IntoIter<Spanned<Ident>>, fn(Spanned<Ident>) -> Ident>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.segments.into_iter().map(Spanned::into_inner)
+    }
+}
+
+impl<'a> IntoIterator for &'a ItemPath {
+    type Item = &'a Ident;
+    type IntoIter =
+        std::iter::Map<std::slice::Iter<'a, Spanned<Ident>>, fn(&'a Spanned<Ident>) -> &'a Ident>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.segments.iter().map(|spanned| &spanned.value)
+    }
+}
+
 impl Display for ItemPath {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let string_repr = self

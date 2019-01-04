@@ -1,7 +1,9 @@
+mod scope_map;
+
 use crate::ast::*;
 use crate::span::Spanned;
 use crate::support;
-use std::collections::HashMap;
+use crate::typecheck::scope_map::ScopeMap;
 use std::mem;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -104,47 +106,6 @@ pub enum Typed {
     None,
     Var(TypeRef),
     Type(Type),
-}
-
-struct ScopeMap<K, V> {
-    scopes: Vec<Vec<(K, V)>>,
-}
-
-impl<K, V> ScopeMap<K, V>
-where
-    K: Eq,
-{
-    pub fn new() -> ScopeMap<K, V> {
-        ScopeMap {
-            scopes: vec![Vec::new()],
-        }
-    }
-
-    pub fn enter_scope(&mut self) {
-        self.scopes.push(Vec::new());
-    }
-
-    pub fn exit_scope(&mut self) {
-        if self.scopes.len() > 1 {
-            self.scopes.pop();
-        } else {
-            panic!("cannot exit global scope");
-        }
-    }
-
-    pub fn insert(&mut self, key: K, value: V) {
-        let current_scope = self.scopes.len() - 1;
-        self.scopes[current_scope].push((key, value));
-    }
-
-    pub fn get(&self, key: &K) -> Option<&V> {
-        self.scopes
-            .iter()
-            .rev()
-            .flat_map(|scope| scope.iter().rev())
-            .find(|&(ref k, _)| k == key)
-            .map(|&(_, ref value)| value)
-    }
 }
 
 /// The environment holding all types during type checking. The types are stored as disjoint-set
@@ -357,6 +318,9 @@ impl TypeEnv {
                     ret,
                 }))
             }
+            // FIXME: this will currently unify functions with named parameters to ones without
+            // that will cause defined functions to suddenly not be callable with named arguments
+
             // unify all params and the return type. For params, the names have to be
             // equal or not exist at all. If only one param name exists, it is coerced
             // to an unnamed parameter.
@@ -417,81 +381,208 @@ pub enum TypeError {
     UndefinedType(ItemPath),
 }
 
-pub fn typecheck(ast: Ast) -> Result<Ast, TypeError> {
+pub fn typecheck(mut ast: Ast) -> Result<Ast, Spanned<TypeError>> {
     let mut type_bindings = ScopeMap::new();
     let mut value_bindings = ScopeMap::new();
 
-    let ast = unify_types(ast, &mut type_bindings, &mut value_bindings)?;
+    unify_types(
+        &ast.items,
+        &mut ast.type_env,
+        &mut type_bindings,
+        &mut value_bindings,
+    )?;
     unimplemented!()
 }
 
-#[derive(Debug)]
-enum UnresolvedTypeDef<'a> {
-    Alias(&'a Spanned<TypeDesc>),
-    RecordDef(&'a [Spanned<FieldDef>]),
-    VariantsDef(&'a [Spanned<VariantDef>]),
-}
-
 fn unify_types(
-    ast: Ast,
-    type_bindings: &mut ScopeMap<ItemPath, Type>,
-    value_bindings: &mut ScopeMap<ItemPath, TypeRef>,
-) -> Result<Ast, TypeError> {
-    let mut type_defs = HashMap::new();
+    items: &[Spanned<Item>],
+    type_env: &mut TypeEnv,
+    type_bindings: &mut ScopeMap<Ident, TypeRef>,
+    value_bindings: &mut ScopeMap<Ident, TypeRef>,
+) -> Result<(), Spanned<TypeError>> {
+    // collect all type and function defs, but delay resolution to allow for (mutally) recursive definitions
+    // TODO: detect shadowed types and shadowed fns
+    for item in items {
+        match item.value {
+            Item::TypeDef(TypeDef::Alias(Spanned {
+                value: AliasDef { ref name, .. },
+                ..
+            }))
+            | Item::TypeDef(TypeDef::RecordDef(Spanned {
+                value: RecordDef { ref name, .. },
+                ..
+            }))
+            | Item::TypeDef(TypeDef::VariantsDef(Spanned {
+                value: VariantsDef { ref name, .. },
+                ..
+            })) => {
+                type_bindings.insert(name.value.clone(), type_env.insert(Type::Var));
+            }
+            Item::FnDef(FnDef { ref name, .. }) => {
+                value_bindings.insert(name.value.clone(), type_env.insert(Type::Var));
+            }
+        }
+    }
 
-    // collect all type defs, but delay resolution to allow for (mutally) recursive definitions
-    // TODO: detect shadowed types
-    for item in &ast.items {
+    // Resolve types; Function body unification is delayed so the type defs can be fully resolved first
+    // (otherwise we could get type errors at the definition, causing the unwraps to fail
+    // and generally giving poor error messages anyway). In addition, type resolution can
+    // insert value into the current scopes (constructor functions), which may be referenced
+    // by functions.
+    for item in items {
         match item.value {
             Item::TypeDef(TypeDef::Alias(Spanned {
                 value: AliasDef { ref name, ref ty },
                 ..
             })) => {
-                type_defs.insert(name, UnresolvedTypeDef::Alias(ty));
+                // TODO: also alias the constructors
+                let ty = type_from_desc(ty.as_ref(), true, type_env, type_bindings)?;
+                let var = *type_bindings.get(&name.value).unwrap();
+                type_env.union(var, ty).unwrap();
             }
-            Item::TypeDef(TypeDef::RecordDef(Spanned {
-                value:
-                    RecordDef {
-                        ref name,
-                        ref fields,
-                    },
-                ..
-            })) => {
-                type_defs.insert(name, UnresolvedTypeDef::RecordDef(fields));
+            Item::TypeDef(TypeDef::RecordDef(Spanned { value: ref def, .. })) => {
+                bind_record_def(def, type_env, type_bindings, value_bindings)?
             }
-            Item::TypeDef(TypeDef::VariantsDef(Spanned {
-                value:
-                    VariantsDef {
-                        ref name,
-                        ref variants,
-                    },
-                ..
-            })) => {
-                type_defs.insert(name, UnresolvedTypeDef::VariantsDef(variants));
+            Item::TypeDef(TypeDef::VariantsDef(Spanned { value: ref def, .. })) => {
+                bind_variants_def(def, type_env, type_bindings, value_bindings)?
             }
-            // no point in resolving functions before all types are known
-            Item::FnDef(_) => continue,
+            Item::FnDef(_) => (),
         }
     }
 
-    // generate the types for all type definitions
-    for (ty_name, ty_def) in &type_defs {
-        match ty_def {
-            UnresolvedTypeDef::Alias(ref alias) => unimplemented!(),
-            _ => unimplemented!(),
+    // start the actual unification for each function
+    for item in items {
+        match item.value {
+            Item::FnDef(ref def) => unify_types_fn(def, type_env, type_bindings, value_bindings)?,
+            _ => (),
         }
     }
 
-    unimplemented!()
+    Ok(())
 }
 
 // TODO: do not allow duplicate parameter names
+fn unify_types_fn(
+    def: &FnDef,
+    type_env: &mut TypeEnv,
+    type_bindings: &mut ScopeMap<Ident, TypeRef>,
+    value_bindings: &mut ScopeMap<Ident, TypeRef>,
+) -> Result<(), Spanned<TypeError>> {
+    unimplemented!()
+}
+
+fn bind_record_def(
+    def: &RecordDef,
+    type_env: &mut TypeEnv,
+    type_bindings: &ScopeMap<Ident, TypeRef>,
+    value_bindings: &mut ScopeMap<Ident, TypeRef>,
+) -> Result<(), Spanned<TypeError>> {
+    // the type binding must already have been created by `unify_types`
+    let current_ty = *type_bindings.get(&def.name.value).unwrap();
+
+    let mut fields = Vec::with_capacity(def.fields.len());
+    let mut cons_params = Vec::with_capacity(def.fields.len());
+
+    for field_def in &def.fields {
+        let field_def = &field_def.value;
+
+        let name = field_def.name.value.clone();
+        let ty = type_from_desc(field_def.ty.as_ref(), true, type_env, type_bindings)?;
+
+        fields.push(Field {
+            name: name.clone(),
+            ty,
+        });
+
+        cons_params.push(Param {
+            name: Some(name),
+            ty,
+        });
+    }
+
+    let record = Record {
+        id: TypeId::new(),
+        fields,
+    };
+
+    // type must be a variable right now, since we are creating the actual type
+    let ty = type_env.insert(Type::Record(record));
+    type_env.union(current_ty, ty).unwrap();
+
+    let cons = Function {
+        params: cons_params,
+        ret: ty,
+    };
+
+    let cons_ty = type_env.insert(Type::Function(cons));
+
+    // bind the type constructor
+    value_bindings.insert(def.name.value.clone(), cons_ty);
+
+    Ok(())
+}
+
+fn bind_variants_def(
+    def: &VariantsDef,
+    type_env: &mut TypeEnv,
+    type_bindings: &ScopeMap<Ident, TypeRef>,
+    value_bindings: &mut ScopeMap<Ident, TypeRef>,
+) -> Result<(), Spanned<TypeError>> {
+    // the type binding must already have been created by `unify_types`
+    let current_ty = *type_bindings.get(&def.name.value).unwrap();
+
+    let mut variants = Vec::with_capacity(def.variants.len());
+
+    for variant_def in &def.variants {
+        let variant_def = &variant_def.value;
+
+        let params = variant_def
+            .param_tys
+            .iter()
+            .map(|param_ty| type_from_desc(param_ty.as_ref(), true, type_env, type_bindings))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let cons_params = params
+            .iter()
+            .map(|&ty| Param { name: None, ty })
+            .collect::<Vec<_>>();
+
+        variants.push(Variant {
+            name: variant_def.name.value.clone(),
+            params,
+        });
+
+        let variant_cons = Function {
+            params: cons_params,
+            ret: current_ty,
+        };
+
+        // bind the variant constructor as function scoped under the type name
+        let variant_cons_ty = type_env.insert(Type::Function(variant_cons));
+
+        value_bindings.path_insert(
+            vec![def.name.value.clone(), variant_def.name.value.clone()],
+            variant_cons_ty,
+        );
+    }
+
+    let variants = Variants {
+        id: TypeId::new(),
+        variants,
+    };
+
+    // type must be a variable right now, since we are creating the actual type
+    let ty = type_env.insert(Type::Variants(variants));
+    type_env.union(current_ty, ty).unwrap();
+
+    Ok(())
+}
 
 fn type_from_desc(
     desc: Spanned<&TypeDesc>,
     is_type_def: bool,
     type_env: &mut TypeEnv,
-    type_bindings: &ScopeMap<ItemPath, TypeRef>,
+    type_bindings: &ScopeMap<Ident, TypeRef>,
 ) -> Result<TypeRef, Spanned<TypeError>> {
     let Spanned { value: desc, span } = desc;
 
@@ -503,13 +594,12 @@ fn type_from_desc(
                 type_env.insert(Type::Var)
             }
         }
-        TypeDesc::Name(ref ident) => {
-            let path = ItemPath::from(Spanned::new(ident.clone(), span));
-
-            *type_bindings
-                .get(&path)
-                .ok_or_else(|| Spanned::new(TypeError::UndefinedType(path), span))?
-        }
+        TypeDesc::Name(ref ident) => *type_bindings.get(ident).ok_or_else(|| {
+            Spanned::new(
+                TypeError::UndefinedType(ItemPath::from(Spanned::new(ident.clone(), span))),
+                span,
+            )
+        })?,
         TypeDesc::ConstPtr(ref desc) => {
             let inner_ty = type_from_desc(
                 desc.as_ref().map(Box::as_ref),
