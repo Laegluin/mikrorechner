@@ -1,5 +1,5 @@
 use crate::span::Spanned;
-use crate::typecheck::{TypeEnv, Typed};
+use crate::typecheck::{type_env::TypeEnv, Typed};
 use std::fmt::{self, Display};
 use std::rc::Rc;
 
