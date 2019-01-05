@@ -1,10 +1,10 @@
 pub mod scope_map;
-pub mod type_env;
+pub mod unify;
 
 use crate::ast::*;
 use crate::span::Spanned;
 use crate::typecheck::scope_map::ScopeMap;
-use crate::typecheck::type_env::TypeEnv;
+use crate::typecheck::unify::TypeEnv;
 use fnv::FnvHashSet;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -120,7 +120,7 @@ pub fn typecheck(mut ast: Ast) -> Result<Ast, Spanned<TypeError>> {
     let mut type_bindings = ScopeMap::new();
     let mut value_bindings = ScopeMap::new();
 
-    unify_types(
+    check_items(
         &ast.items,
         &mut ast.type_env,
         &mut type_bindings,
@@ -129,7 +129,7 @@ pub fn typecheck(mut ast: Ast) -> Result<Ast, Spanned<TypeError>> {
     unimplemented!()
 }
 
-fn unify_types(
+fn check_items(
     items: &[Spanned<Item>],
     type_env: &mut TypeEnv,
     type_bindings: &mut ScopeMap<Ident, TypeRef>,
@@ -173,7 +173,7 @@ fn unify_types(
                 // TODO: also alias the constructors
                 let ty = type_from_desc(ty.as_ref(), true, type_env, type_bindings)?;
                 let var = *type_bindings.get(&name.value).unwrap();
-                type_env.union(var, ty).unwrap();
+                type_env.unify(var, ty).unwrap();
             }
             Item::TypeDef(TypeDef::RecordDef(Spanned { value: ref def, .. })) => {
                 bind_record_def(def, type_env, type_bindings, value_bindings)?
@@ -188,7 +188,7 @@ fn unify_types(
     // start the actual unification for each function
     for item in items {
         match item.value {
-            Item::FnDef(ref def) => unify_types_fn(def, type_env, type_bindings, value_bindings)?,
+            Item::FnDef(ref def) => check_fn(def, type_env, type_bindings, value_bindings)?,
             _ => (),
         }
     }
@@ -196,7 +196,7 @@ fn unify_types(
     Ok(())
 }
 
-fn unify_types_fn(
+fn check_fn(
     def: &FnDef,
     type_env: &mut TypeEnv,
     type_bindings: &mut ScopeMap<Ident, TypeRef>,
@@ -248,10 +248,10 @@ fn unify_types_fn(
     // update the functions type
     // since it was just a variable before, unification cannot fail
     let ty = type_env.insert(Type::Function(Function { params, ret }));
-    type_env.union(fn_ty, ty).unwrap();
+    type_env.unify(fn_ty, ty).unwrap();
 
     // check the function body
-    unify_types_expr(
+    check_expr(
         def.body.as_ref(),
         ret,
         type_env,
@@ -260,7 +260,7 @@ fn unify_types_fn(
     )
 }
 
-fn unify_types_expr(
+fn check_expr(
     expr: Spanned<&Expr>,
     ret_ty: TypeRef,
     type_env: &mut TypeEnv,
@@ -306,7 +306,7 @@ fn bind_record_def(
 
     // type must be a variable right now, since we are creating the actual type
     let ty = type_env.insert(Type::Record(record));
-    type_env.union(current_ty, ty).unwrap();
+    type_env.unify(current_ty, ty).unwrap();
 
     let cons = Function {
         params: cons_params,
@@ -372,7 +372,7 @@ fn bind_variants_def(
 
     // type must be a variable right now, since we are creating the actual type
     let ty = type_env.insert(Type::Variants(variants));
-    type_env.union(current_ty, ty).unwrap();
+    type_env.unify(current_ty, ty).unwrap();
 
     Ok(())
 }

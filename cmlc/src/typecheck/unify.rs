@@ -64,7 +64,7 @@ impl TypeEnv {
         }
     }
 
-    pub fn union(&mut self, expected: TypeRef, actual: TypeRef) -> Result<TypeRef, TypeError> {
+    pub fn unify(&mut self, expected: TypeRef, actual: TypeRef) -> Result<TypeRef, TypeError> {
         let (expected_idx, expected_root) = self.find(expected.0);
         let expected_rank = expected_root.rank;
         let expected_var = mem::replace(&mut expected_root.var, Type::Var);
@@ -122,29 +122,29 @@ impl TypeEnv {
             | (eq @ Type::Str, Type::Str) => Ok(eq),
             // pointer coerces to the more specific pointer type (const, mut or it stays a generic pointer)
             (Type::Ptr(expected_inner), Type::Ptr(actual_inner)) => {
-                let inner = self.union(expected_inner, actual_inner)?;
+                let inner = self.unify(expected_inner, actual_inner)?;
                 Ok(Type::Ptr(inner))
             }
             (Type::Ptr(expected_inner), Type::MutPtr(actual_inner))
             | (Type::MutPtr(expected_inner), Type::Ptr(actual_inner)) => {
-                let inner = self.union(expected_inner, actual_inner)?;
+                let inner = self.unify(expected_inner, actual_inner)?;
                 Ok(Type::MutPtr(inner))
             }
             (Type::Ptr(expected_inner), Type::ConstPtr(actual_inner))
             | (Type::ConstPtr(expected_inner), Type::Ptr(actual_inner)) => {
-                let inner = self.union(expected_inner, actual_inner)?;
+                let inner = self.unify(expected_inner, actual_inner)?;
                 Ok(Type::ConstPtr(inner))
             }
             // mut pointers can be coerced to const pointers
             (Type::ConstPtr(expected_inner), Type::ConstPtr(actual_inner))
             | (Type::ConstPtr(expected_inner), Type::MutPtr(actual_inner))
             | (Type::MutPtr(expected_inner), Type::ConstPtr(actual_inner)) => {
-                let inner = self.union(expected_inner, actual_inner)?;
+                let inner = self.unify(expected_inner, actual_inner)?;
                 Ok(Type::ConstPtr(inner))
             }
             // mut pointers are only equal to themselves (given equal pointees)
             (Type::MutPtr(expected_inner), Type::MutPtr(actual_inner)) => {
-                let inner = self.union(expected_inner, actual_inner)?;
+                let inner = self.unify(expected_inner, actual_inner)?;
                 Ok(Type::MutPtr(inner))
             }
             // for generic types, unify the type parameters first
@@ -153,7 +153,7 @@ impl TypeEnv {
                     unimplemented!();
                 }
 
-                let inner = self.union(expected_inner, actual_inner)?;
+                let inner = self.unify(expected_inner, actual_inner)?;
                 Ok(Type::Array(inner, expected_len))
             }
             (Type::Tuple(expected_inner), Type::Tuple(actual_inner)) => {
@@ -164,7 +164,7 @@ impl TypeEnv {
                 let inner = expected_inner
                     .into_iter()
                     .zip(actual_inner)
-                    .map(|(expected, actual)| self.union(expected, actual))
+                    .map(|(expected, actual)| self.unify(expected, actual))
                     .collect::<Result<Vec<_>, _>>()?;
 
                 Ok(Type::Tuple(inner))
@@ -183,7 +183,7 @@ impl TypeEnv {
                         support::find_remove(&mut params, |(_, param)| param.name == arg.name)
                             .unwrap_or_else(|| unimplemented!());
 
-                    param.ty = self.union(param.ty, arg.ty)?;
+                    param.ty = self.unify(param.ty, arg.ty)?;
                     unified_params.push((idx, param));
                 }
 
@@ -194,7 +194,7 @@ impl TypeEnv {
                     .filter(|param| param.name.is_none())
                     .zip(params)
                 {
-                    param.ty = self.union(param.ty, arg.ty)?;
+                    param.ty = self.unify(param.ty, arg.ty)?;
                     unified_params.push((idx, param));
                 }
 
@@ -204,7 +204,7 @@ impl TypeEnv {
                 let unified_params: Vec<_> =
                     unified_params.into_iter().map(|(_, param)| param).collect();
 
-                let ret = self.union(func.ret, call.ret)?;
+                let ret = self.unify(func.ret, call.ret)?;
 
                 Ok(Type::Function(Function {
                     params: unified_params,
@@ -239,12 +239,12 @@ impl TypeEnv {
                             (None, None) => None,
                         };
 
-                        let ty = self.union(expected.ty, actual.ty)?;
+                        let ty = self.unify(expected.ty, actual.ty)?;
                         Ok(Param { name, ty })
                     })
                     .collect::<Result<Vec<_>, _>>()?;
 
-                let ret = self.union(expected_fn.ret, actual_fn.ret)?;
+                let ret = self.unify(expected_fn.ret, actual_fn.ret)?;
 
                 Ok(Type::Function(Function { params, ret }))
             }
