@@ -12,11 +12,18 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 pub enum TypeError {
     HoleInTypeDef,
     UndefinedType(ItemPath),
+    UndefinedVariable(ItemPath),
     DuplicatParamName(Ident),
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct TypeRef(usize);
+
+impl TypeRef {
+    pub fn invalid() -> TypeRef {
+        TypeRef(usize::max_value())
+    }
+}
 
 #[derive(Debug)]
 pub enum Type {
@@ -109,13 +116,6 @@ impl TypeId {
     }
 }
 
-#[derive(Debug)]
-pub enum Typed {
-    None,
-    Var(TypeRef),
-    Type(Type),
-}
-
 struct Binding {
     ty: TypeRef,
     is_mut: bool,
@@ -136,7 +136,7 @@ pub fn typecheck(mut ast: Ast) -> Result<Ast, Spanned<TypeError>> {
     let mut value_bindings = ScopeMap::new();
 
     check_items(
-        &ast.items,
+        &mut ast.items,
         &mut ast.type_env,
         &mut type_bindings,
         &mut value_bindings,
@@ -145,14 +145,14 @@ pub fn typecheck(mut ast: Ast) -> Result<Ast, Spanned<TypeError>> {
 }
 
 fn check_items(
-    items: &[Spanned<Item>],
+    items: &mut [Spanned<Item>],
     type_env: &mut TypeEnv,
     type_bindings: &mut ScopeMap<Ident, TypeRef>,
     value_bindings: &mut ScopeMap<Ident, Binding>,
 ) -> Result<(), Spanned<TypeError>> {
     // collect all type and function defs, but delay resolution to allow for (mutally) recursive definitions
     // TODO: detect shadowed types and shadowed fns
-    for item in items {
+    for item in &*items {
         match item.value {
             Item::TypeDef(TypeDef::Alias(Spanned {
                 value: AliasDef { ref name, .. },
@@ -166,10 +166,10 @@ fn check_items(
                 value: VariantsDef { ref name, .. },
                 ..
             })) => {
-                type_bindings.insert(name.value.clone(), type_env.insert(Type::Var));
+                type_bindings.insert(name.value.clone(), type_env.new_type_var());
             }
             Item::FnDef(FnDef { ref name, .. }) => {
-                let ty = type_env.insert(Type::Var);
+                let ty = type_env.new_type_var();
                 value_bindings.insert(name.value.clone(), Binding::new(ty));
             }
         }
@@ -180,7 +180,7 @@ fn check_items(
     // and generally giving poor error messages anyway). In addition, type resolution can
     // insert value into the current scopes (constructor functions), which may be referenced
     // by functions.
-    for item in items {
+    for item in &*items {
         match item.value {
             Item::TypeDef(TypeDef::Alias(Spanned {
                 value: AliasDef { ref name, ref ty },
@@ -204,7 +204,7 @@ fn check_items(
     // start the actual unification for each function
     for item in items {
         match item.value {
-            Item::FnDef(ref def) => check_fn(def, type_env, type_bindings, value_bindings)?,
+            Item::FnDef(ref mut def) => check_fn(def, type_env, type_bindings, value_bindings)?,
             _ => (),
         }
     }
@@ -213,7 +213,7 @@ fn check_items(
 }
 
 fn check_fn(
-    def: &FnDef,
+    def: &mut FnDef,
     type_env: &mut TypeEnv,
     type_bindings: &mut ScopeMap<Ident, TypeRef>,
     value_bindings: &mut ScopeMap<Ident, Binding>,
@@ -229,12 +229,12 @@ fn check_fn(
         FnvHashSet::with_capacity_and_hasher(def.params.len(), Default::default());
     let mut params = Vec::with_capacity(def.params.len());
 
-    for param in &def.params {
-        let param = &param.value;
+    for param in &mut def.params {
+        let param = &mut param.value;
 
-        let param_ty = match param.ty.as_ref() {
-            Some(ty) => type_from_desc(ty.as_ref(), false, type_env, type_bindings)?,
-            None => type_env.insert(Type::Var),
+        param.ty = match param.ty_hint.as_ref() {
+            Some(hint) => type_from_desc(hint.as_ref(), false, type_env, type_bindings)?,
+            None => type_env.new_type_var(),
         };
 
         // bind the parameter if it has a name
@@ -247,29 +247,33 @@ fn check_fn(
                 ));
             }
 
-            value_bindings.insert(name.clone(), Binding::new(param_ty));
+            value_bindings.insert(name.clone(), Binding::new(param.ty));
         }
 
         params.push(Param {
             name: param.name.value.clone(),
-            ty: param_ty,
+            ty: param.ty,
         });
     }
 
-    let ret = match def.ret_ty.as_ref() {
+    def.ret_ty = match def.ret_ty_hint.as_ref() {
         Some(ty) => type_from_desc(ty.as_ref(), false, type_env, type_bindings)?,
-        None => type_env.insert(Type::Var),
+        None => type_env.new_type_var(),
     };
 
     // update the functions type
     // since it was just a variable before, unification cannot fail
-    let ty = type_env.insert(Type::Function(Function { params, ret }));
+    let ty = type_env.insert(Type::Function(Function {
+        params,
+        ret: def.ret_ty,
+    }));
+
     type_env.unify(fn_ty, ty).unwrap();
 
     // check the function body
     check_expr(
-        def.body.as_ref(),
-        ret,
+        def.body.as_mut(),
+        def.ret_ty,
         type_env,
         type_bindings,
         value_bindings,
@@ -277,7 +281,7 @@ fn check_fn(
 }
 
 fn check_expr(
-    expr: Spanned<&Expr>,
+    expr: Spanned<&mut Expr>,
     ret_ty: TypeRef,
     type_env: &mut TypeEnv,
     type_bindings: &mut ScopeMap<Ident, TypeRef>,
@@ -406,7 +410,7 @@ fn type_from_desc(
             if is_type_def {
                 return Err(Spanned::new(TypeError::HoleInTypeDef, span));
             } else {
-                type_env.insert(Type::Var)
+                type_env.new_type_var()
             }
         }
         TypeDesc::Name(ref ident) => *type_bindings.get(ident).ok_or_else(|| {

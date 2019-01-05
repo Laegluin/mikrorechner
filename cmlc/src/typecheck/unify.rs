@@ -38,7 +38,13 @@ impl TypeEnv {
         TypeRef(self.nodes.len() - 1)
     }
 
+    pub fn new_type_var(&mut self) -> TypeRef {
+        self.insert(Type::Var)
+    }
+
     fn find(&mut self, node: usize) -> (usize, &mut Root) {
+        assert!(node != TypeRef::invalid().0);
+
         let start_node = node;
         let mut node = node;
 

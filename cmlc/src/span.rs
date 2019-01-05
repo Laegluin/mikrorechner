@@ -26,6 +26,10 @@ impl<T> Spanned<T> {
         Spanned::new(&self.value, self.span)
     }
 
+    pub fn as_mut(&mut self) -> Spanned<&mut T> {
+        Spanned::new(&mut self.value, self.span)
+    }
+
     pub fn into_inner(self) -> T {
         self.value
     }

@@ -1,5 +1,5 @@
 use crate::span::Spanned;
-use crate::typecheck::{unify::TypeEnv, Typed};
+use crate::typecheck::{unify::TypeEnv, TypeRef};
 use std::fmt::{self, Display};
 use std::rc::Rc;
 
@@ -65,14 +65,16 @@ pub struct VariantDef {
 pub struct FnDef {
     pub name: Spanned<Ident>,
     pub params: Vec<Spanned<ParamDef>>,
-    pub ret_ty: Option<Spanned<TypeDesc>>,
+    pub ret_ty_hint: Option<Spanned<TypeDesc>>,
+    pub ret_ty: TypeRef,
     pub body: Spanned<Expr>,
 }
 
 #[derive(Debug)]
 pub struct ParamDef {
     pub name: Spanned<Option<Ident>>,
-    pub ty: Option<Spanned<TypeDesc>>,
+    pub ty_hint: Option<Spanned<TypeDesc>>,
+    pub ty: TypeRef,
 }
 
 #[derive(Debug)]
@@ -100,77 +102,77 @@ pub struct FunctionDesc {
 
 #[derive(Debug)]
 pub enum Expr {
-    Lit(Lit, Typed),
-    Var(ItemPath, Typed),
-    UnOp(UnOp, Typed),
-    BinOp(BinOp, Typed),
-    FnCall(FnCall, Typed),
-    MethodCall(MethodCall, Typed),
-    MemberAccess(MemberAccess, Typed),
-    ArrayCons(ArrayCons, Typed),
-    TupleCons(TupleCons, Typed),
-    Assignment(Assignment, Typed),
-    LetBinding(LetBinding, Typed),
-    Ret(Box<Expr>, Typed),
-    IfExpr(IfExpr, Typed),
-    Block(Block, Typed),
+    Lit(Lit, TypeRef),
+    Var(ItemPath, TypeRef),
+    UnOp(UnOp, TypeRef),
+    BinOp(BinOp, TypeRef),
+    FnCall(FnCall, TypeRef),
+    MethodCall(MethodCall, TypeRef),
+    MemberAccess(MemberAccess, TypeRef),
+    ArrayCons(ArrayCons, TypeRef),
+    TupleCons(TupleCons, TypeRef),
+    Assignment(Assignment, TypeRef),
+    LetBinding(LetBinding, TypeRef),
+    Ret(Box<Expr>, TypeRef),
+    IfExpr(IfExpr, TypeRef),
+    Block(Block, TypeRef),
 }
 
 impl Expr {
     pub fn lit(lit: Lit) -> Expr {
-        Expr::Lit(lit, Typed::None)
+        Expr::Lit(lit, TypeRef::invalid())
     }
 
     pub fn var(var: ItemPath) -> Expr {
-        Expr::Var(var, Typed::None)
+        Expr::Var(var, TypeRef::invalid())
     }
 
     pub fn un_op(un_op: UnOp) -> Expr {
-        Expr::UnOp(un_op, Typed::None)
+        Expr::UnOp(un_op, TypeRef::invalid())
     }
 
     pub fn bin_op(bin_op: BinOp) -> Expr {
-        Expr::BinOp(bin_op, Typed::None)
+        Expr::BinOp(bin_op, TypeRef::invalid())
     }
 
     pub fn fn_call(fn_call: FnCall) -> Expr {
-        Expr::FnCall(fn_call, Typed::None)
+        Expr::FnCall(fn_call, TypeRef::invalid())
     }
 
     pub fn method_call(method_call: MethodCall) -> Expr {
-        Expr::MethodCall(method_call, Typed::None)
+        Expr::MethodCall(method_call, TypeRef::invalid())
     }
 
     pub fn member_access(member_access: MemberAccess) -> Expr {
-        Expr::MemberAccess(member_access, Typed::None)
+        Expr::MemberAccess(member_access, TypeRef::invalid())
     }
 
     pub fn array_cons(array_cons: ArrayCons) -> Expr {
-        Expr::ArrayCons(array_cons, Typed::None)
+        Expr::ArrayCons(array_cons, TypeRef::invalid())
     }
 
     pub fn tuple_cons(tuple_cons: TupleCons) -> Expr {
-        Expr::TupleCons(tuple_cons, Typed::None)
+        Expr::TupleCons(tuple_cons, TypeRef::invalid())
     }
 
     pub fn assignment(assignment: Assignment) -> Expr {
-        Expr::Assignment(assignment, Typed::None)
+        Expr::Assignment(assignment, TypeRef::invalid())
     }
 
     pub fn let_binding(let_binding: LetBinding) -> Expr {
-        Expr::LetBinding(let_binding, Typed::None)
+        Expr::LetBinding(let_binding, TypeRef::invalid())
     }
 
     pub fn ret(ret: Box<Expr>) -> Expr {
-        Expr::Ret(ret, Typed::None)
+        Expr::Ret(ret, TypeRef::invalid())
     }
 
     pub fn if_expr(if_expr: IfExpr) -> Expr {
-        Expr::IfExpr(if_expr, Typed::None)
+        Expr::IfExpr(if_expr, TypeRef::invalid())
     }
 
     pub fn block(block: Block) -> Expr {
-        Expr::Block(block, Typed::None)
+        Expr::Block(block, TypeRef::invalid())
     }
 }
 

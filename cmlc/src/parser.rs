@@ -1,6 +1,7 @@
 use crate::ast::*;
 use crate::lexer::{Keyword, Token};
 use crate::span::{Index, Offset, Span, Spanned};
+use crate::typecheck::TypeRef;
 use std::cell::Cell;
 
 #[derive(Debug, Default)]
@@ -316,7 +317,7 @@ fn fn_def(tokens: &TokenStream<'_>) -> Result<Item, Spanned<ParseError>> {
         }
     }
 
-    let ret_ty = match tokens.peek() {
+    let ret_ty_hint = match tokens.peek() {
         Some(Token::Arrow) => {
             tokens.next();
             Some(type_desc(tokens)?)
@@ -341,7 +342,8 @@ fn fn_def(tokens: &TokenStream<'_>) -> Result<Item, Spanned<ParseError>> {
     Ok(Item::FnDef(FnDef {
         name,
         params,
-        ret_ty,
+        ret_ty_hint,
+        ret_ty: TypeRef::invalid(),
         body,
     }))
 }
@@ -355,7 +357,7 @@ fn param_def(tokens: &TokenStream<'_>) -> Result<ParamDef, Spanned<ParseError>> 
         _ => ident(tokens)?.map(Some),
     };
 
-    let ty = match tokens.peek() {
+    let ty_hint = match tokens.peek() {
         Some(Token::Colon) => {
             tokens.next();
             Some(type_desc(tokens)?)
@@ -363,7 +365,11 @@ fn param_def(tokens: &TokenStream<'_>) -> Result<ParamDef, Spanned<ParseError>> 
         _ => None,
     };
 
-    Ok(ParamDef { name, ty })
+    Ok(ParamDef {
+        name,
+        ty_hint,
+        ty: TypeRef::invalid(),
+    })
 }
 
 fn expr(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>> {
