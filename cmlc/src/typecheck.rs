@@ -398,6 +398,61 @@ fn check_expr(
 
             Ok(*ty)
         }
+        Expr::BinOp(
+            BinOp {
+                op,
+                ref mut lhs,
+                ref mut rhs,
+            },
+            ref mut ty,
+        ) => {
+            let lhs = lhs.as_mut().map(Box::as_mut);
+            let rhs = rhs.as_mut().map(Box::as_mut);
+
+            let expected = match op {
+                BinOpKind::Or => type_env.insert(Type::Bool),
+                BinOpKind::And => type_env.insert(Type::Bool),
+                BinOpKind::Eq => type_env.insert(Type::Int),
+                BinOpKind::Ne => type_env.insert(Type::Int),
+                BinOpKind::Lt => type_env.insert(Type::Int),
+                BinOpKind::Le => type_env.insert(Type::Int),
+                BinOpKind::Gt => type_env.insert(Type::Int),
+                BinOpKind::Ge => type_env.insert(Type::Int),
+                BinOpKind::Add => type_env.insert(Type::Int),
+                BinOpKind::Sub => type_env.insert(Type::Int),
+                BinOpKind::Mul => type_env.insert(Type::Int),
+                BinOpKind::Div => type_env.insert(Type::Int),
+            };
+
+            let lhs_actual = check_expr(
+                lhs,
+                ret_ty,
+                nested_mutability,
+                type_env,
+                type_bindings,
+                value_bindings,
+            )?;
+
+            let rhs_actual = check_expr(
+                rhs,
+                ret_ty,
+                nested_mutability,
+                type_env,
+                type_bindings,
+                value_bindings,
+            )?;
+
+            // unify lhs, then unify the result with rhs
+            let expected = type_env
+                .unify(expected, lhs_actual)
+                .map_err(|err| Spanned::new(err, span))?;
+
+            *ty = type_env
+                .unify(expected, rhs_actual)
+                .map_err(|err| Spanned::new(err, span))?;
+
+            Ok(*ty)
+        }
         Expr::FnCall(ref mut call, ref mut ty) => {
             let binding = value_bindings.path_get(&call.name.value).ok_or_else(|| {
                 Spanned::new(TypeError::UndefinedVariable(call.name.value.clone()), span)
