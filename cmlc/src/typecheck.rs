@@ -116,6 +116,21 @@ pub enum Typed {
     Type(Type),
 }
 
+struct Binding {
+    ty: TypeRef,
+    is_mut: bool,
+}
+
+impl Binding {
+    fn new(ty: TypeRef) -> Binding {
+        Binding { ty, is_mut: false }
+    }
+
+    fn new_mut(ty: TypeRef) -> Binding {
+        Binding { ty, is_mut: true }
+    }
+}
+
 pub fn typecheck(mut ast: Ast) -> Result<Ast, Spanned<TypeError>> {
     let mut type_bindings = ScopeMap::new();
     let mut value_bindings = ScopeMap::new();
@@ -133,7 +148,7 @@ fn check_items(
     items: &[Spanned<Item>],
     type_env: &mut TypeEnv,
     type_bindings: &mut ScopeMap<Ident, TypeRef>,
-    value_bindings: &mut ScopeMap<Ident, TypeRef>,
+    value_bindings: &mut ScopeMap<Ident, Binding>,
 ) -> Result<(), Spanned<TypeError>> {
     // collect all type and function defs, but delay resolution to allow for (mutally) recursive definitions
     // TODO: detect shadowed types and shadowed fns
@@ -154,7 +169,8 @@ fn check_items(
                 type_bindings.insert(name.value.clone(), type_env.insert(Type::Var));
             }
             Item::FnDef(FnDef { ref name, .. }) => {
-                value_bindings.insert(name.value.clone(), type_env.insert(Type::Var));
+                let ty = type_env.insert(Type::Var);
+                value_bindings.insert(name.value.clone(), Binding::new(ty));
             }
         }
     }
@@ -200,7 +216,7 @@ fn check_fn(
     def: &FnDef,
     type_env: &mut TypeEnv,
     type_bindings: &mut ScopeMap<Ident, TypeRef>,
-    value_bindings: &mut ScopeMap<Ident, TypeRef>,
+    value_bindings: &mut ScopeMap<Ident, Binding>,
 ) -> Result<(), Spanned<TypeError>> {
     // get the function type before entering the new scope
     // the type binding must already have been created by `unify_types`
@@ -231,7 +247,7 @@ fn check_fn(
                 ));
             }
 
-            value_bindings.insert(name.clone(), param_ty);
+            value_bindings.insert(name.clone(), Binding::new(param_ty));
         }
 
         params.push(Param {
@@ -265,7 +281,7 @@ fn check_expr(
     ret_ty: TypeRef,
     type_env: &mut TypeEnv,
     type_bindings: &mut ScopeMap<Ident, TypeRef>,
-    value_bindings: &mut ScopeMap<Ident, TypeRef>,
+    value_bindings: &mut ScopeMap<Ident, Binding>,
 ) -> Result<(), Spanned<TypeError>> {
     unimplemented!()
 }
@@ -274,7 +290,7 @@ fn bind_record_def(
     def: &RecordDef,
     type_env: &mut TypeEnv,
     type_bindings: &ScopeMap<Ident, TypeRef>,
-    value_bindings: &mut ScopeMap<Ident, TypeRef>,
+    value_bindings: &mut ScopeMap<Ident, Binding>,
 ) -> Result<(), Spanned<TypeError>> {
     // the type binding must already have been created by `unify_types`
     let current_ty = *type_bindings.get(&def.name.value).unwrap();
@@ -316,7 +332,7 @@ fn bind_record_def(
     let cons_ty = type_env.insert(Type::Function(cons));
 
     // bind the type constructor
-    value_bindings.insert(def.name.value.clone(), cons_ty);
+    value_bindings.insert(def.name.value.clone(), Binding::new(cons_ty));
 
     Ok(())
 }
@@ -325,7 +341,7 @@ fn bind_variants_def(
     def: &VariantsDef,
     type_env: &mut TypeEnv,
     type_bindings: &ScopeMap<Ident, TypeRef>,
-    value_bindings: &mut ScopeMap<Ident, TypeRef>,
+    value_bindings: &mut ScopeMap<Ident, Binding>,
 ) -> Result<(), Spanned<TypeError>> {
     // the type binding must already have been created by `unify_types`
     let current_ty = *type_bindings.get(&def.name.value).unwrap();
@@ -361,7 +377,7 @@ fn bind_variants_def(
 
         value_bindings.path_insert(
             vec![def.name.value.clone(), variant_def.name.value.clone()],
-            variant_cons_ty,
+            Binding::new(variant_cons_ty),
         );
     }
 
@@ -406,6 +422,7 @@ fn type_from_desc(
                 type_env,
                 type_bindings,
             )?;
+
             type_env.insert(Type::ConstPtr(inner_ty))
         }
         TypeDesc::MutPtr(ref desc) => {
@@ -415,6 +432,7 @@ fn type_from_desc(
                 type_env,
                 type_bindings,
             )?;
+
             type_env.insert(Type::MutPtr(inner_ty))
         }
         TypeDesc::Array(ArrayDesc { ref ty, ref len }) => {
@@ -424,6 +442,7 @@ fn type_from_desc(
                 type_env,
                 type_bindings,
             )?;
+
             type_env.insert(Type::Array(elem_ty, len.into_inner()))
         }
         TypeDesc::Function(FunctionDesc {
