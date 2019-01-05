@@ -3,9 +3,10 @@ pub mod unify;
 
 use crate::ast::*;
 use crate::span::Spanned;
+use crate::support;
 use crate::typecheck::scope_map::ScopeMap;
 use crate::typecheck::unify::TypeEnv;
-use fnv::FnvHashSet;
+use std::mem;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Debug)]
@@ -16,6 +17,7 @@ pub enum TypeError {
     DuplicatParamName(Ident),
     DuplicatFieldName(Ident),
     VarNotMut(Mutability),
+    UndefinedArgName(Ident),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -112,7 +114,7 @@ impl TypeId {
 struct Binding {
     ty: TypeRef,
     is_mut: bool,
-    param_names: Vec<Option<Ident>>,
+    param_names: Option<Vec<Option<Ident>>>,
 }
 
 impl Binding {
@@ -120,7 +122,7 @@ impl Binding {
         Binding {
             ty,
             is_mut: false,
-            param_names: Vec::new(),
+            param_names: None,
         }
     }
 
@@ -128,7 +130,7 @@ impl Binding {
         Binding {
             ty,
             is_mut: true,
-            param_names: Vec::new(),
+            param_names: None,
         }
     }
 
@@ -136,7 +138,7 @@ impl Binding {
         Binding {
             ty,
             is_mut: false,
-            param_names,
+            param_names: Some(param_names),
         }
     }
 
@@ -396,9 +398,101 @@ fn check_expr(
 
             Ok(*ty)
         }
+        Expr::FnCall(ref mut call, ref mut ty) => {
+            let binding = value_bindings.path_get(&call.name.value).ok_or_else(|| {
+                Spanned::new(TypeError::UndefinedVariable(call.name.value.clone()), span)
+            })?;
+
+            let expected = binding.ty;
+
+            // make sure the args are aligned (in case of out of order named args)
+            if !call.are_args_aligned {
+                call.args = align_args(&binding, mem::replace(&mut call.args, Vec::new()))?;
+                call.are_args_aligned = true;
+            }
+
+            // check the arguments first and then use their type for the parameters
+            let mut params = Vec::with_capacity(call.args.len());
+
+            for arg_expr in call.args.iter_mut().map(|arg| &mut arg.value.value) {
+                let arg_ty = check_expr(
+                    arg_expr.as_mut(),
+                    ret_ty,
+                    nested_mutability,
+                    type_env,
+                    type_bindings,
+                    value_bindings,
+                )?;
+
+                params.push(arg_ty);
+            }
+
+            // there's no way to know the return type, so just use a variable
+            let ret = type_env.insert(Type::Var);
+            let actual = type_env.insert(Type::Function(Function { params, ret }));
+
+            // try to unify with the type of the binding
+            *ty = type_env
+                .unify(expected, actual)
+                .map_err(|err| Spanned::new(err, span))?;
+
+            Ok(*ty)
+        }
         // TODO: mutability for member access
         _ => unimplemented!(),
     }
+}
+
+fn align_args(
+    binding: &Binding,
+    args: Vec<Spanned<Arg>>,
+) -> Result<Vec<Spanned<Arg>>, Spanned<TypeError>> {
+    let (named_args, unnamed_args): (Vec<_>, _) =
+        args.into_iter().partition(|arg| arg.value.name.is_some());
+
+    // if no names are stored, there cannot be any named args,
+    // in which case we can skip the alignment process
+    let param_names = match binding.param_names {
+        Some(ref param_names) => param_names,
+        None => {
+            if named_args.is_empty() {
+                return Ok(unnamed_args);
+            } else {
+                unimplemented!()
+            }
+        }
+    };
+
+    // lengths of arg and param list must match
+    if param_names.len() != (named_args.len() + unnamed_args.len()) {
+        unimplemented!()
+    }
+
+    // store the original order of the params
+    let mut param_names: Vec<_> = param_names.iter().enumerate().collect();
+    let mut aligned = Vec::with_capacity(param_names.len());
+
+    // collect the named args first
+    for arg in named_args {
+        let arg_name = arg.value.name.as_ref().map(|spanned| &spanned.value);
+
+        let (idx, _) =
+            support::find_remove(&mut param_names, |(_, name)| name.as_ref() == arg_name)
+                .unwrap_or_else(|| unimplemented!());
+
+        aligned.push((idx, arg));
+    }
+
+    // the unnamed args simply take the remaining params from left to right
+    for (arg, (idx, _)) in unnamed_args.into_iter().zip(param_names) {
+        aligned.push((idx, arg));
+    }
+
+    // sort by the actual param order
+    aligned.sort_unstable_by_key(|&(idx, _)| idx);
+    let aligned: Vec<_> = aligned.into_iter().map(|(_, arg)| arg).collect();
+
+    Ok(aligned)
 }
 
 fn bind_record_def(

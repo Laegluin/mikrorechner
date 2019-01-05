@@ -241,6 +241,7 @@ pub struct TupleCons {
 pub struct FnCall {
     pub name: Spanned<ItemPath>,
     pub args: Vec<Spanned<Arg>>,
+    pub are_args_aligned: bool,
 }
 
 #[derive(Debug)]

@@ -730,6 +730,7 @@ fn fn_call(tokens: &TokenStream<'_>) -> Result<Spanned<FnCall>, Spanned<ParseErr
             FnCall {
                 name: fn_name,
                 args: Vec::new(),
+                are_args_aligned: false,
             },
             span_start.end(),
         )),
@@ -774,6 +775,7 @@ fn fn_call(tokens: &TokenStream<'_>) -> Result<Spanned<FnCall>, Spanned<ParseErr
                 FnCall {
                     name: fn_name,
                     args,
+                    are_args_aligned: false,
                 },
                 span_start.end(),
             ))
