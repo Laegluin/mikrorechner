@@ -14,6 +14,7 @@ pub enum TypeError {
     UndefinedType(ItemPath),
     UndefinedVariable(ItemPath),
     DuplicatParamName(Ident),
+    VarNotMut(Mutability),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -128,6 +129,10 @@ impl Binding {
 
     fn new_mut(ty: TypeRef) -> Binding {
         Binding { ty, is_mut: true }
+    }
+
+    fn ty(&self) -> TypeRef {
+        self.ty
     }
 }
 
@@ -275,20 +280,107 @@ fn check_fn(
     check_expr(
         def.body.as_mut(),
         def.ret_ty,
+        Mutability::Const,
         type_env,
         type_bindings,
         value_bindings,
-    )
+    )?;
+
+    Ok(())
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Mutability {
+    Const,
+    Assignment,
+    AddrOfMut,
+    DerefMut,
 }
 
 fn check_expr(
     expr: Spanned<&mut Expr>,
     ret_ty: TypeRef,
+    mutability: Mutability,
     type_env: &mut TypeEnv,
     type_bindings: &mut ScopeMap<Ident, TypeRef>,
     value_bindings: &mut ScopeMap<Ident, Binding>,
-) -> Result<(), Spanned<TypeError>> {
-    unimplemented!()
+) -> Result<TypeRef, Spanned<TypeError>> {
+    // almost no expression requires a mut context for its nested expression;
+    // the exceptions have to set this accordingly
+    let mut nested_mutability = Mutability::Const;
+    let Spanned { value: expr, span } = expr;
+
+    match *expr {
+        Expr::Lit(ref lit, ref mut ty) => {
+            *ty = match lit {
+                Lit::Str(_) => {
+                    let str_ty = type_env.insert(Type::Str);
+                    type_env.insert(Type::ConstPtr(str_ty))
+                }
+                Lit::Int(_) => type_env.insert(Type::Int),
+                Lit::Bool(_) => type_env.insert(Type::Bool),
+            };
+
+            Ok(*ty)
+        }
+        Expr::Var(ref path, ref mut ty) => {
+            let binding = value_bindings
+                .path_get(path)
+                .ok_or_else(|| Spanned::new(TypeError::UndefinedVariable(path.clone()), span))?;
+
+            // if a mut context is required, bindings have to be declared as such
+            if mutability != Mutability::Const && !binding.is_mut {
+                return Err(Spanned::new(TypeError::VarNotMut(mutability), span));
+            }
+
+            *ty = binding.ty;
+            Ok(*ty)
+        }
+        Expr::UnOp(
+            UnOp {
+                op,
+                ref mut operand,
+            },
+            ref mut ty,
+        ) => {
+            let operand = operand.as_mut().map(Box::as_mut);
+
+            let expected = match op {
+                UnOpKind::Not => type_env.insert(Type::Bool),
+                UnOpKind::Negate => type_env.insert(Type::I32),
+                UnOpKind::AddrOf => type_env.insert(Type::Var),
+                UnOpKind::AddrOfMut => {
+                    nested_mutability = Mutability::AddrOfMut;
+                    type_env.insert(Type::Var)
+                }
+                UnOpKind::Deref => {
+                    if mutability != Mutability::Const {
+                        nested_mutability = Mutability::DerefMut;
+                    }
+
+                    let pointee_ty = type_env.insert(Type::Var);
+                    type_env.insert(Type::Ptr(pointee_ty))
+                }
+            };
+
+            let actual = check_expr(
+                operand,
+                ret_ty,
+                nested_mutability,
+                type_env,
+                type_bindings,
+                value_bindings,
+            )?;
+
+            *ty = type_env
+                .unify(expected, actual)
+                .map_err(|err| Spanned::new(err, span))?;
+
+            Ok(*ty)
+        }
+        // TODO: mutability for member access
+        _ => unimplemented!(),
+    }
 }
 
 fn bind_record_def(

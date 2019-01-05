@@ -190,7 +190,7 @@ pub struct BinOp {
     pub rhs: Spanned<Box<Expr>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum BinOpKind {
     Or,
     And,
@@ -212,7 +212,7 @@ pub struct UnOp {
     pub operand: Spanned<Box<Expr>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum UnOpKind {
     Not,
     Negate,
@@ -250,7 +250,7 @@ pub struct Arg {
     pub value: Spanned<Expr>,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ItemPath {
     pub segments: Vec<Spanned<Ident>>,
 }

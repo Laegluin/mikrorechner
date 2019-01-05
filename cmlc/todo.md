@@ -1,7 +1,7 @@
 # TODO
 
 - move semantics
-- mut/init errors
+- init errors
 - for loops
 - match expressions
 - autoref for methods
