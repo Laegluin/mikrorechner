@@ -5,12 +5,14 @@ use crate::ast::*;
 use crate::span::Spanned;
 use crate::typecheck::scope_map::ScopeMap;
 use crate::typecheck::type_env::TypeEnv;
+use fnv::FnvHashSet;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Debug)]
 pub enum TypeError {
     HoleInTypeDef,
     UndefinedType(ItemPath),
+    DuplicatParamName(Ident),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -194,9 +196,73 @@ fn unify_types(
     Ok(())
 }
 
-// TODO: do not allow duplicate parameter names
 fn unify_types_fn(
     def: &FnDef,
+    type_env: &mut TypeEnv,
+    type_bindings: &mut ScopeMap<Ident, TypeRef>,
+    value_bindings: &mut ScopeMap<Ident, TypeRef>,
+) -> Result<(), Spanned<TypeError>> {
+    // get the function type before entering the new scope
+    // the type binding must already have been created by `unify_types`
+    let fn_ty = *type_bindings.get(&def.name.value).unwrap();
+
+    type_bindings.enter_scope();
+    value_bindings.enter_scope();
+
+    let mut param_names =
+        FnvHashSet::with_capacity_and_hasher(def.params.len(), Default::default());
+    let mut params = Vec::with_capacity(def.params.len());
+
+    for param in &def.params {
+        let param = &param.value;
+
+        let param_ty = match param.ty.as_ref() {
+            Some(ty) => type_from_desc(ty.as_ref(), false, type_env, type_bindings)?,
+            None => type_env.insert(Type::Var),
+        };
+
+        // bind the parameter if it has a name
+        if let Some(ref name) = &param.name.value {
+            // do not allow the same param name twice
+            if !param_names.insert(name) {
+                return Err(Spanned::new(
+                    TypeError::DuplicatParamName(name.clone()),
+                    param.name.span,
+                ));
+            }
+
+            value_bindings.insert(name.clone(), param_ty);
+        }
+
+        params.push(Param {
+            name: param.name.value.clone(),
+            ty: param_ty,
+        });
+    }
+
+    let ret = match def.ret_ty.as_ref() {
+        Some(ty) => type_from_desc(ty.as_ref(), false, type_env, type_bindings)?,
+        None => type_env.insert(Type::Var),
+    };
+
+    // update the functions type
+    // since it was just a variable before, unification cannot fail
+    let ty = type_env.insert(Type::Function(Function { params, ret }));
+    type_env.union(fn_ty, ty).unwrap();
+
+    // check the function body
+    unify_types_expr(
+        def.body.as_ref(),
+        ret,
+        type_env,
+        type_bindings,
+        value_bindings,
+    )
+}
+
+fn unify_types_expr(
+    expr: Spanned<&Expr>,
+    ret_ty: TypeRef,
     type_env: &mut TypeEnv,
     type_bindings: &mut ScopeMap<Ident, TypeRef>,
     value_bindings: &mut ScopeMap<Ident, TypeRef>,
