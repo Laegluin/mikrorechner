@@ -143,8 +143,7 @@ impl TypeEnv {
             }
             // mut pointers can be coerced to const pointers
             (Type::ConstPtr(expected_inner), Type::ConstPtr(actual_inner))
-            | (Type::ConstPtr(expected_inner), Type::MutPtr(actual_inner))
-            | (Type::MutPtr(expected_inner), Type::ConstPtr(actual_inner)) => {
+            | (Type::ConstPtr(expected_inner), Type::MutPtr(actual_inner)) => {
                 let inner = self.unify(expected_inner, actual_inner)?;
                 Ok(Type::ConstPtr(inner))
             }
