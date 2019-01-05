@@ -863,16 +863,6 @@ fn member_access(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<Pars
             _ => unreachable!(),
         };
 
-        let member = ident(tokens)?;
-
-        value = Spanned::new(
-            Expr::member_access(MemberAccess {
-                value: value.map(Box::new),
-                member,
-            }),
-            span_start.end(),
-        );
-
         // desugar the `->` member access after deref
         if is_deref {
             value = Spanned::new(
@@ -883,6 +873,17 @@ fn member_access(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<Pars
                 span_start.end(),
             )
         }
+        
+        let member = ident(tokens)?;
+
+        value = Spanned::new(
+            Expr::member_access(MemberAccess {
+                value: value.map(Box::new),
+                member,
+            }),
+            span_start.end(),
+        );
+
     }
 
     Ok(value)
