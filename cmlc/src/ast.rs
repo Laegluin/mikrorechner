@@ -225,7 +225,6 @@ pub enum UnOpKind {
 pub struct MemberAccess {
     pub value: Spanned<Box<Expr>>,
     pub member: Spanned<Ident>,
-    pub is_deref: bool,
 }
 
 #[derive(Debug)]

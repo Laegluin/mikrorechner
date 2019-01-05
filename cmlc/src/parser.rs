@@ -869,10 +869,20 @@ fn member_access(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<Pars
             Expr::member_access(MemberAccess {
                 value: value.map(Box::new),
                 member,
-                is_deref,
             }),
             span_start.end(),
-        )
+        );
+
+        // desugar the `->` member access after deref
+        if is_deref {
+            value = Spanned::new(
+                Expr::un_op(UnOp {
+                    op: UnOpKind::Deref,
+                    operand: value.map(Box::new),
+                }),
+                span_start.end(),
+            )
+        }
     }
 
     Ok(value)
