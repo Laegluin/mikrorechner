@@ -220,7 +220,7 @@ fn check_fn(
 ) -> Result<(), Spanned<TypeError>> {
     // get the function type before entering the new scope
     // the type binding must already have been created by `unify_types`
-    let fn_ty = *type_bindings.get(&def.name.value).unwrap();
+    let current_ty = *type_bindings.get(&def.name.value).unwrap();
 
     type_bindings.enter_scope();
     value_bindings.enter_scope();
@@ -263,12 +263,13 @@ fn check_fn(
 
     // update the functions type
     // since it was just a variable before, unification cannot fail
-    let ty = type_env.insert(Type::Function(Function {
+    let fn_ty = type_env.insert(Type::Function(Function {
         params,
         ret: def.ret_ty,
     }));
 
-    type_env.unify(fn_ty, ty).unwrap();
+    let ty = type_env.insert(Type::ConstPtr(fn_ty));
+    type_env.unify(current_ty, ty).unwrap();
 
     // check the function body
     check_expr(
@@ -333,7 +334,8 @@ fn bind_record_def(
         ret: ty,
     };
 
-    let cons_ty = type_env.insert(Type::Function(cons));
+    let cons_fn = type_env.insert(Type::Function(cons));
+    let cons_ty = type_env.insert(Type::ConstPtr(cons_fn));
 
     // bind the type constructor
     value_bindings.insert(def.name.value.clone(), Binding::new(cons_ty));
@@ -377,7 +379,8 @@ fn bind_variants_def(
         };
 
         // bind the variant constructor as function scoped under the type name
-        let variant_cons_ty = type_env.insert(Type::Function(variant_cons));
+        let cons_fn = type_env.insert(Type::Function(variant_cons));
+        let variant_cons_ty = type_env.insert(Type::ConstPtr(cons_fn));
 
         value_bindings.path_insert(
             vec![def.name.value.clone(), variant_def.name.value.clone()],
@@ -468,7 +471,8 @@ fn type_from_desc(
                 type_bindings,
             )?;
 
-            type_env.insert(Type::Function(Function { params, ret }))
+            let fn_ty = type_env.insert(Type::Function(Function { params, ret }));
+            type_env.insert(Type::ConstPtr(fn_ty))
         }
         TypeDesc::Tuple(ref ty_descs) => {
             let tys = ty_descs
