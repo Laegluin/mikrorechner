@@ -692,15 +692,22 @@ fn method_call(
     let mut object = fn_call_expr(tokens)?;
 
     while parse_method_calls && is_fn_call(tokens) {
-        let call = fn_call(tokens)?;
+        let mut call = fn_call(tokens)?;
 
-        object = Spanned::new(
-            Expr::method_call(MethodCall {
-                object: object.map(Box::new),
-                call,
-            }),
-            span_start.end(),
-        )
+        // fix the span and insert the object as auto-ref first arg
+        call.span = span_start.end();
+
+        let arg_span = object.span;
+        let arg = Spanned::new(
+            Arg {
+                name: None,
+                value: object.map(|obj| Expr::auto_ref(Box::new(obj))),
+            },
+            arg_span,
+        );
+
+        call.value.args.insert(0, arg);
+        object = call.map(Expr::fn_call);
     }
 
     Ok(object)
@@ -873,7 +880,7 @@ fn member_access(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<Pars
                 span_start.end(),
             )
         }
-        
+
         let member = ident(tokens)?;
 
         value = Spanned::new(
@@ -883,7 +890,6 @@ fn member_access(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<Pars
             }),
             span_start.end(),
         );
-
     }
 
     Ok(value)

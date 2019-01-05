@@ -107,12 +107,12 @@ pub enum Expr {
     UnOp(UnOp, TypeRef),
     BinOp(BinOp, TypeRef),
     FnCall(FnCall, TypeRef),
-    MethodCall(MethodCall, TypeRef),
     MemberAccess(MemberAccess, TypeRef),
     ArrayCons(ArrayCons, TypeRef),
     TupleCons(TupleCons, TypeRef),
     Assignment(Assignment, TypeRef),
     LetBinding(LetBinding, TypeRef),
+    AutoRef(Box<Expr>, TypeRef),
     Ret(Box<Expr>, TypeRef),
     IfExpr(IfExpr, TypeRef),
     Block(Block, TypeRef),
@@ -139,10 +139,6 @@ impl Expr {
         Expr::FnCall(fn_call, TypeRef::invalid())
     }
 
-    pub fn method_call(method_call: MethodCall) -> Expr {
-        Expr::MethodCall(method_call, TypeRef::invalid())
-    }
-
     pub fn member_access(member_access: MemberAccess) -> Expr {
         Expr::MemberAccess(member_access, TypeRef::invalid())
     }
@@ -161,6 +157,10 @@ impl Expr {
 
     pub fn let_binding(let_binding: LetBinding) -> Expr {
         Expr::LetBinding(let_binding, TypeRef::invalid())
+    }
+
+    pub fn auto_ref(auto_ref: Box<Expr>) -> Expr {
+        Expr::AutoRef(auto_ref, TypeRef::invalid())
     }
 
     pub fn ret(ret: Box<Expr>) -> Expr {
@@ -292,12 +292,6 @@ impl Display for ItemPath {
 
         write!(f, "{}", string_repr)
     }
-}
-
-#[derive(Debug)]
-pub struct MethodCall {
-    pub object: Spanned<Box<Expr>>,
-    pub call: Spanned<FnCall>,
 }
 
 #[derive(Debug)]
