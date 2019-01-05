@@ -14,6 +14,7 @@ pub enum TypeError {
     UndefinedType(ItemPath),
     UndefinedVariable(ItemPath),
     DuplicatParamName(Ident),
+    DuplicatFieldName(Ident),
     VarNotMut(Mutability),
 }
 
@@ -44,9 +45,6 @@ pub enum Type {
     MutPtr(TypeRef),
     Array(TypeRef, u32),
     Tuple(Vec<TypeRef>),
-    /// A call to a function. This type is required to handle function calls
-    /// with or without named arguments. All instances of this type will be removed during typechecking.
-    Call(Function),
     Function(Function),
     Record(Record),
     Variants(Variants),
@@ -54,14 +52,8 @@ pub enum Type {
 
 #[derive(Debug)]
 pub struct Function {
-    pub params: Vec<Param>,
+    pub params: Vec<TypeRef>,
     pub ret: TypeRef,
-}
-
-#[derive(Debug)]
-pub struct Param {
-    pub name: Option<Ident>,
-    pub ty: TypeRef,
 }
 
 #[derive(Debug)]
@@ -120,15 +112,32 @@ impl TypeId {
 struct Binding {
     ty: TypeRef,
     is_mut: bool,
+    param_names: Vec<Option<Ident>>,
 }
 
 impl Binding {
     fn new(ty: TypeRef) -> Binding {
-        Binding { ty, is_mut: false }
+        Binding {
+            ty,
+            is_mut: false,
+            param_names: Vec::new(),
+        }
     }
 
     fn new_mut(ty: TypeRef) -> Binding {
-        Binding { ty, is_mut: true }
+        Binding {
+            ty,
+            is_mut: true,
+            param_names: Vec::new(),
+        }
+    }
+
+    fn new_fn(ty: TypeRef, param_names: Vec<Option<Ident>>) -> Binding {
+        Binding {
+            ty,
+            is_mut: false,
+            param_names,
+        }
     }
 
     fn ty(&self) -> TypeRef {
@@ -173,9 +182,31 @@ fn check_items(
             })) => {
                 type_bindings.insert(name.value.clone(), type_env.new_type_var());
             }
-            Item::FnDef(FnDef { ref name, .. }) => {
+            Item::FnDef(FnDef {
+                ref name,
+                ref params,
+                ..
+            }) => {
                 let ty = type_env.new_type_var();
-                value_bindings.insert(name.value.clone(), Binding::new(ty));
+
+                // collect the param names to attach them to the binding
+                let mut param_names = Vec::with_capacity(params.len());
+
+                for param in params {
+                    let name = &param.value.name.value;
+
+                    // do not allow duplicate param names
+                    if name.is_some() && param_names.contains(name) {
+                        return Err(Spanned::new(
+                            TypeError::DuplicatParamName(name.clone().unwrap()),
+                            param.value.name.span,
+                        ));
+                    }
+
+                    param_names.push(name.clone());
+                }
+
+                value_bindings.insert(name.value.clone(), Binding::new_fn(ty, param_names));
             }
         }
     }
@@ -230,8 +261,6 @@ fn check_fn(
     type_bindings.enter_scope();
     value_bindings.enter_scope();
 
-    let mut param_names =
-        FnvHashSet::with_capacity_and_hasher(def.params.len(), Default::default());
     let mut params = Vec::with_capacity(def.params.len());
 
     for param in &mut def.params {
@@ -244,21 +273,10 @@ fn check_fn(
 
         // bind the parameter if it has a name
         if let Some(ref name) = &param.name.value {
-            // do not allow the same param name twice
-            if !param_names.insert(name) {
-                return Err(Spanned::new(
-                    TypeError::DuplicatParamName(name.clone()),
-                    param.name.span,
-                ));
-            }
-
             value_bindings.insert(name.clone(), Binding::new(param.ty));
         }
 
-        params.push(Param {
-            name: param.name.value.clone(),
-            ty: param.ty,
-        });
+        params.push(param.ty);
     }
 
     def.ret_ty = match def.ret_ty_hint.as_ref() {
@@ -394,8 +412,10 @@ fn bind_record_def(
 
     let mut fields = Vec::with_capacity(def.fields.len());
     let mut cons_params = Vec::with_capacity(def.fields.len());
+    let mut cons_param_names = Vec::<Option<_>>::with_capacity(def.fields.len());
 
     for field_def in &def.fields {
+        let span = field_def.span;
         let field_def = &field_def.value;
 
         let name = field_def.name.value.clone();
@@ -406,10 +426,19 @@ fn bind_record_def(
             ty,
         });
 
-        cons_params.push(Param {
-            name: Some(name),
-            ty,
-        });
+        // do not allow duplicate field names
+        if cons_param_names
+            .iter()
+            .any(|param| Some(&name) == param.as_ref())
+        {
+            return Err(Spanned::new(
+                TypeError::DuplicatFieldName(name.clone()),
+                span,
+            ));
+        }
+
+        cons_params.push(ty);
+        cons_param_names.push(Some(name));
     }
 
     let record = Record {
@@ -430,7 +459,10 @@ fn bind_record_def(
     let cons_ty = type_env.insert(Type::ConstPtr(cons_fn));
 
     // bind the type constructor
-    value_bindings.insert(def.name.value.clone(), Binding::new(cons_ty));
+    value_bindings.insert(
+        def.name.value.clone(),
+        Binding::new_fn(cons_ty, cons_param_names),
+    );
 
     Ok(())
 }
@@ -455,18 +487,13 @@ fn bind_variants_def(
             .map(|param_ty| type_from_desc(param_ty.as_ref(), true, type_env, type_bindings))
             .collect::<Result<Vec<_>, _>>()?;
 
-        let cons_params = params
-            .iter()
-            .map(|&ty| Param { name: None, ty })
-            .collect::<Vec<_>>();
-
         variants.push(Variant {
             name: variant_def.name.value.clone(),
-            params,
+            params: params.clone(),
         });
 
         let variant_cons = Function {
-            params: cons_params,
+            params,
             ret: current_ty,
         };
 
@@ -552,7 +579,6 @@ fn type_from_desc(
                 .iter()
                 .map(|param_desc| {
                     type_from_desc(param_desc.as_ref(), is_type_def, type_env, type_bindings)
-                        .map(|ty| Param { name: None, ty })
                 })
                 .collect::<Result<Vec<_>, _>>()?;
 

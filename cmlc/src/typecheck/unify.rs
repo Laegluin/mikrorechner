@@ -1,5 +1,4 @@
-use crate::support;
-use crate::typecheck::{Function, Param, Type, TypeError, TypeRef};
+use crate::typecheck::{Function, Type, TypeError, TypeRef};
 use std::mem;
 
 /// The environment holding all types during type checking. The types are stored as disjoint-set
@@ -174,54 +173,7 @@ impl TypeEnv {
 
                 Ok(Type::Tuple(inner))
             }
-            (Type::Function(func), Type::Call(call)) | (Type::Call(call), Type::Function(func)) => {
-                if func.params.len() != call.params.len() {
-                    unimplemented!();
-                }
-
-                let mut params: Vec<_> = func.params.into_iter().enumerate().collect();
-                let mut unified_params = Vec::with_capacity(params.len());
-
-                // collect the named args first, since they determine the order of the unnamed args
-                for arg in call.params.iter().filter(|param| param.name.is_some()) {
-                    let (idx, mut param) =
-                        support::find_remove(&mut params, |(_, param)| param.name == arg.name)
-                            .unwrap_or_else(|| unimplemented!());
-
-                    param.ty = self.unify(param.ty, arg.ty)?;
-                    unified_params.push((idx, param));
-                }
-
-                // unify the remaining unnamed args from left to right
-                for (arg, (idx, mut param)) in call
-                    .params
-                    .iter()
-                    .filter(|param| param.name.is_none())
-                    .zip(params)
-                {
-                    param.ty = self.unify(param.ty, arg.ty)?;
-                    unified_params.push((idx, param));
-                }
-
-                // sort the params in the order of the definition, otherwise the type
-                // of the function could have changed due to named arguments
-                unified_params.sort_unstable_by_key(|&(idx, _)| idx);
-                let unified_params: Vec<_> =
-                    unified_params.into_iter().map(|(_, param)| param).collect();
-
-                let ret = self.unify(func.ret, call.ret)?;
-
-                Ok(Type::Function(Function {
-                    params: unified_params,
-                    ret,
-                }))
-            }
-            // FIXME: this will currently unify functions with named parameters to ones without
-            // that will cause defined functions to suddenly not be callable with named arguments
-
-            // unify all params and the return type. For params, the names have to be
-            // equal or not exist at all. If only one param name exists, it is coerced
-            // to an unnamed parameter.
+            // function are like tuples plus an additional return type
             (Type::Function(expected_fn), Type::Function(actual_fn)) => {
                 if expected_fn.params.len() != actual_fn.params.len() {
                     unimplemented!();
@@ -231,22 +183,7 @@ impl TypeEnv {
                     .params
                     .into_iter()
                     .zip(actual_fn.params)
-                    .map(|(expected, actual)| {
-                        let name = match (expected.name, actual.name) {
-                            (Some(expected), Some(actual)) => {
-                                if expected != actual {
-                                    unimplemented!();
-                                }
-
-                                Some(expected)
-                            }
-                            (Some(_), None) | (None, Some(_)) => None,
-                            (None, None) => None,
-                        };
-
-                        let ty = self.unify(expected.ty, actual.ty)?;
-                        Ok(Param { name, ty })
-                    })
+                    .map(|(expected, actual)| self.unify(expected, actual))
                     .collect::<Result<Vec<_>, _>>()?;
 
                 let ret = self.unify(expected_fn.ret, actual_fn.ret)?;
