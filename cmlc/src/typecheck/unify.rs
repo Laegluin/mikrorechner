@@ -107,7 +107,6 @@ impl TypeEnv {
         }
     }
 
-    // TODO: impl error handling
     fn merge(&mut self, expected: Type, actual: Type) -> Result<Type, TypeError> {
         match (expected, actual) {
             // always choose the other one, it can never be less specific
@@ -154,7 +153,10 @@ impl TypeEnv {
             // for generic types, unify the type parameters first
             (Type::Array(expected_inner, expected_len), Type::Array(actual_inner, actual_len)) => {
                 if expected_len != actual_len {
-                    unimplemented!();
+                    return Err(TypeError::Mismatch(
+                        Type::Array(expected_inner, expected_len),
+                        Type::Array(actual_inner, actual_len),
+                    ));
                 }
 
                 let inner = self.unify(expected_inner, actual_inner)?;
@@ -162,7 +164,10 @@ impl TypeEnv {
             }
             (Type::Tuple(expected_inner), Type::Tuple(actual_inner)) => {
                 if expected_inner.len() != actual_inner.len() {
-                    unimplemented!();
+                    return Err(TypeError::Mismatch(
+                        Type::Tuple(expected_inner),
+                        Type::Tuple(actual_inner),
+                    ));
                 }
 
                 let inner = expected_inner
@@ -176,7 +181,10 @@ impl TypeEnv {
             // function are like tuples plus an additional return type
             (Type::Function(expected_fn), Type::Function(actual_fn)) => {
                 if expected_fn.params.len() != actual_fn.params.len() {
-                    unimplemented!();
+                    return Err(TypeError::Mismatch(
+                        Type::Function(expected_fn),
+                        Type::Function(actual_fn),
+                    ));
                 }
 
                 let params = expected_fn
@@ -195,17 +203,24 @@ impl TypeEnv {
                 if expected_record == actual_record {
                     Ok(Type::Record(expected_record))
                 } else {
-                    unimplemented!()
+                    Err(TypeError::Mismatch(
+                        Type::Record(expected_record),
+                        Type::Record(actual_record),
+                    ))
                 }
             }
             (Type::Variants(expected_variants), Type::Variants(actual_variants)) => {
                 if expected_variants == actual_variants {
                     Ok(Type::Variants(expected_variants))
                 } else {
-                    unimplemented!()
+                    Err(TypeError::Mismatch(
+                        Type::Variants(expected_variants),
+                        Type::Variants(actual_variants),
+                    ))
                 }
             }
-            _ => unimplemented!(),
+            // catch all for all types that definitely cannot be unified
+            (expected, actual) => Err(TypeError::Mismatch(expected, actual)),
         }
     }
 }

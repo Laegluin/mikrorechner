@@ -18,6 +18,7 @@ pub enum TypeError {
     DuplicatFieldName(Ident),
     VarNotMut(Mutability),
     UndefinedArgName(Ident),
+    Mismatch(Type, Type),
 }
 
 #[derive(Debug, Clone, Copy)]
