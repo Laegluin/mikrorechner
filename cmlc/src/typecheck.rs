@@ -2,7 +2,7 @@ pub mod scope_map;
 pub mod unify;
 
 use crate::ast::*;
-use crate::span::Spanned;
+use crate::span::{Span, Spanned};
 use crate::support;
 use crate::typecheck::scope_map::ScopeMap;
 use crate::typecheck::unify::TypeEnv;
@@ -17,7 +17,8 @@ pub enum TypeError {
     DuplicatParamName(Ident),
     DuplicatFieldName(Ident),
     VarNotMut(Mutability),
-    UndefinedArgName(Ident),
+    UnknownArgName(Ident),
+    ArityMismatch(usize, usize),
     Mismatch(Type, Type),
 }
 
@@ -465,10 +466,7 @@ fn check_expr(
             let expected = binding.ty;
 
             // make sure the args are aligned (in case of out of order named args)
-            if !call.are_args_aligned {
-                call.args = align_args(&binding, mem::replace(&mut call.args, Vec::new()))?;
-                call.are_args_aligned = true;
-            }
+            align_args(&binding, call, span)?;
 
             // check the arguments first and then use their type for the parameters
             let mut params = Vec::with_capacity(call.args.len());
@@ -504,8 +502,12 @@ fn check_expr(
 
 fn align_args(
     binding: &Binding,
-    args: Vec<Spanned<Arg>>,
-) -> Result<Vec<Spanned<Arg>>, Spanned<TypeError>> {
+    call: &mut FnCall,
+    call_span: Span,
+) -> Result<(), Spanned<TypeError>> {
+    // swap args out to work on them
+    let args = mem::replace(&mut call.args, Vec::new());
+
     let (named_args, unnamed_args): (Vec<_>, _) =
         args.into_iter().partition(|arg| arg.value.name.is_some());
 
@@ -515,16 +517,24 @@ fn align_args(
         Some(ref param_names) => param_names,
         None => {
             if named_args.is_empty() {
-                return Ok(unnamed_args);
+                mem::replace(&mut call.args, unnamed_args);
+                return Ok(());
             } else {
-                unimplemented!()
+                // just use the first arg for the error
+                // unwraps are fine since we know it's named arg
+                let arg_span = named_args[0].value.name.as_ref().unwrap().span;
+                let arg_name = named_args[0].value.name.clone().unwrap().value;
+                return Err(Spanned::new(TypeError::UnknownArgName(arg_name), arg_span));
             }
         }
     };
 
     // lengths of arg and param list must match
     if param_names.len() != (named_args.len() + unnamed_args.len()) {
-        unimplemented!()
+        return Err(Spanned::new(
+            TypeError::ArityMismatch(param_names.len(), named_args.len() + unnamed_args.len()),
+            call_span,
+        ));
     }
 
     // store the original order of the params
@@ -537,7 +547,12 @@ fn align_args(
 
         let (idx, _) =
             support::find_remove(&mut param_names, |(_, name)| name.as_ref() == arg_name)
-                .unwrap_or_else(|| unimplemented!());
+                .ok_or_else(|| {
+                    Spanned::new(
+                        TypeError::UnknownArgName(arg_name.cloned().unwrap()),
+                        arg.value.name.as_ref().unwrap().span,
+                    )
+                })?;
 
         aligned.push((idx, arg));
     }
@@ -551,7 +566,9 @@ fn align_args(
     aligned.sort_unstable_by_key(|&(idx, _)| idx);
     let aligned: Vec<_> = aligned.into_iter().map(|(_, arg)| arg).collect();
 
-    Ok(aligned)
+    // swap aligned args in
+    mem::replace(&mut call.args, aligned);
+    Ok(())
 }
 
 fn bind_record_def(
