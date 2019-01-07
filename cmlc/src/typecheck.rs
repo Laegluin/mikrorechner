@@ -158,7 +158,9 @@ pub fn typecheck(mut ast: Ast) -> Result<Ast, Spanned<TypeError>> {
         &mut type_bindings,
         &mut value_bindings,
     )?;
-    unimplemented!()
+
+    // TODO: verify generated types
+    Ok(ast)
 }
 
 fn check_items(
@@ -258,8 +260,8 @@ fn check_fn(
     value_bindings: &mut ScopeMap<Ident, Binding>,
 ) -> Result<(), Spanned<TypeError>> {
     // get the function type before entering the new scope
-    // the type binding must already have been created by `unify_types`
-    let current_ty = *type_bindings.get(&def.name.value).unwrap();
+    // the type binding must already have been created by `check_items`
+    let current_ty = value_bindings.get(&def.name.value).unwrap().ty;
 
     type_bindings.enter_scope();
     value_bindings.enter_scope();
@@ -557,7 +559,7 @@ fn bind_record_def(
     type_bindings: &ScopeMap<Ident, TypeRef>,
     value_bindings: &mut ScopeMap<Ident, Binding>,
 ) -> Result<(), Spanned<TypeError>> {
-    // the type binding must already have been created by `unify_types`
+    // the type binding must already have been created by `check_items`
     let current_ty = *type_bindings.get(&def.name.value).unwrap();
 
     let mut fields = Vec::with_capacity(def.fields.len());
@@ -623,7 +625,7 @@ fn bind_variants_def(
     type_bindings: &ScopeMap<Ident, TypeRef>,
     value_bindings: &mut ScopeMap<Ident, Binding>,
 ) -> Result<(), Spanned<TypeError>> {
-    // the type binding must already have been created by `unify_types`
+    // the type binding must already have been created by `check_items`
     let current_ty = *type_bindings.get(&def.name.value).unwrap();
 
     let mut variants = Vec::with_capacity(def.variants.len());
