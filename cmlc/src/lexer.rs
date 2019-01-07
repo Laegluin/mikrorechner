@@ -146,6 +146,7 @@ pub enum LexError {
     MissingStringEndDelimiter,
 }
 
+// FIXME: off by one error for spans
 pub fn lex<'a>(stream: impl Into<StrStream<'a>>) -> Result<Vec<Spanned<Token>>, Spanned<LexError>> {
     let mut stream = stream.into();
     let mut char_buf = String::new();

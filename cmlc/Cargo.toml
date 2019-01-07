@@ -7,3 +7,4 @@ edition = "2018"
 [dependencies]
 codespan = "0.2.0"
 fnv = "1.0.6"
+codespan-reporting = "0.2.0"
