@@ -150,6 +150,7 @@ impl Binding {
 
 pub fn typecheck(mut ast: Ast) -> Result<Ast, Spanned<TypeError>> {
     let mut type_bindings = ScopeMap::new();
+    bind_primitives(&mut ast.type_env, &mut type_bindings);
     let mut value_bindings = ScopeMap::new();
 
     check_items(
@@ -757,4 +758,11 @@ fn type_from_desc(
     };
 
     Ok(ty)
+}
+
+fn bind_primitives(type_env: &mut TypeEnv, type_bindings: &mut ScopeMap<Ident, TypeRef>) {
+    type_bindings.insert(Ident::new("bool"), type_env.insert(Type::Bool));
+    type_bindings.insert(Ident::new("i32"), type_env.insert(Type::I32));
+    type_bindings.insert(Ident::new("u32"), type_env.insert(Type::U32));
+    type_bindings.insert(Ident::new("str"), type_env.insert(Type::Str));
 }
