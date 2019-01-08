@@ -4,7 +4,7 @@ type Variant =
     | Three i32, i32
     | User User;
 
-fn variant = -> Variant {
+fn variant -> Variant = {
     let a = Variant::Three: 1, 2;
     let b = Variant::One;
 }
@@ -14,7 +14,7 @@ type User = {
     name: *str,
 }
 
-fn user = -> User {
+fn user -> User = {
     User: 
         id = 1,
         name = "name",
@@ -25,23 +25,23 @@ type SpecialFn = *fn i32, i32 -> i32;
 type NoReturnFn = *fn i32, i32 -> ();
 type ZeroArgFn = *fn -> i32;
 
-fn add_three = first: i32, second: i32, third: i32 -> i32 {
+fn add_three first: i32, second: i32, third: i32 -> i32 = {
     first + second + third
 }
 
-fn println = msg: *str -> () {
+fn println msg: *str -> () = {
 
 }
 
-fn do_stuff = -> () {
+fn do_stuff -> () = {
 
 }
 
-fn get_stuff = -> i32 {
+fn get_stuff -> i32 = {
     42
 }
 
-fn main = -> i32 {
+fn main -> i32 = {
     function_call: arg1, arg2, arg3;
     named_args: arg1 = 1, arg2 = 2, arg3 = 3;
     object method_call: arg1, arg2;
@@ -75,7 +75,7 @@ fn main = -> i32 {
     }
 }
 
-fn plus = lhs: i32, rhs: i32 -> i32 {
+fn plus lhs: i32, rhs: i32 -> i32 = {
     lhs + rhs
 }
 
@@ -83,7 +83,7 @@ type Record = {
     ptr_field: *i32,
 }
 
-fn dangling_ptr = -> *mut Record {
+fn dangling_ptr -> *mut Record = {
     let some_record = Record: ptr_field = &42;
     let eq_record = Record: &42;
 
@@ -93,7 +93,7 @@ fn dangling_ptr = -> *mut Record {
     &mut some_record
 }
 
-fn inferred_args = left, right -> u32 {
+fn inferred_args left, right -> u32 = {
     left + right
 }
 
@@ -101,6 +101,6 @@ fn inferred_return = {
     1 + 2
 }
 
-fn inferred_everything = arg1, arg2 {
+fn inferred_everything arg1, arg2 = {
     arg1 - arg2
 }

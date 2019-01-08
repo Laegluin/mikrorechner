@@ -299,11 +299,10 @@ fn variant_def(tokens: &TokenStream<'_>) -> Result<VariantDef, Spanned<ParseErro
 fn fn_def(tokens: &TokenStream<'_>) -> Result<Item, Spanned<ParseError>> {
     token(tokens, Token::Keyword(Keyword::Fn), "fn")?;
     let name = ident(tokens)?;
-    token(tokens, Token::Equal, "=")?;
 
     let mut params = Vec::new();
 
-    while tokens.peek() != Some(Token::Arrow) && tokens.peek() != Some(Token::OpenBrace) {
+    while tokens.peek() != Some(Token::Arrow) && tokens.peek() != Some(Token::Equal) {
         let span_start = tokens.start_span();
         let param = param_def(tokens)?;
         let span = span_start.end();
@@ -322,7 +321,7 @@ fn fn_def(tokens: &TokenStream<'_>) -> Result<Item, Spanned<ParseError>> {
             tokens.next();
             Some(type_desc(tokens)?)
         }
-        Some(Token::OpenBrace) => None,
+        Some(Token::Equal) => None,
         Some(_) => {
             return Err(Spanned::new(
                 ParseError::unexpected_token().expected("->"),
@@ -337,6 +336,7 @@ fn fn_def(tokens: &TokenStream<'_>) -> Result<Item, Spanned<ParseError>> {
         }
     };
 
+    token(tokens, Token::Equal, "=")?;
     let body = block(tokens)?;
 
     Ok(Item::FnDef(FnDef {
