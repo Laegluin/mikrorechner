@@ -308,7 +308,7 @@ fn check_fn(
     type_env.unify(current_ty, ty).unwrap();
 
     // check the function body
-    check_expr(
+    let actual_ret_ty = check_expr(
         def.body.as_mut(),
         def.ret_ty,
         Mutability::Const,
@@ -317,6 +317,13 @@ fn check_fn(
         value_bindings,
     )?;
 
+    // make sure the return type and the type of the function body are compatible
+    type_env
+        .unify(def.ret_ty, actual_ret_ty)
+        .map_err(|err| Spanned::new(err, def.body.span))?;
+
+    type_bindings.exit_scope();
+    value_bindings.exit_scope();
     Ok(())
 }
 
@@ -492,13 +499,16 @@ fn check_expr(
 
             // there's no way to know the return type, so just use a variable
             let ret = type_env.insert(Type::Var);
-            let actual = type_env.insert(Type::Function(Function { params, ret }));
+            let fn_ty = type_env.insert(Type::Function(Function { params, ret }));
+            let actual = type_env.insert(Type::ConstPtr(fn_ty));
 
             // try to unify with the type of the binding
-            *ty = type_env
+            type_env
                 .unify(expected, actual)
                 .map_err(|err| Spanned::new(err, span))?;
 
+            // assign the return type as the type of a function call
+            *ty = ret;
             Ok(*ty)
         }
         Expr::Block(ref mut block, ref mut ty) => {
