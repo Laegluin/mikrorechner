@@ -512,6 +512,8 @@ fn check_expr(
             Ok(*ty)
         }
         Expr::Block(ref mut block, ref mut ty) => {
+            type_bindings.enter_scope();
+            value_bindings.enter_scope();
             let mut last_ty = None;
 
             for expr in &mut block.exprs {
@@ -524,6 +526,9 @@ fn check_expr(
                     value_bindings,
                 )?);
             }
+
+            type_bindings.exit_scope();
+            value_bindings.exit_scope();
 
             let is_last_ret_expr = match block.exprs.last() {
                 Some(Spanned {
