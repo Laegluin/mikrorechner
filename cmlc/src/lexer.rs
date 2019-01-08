@@ -62,8 +62,8 @@ impl StrStream<'_> {
         StrStream {
             input,
             next_char_idx: 0,
-            next_byte_idx: Index(0),
-            start_byte_idx: Index(0),
+            next_byte_idx: Index(1),
+            start_byte_idx: Index(1),
         }
     }
 
@@ -97,9 +97,9 @@ impl StrStream<'_> {
         next
     }
 
-    /// Sets the start of the span to the current char's position.
-    pub fn advance_start(&mut self) {
-        self.start_byte_idx = self.next_byte_idx - self.current_char_offset();
+    /// Sets the start of the span to the next char.
+    pub fn set_span_start(&mut self) {
+        self.start_byte_idx = self.next_byte_idx;
     }
 
     pub fn peek(&self) -> Option<char> {
@@ -107,22 +107,22 @@ impl StrStream<'_> {
     }
 
     /// Returns the span starting at the current span start and ending at the
-    /// next char's position (exclusive).
+    /// current char.
     ///
     /// Use `advance_start` to set the current span start.
     pub fn span(&self) -> Span {
         Span::new(self.start_byte_idx, self.next_byte_idx)
     }
 
-    /// Returns the span for the current char, or an empty span if there is not current char.
-    pub fn span_at_current(&self) -> Span {
+    /// Returns the span for the last char, or an empty span if there is no last char.
+    pub fn last_char_span(&self) -> Span {
         Span::new(
-            self.next_byte_idx - self.current_char_offset(),
+            self.next_byte_idx - self.last_char_offset(),
             self.next_byte_idx,
         )
     }
 
-    fn current_char_offset(&self) -> Offset {
+    fn last_char_offset(&self) -> Offset {
         if self.next_char_idx == 0 {
             return Offset(0);
         }
@@ -152,8 +152,13 @@ pub fn lex<'a>(stream: impl Into<StrStream<'a>>) -> Result<Vec<Spanned<Token>>, 
     let mut char_buf = String::new();
     let mut tokens = Vec::new();
 
-    while let Some(c) = stream.next() {
-        stream.advance_start();
+    loop {
+        stream.set_span_start();
+
+        let c = match stream.next() {
+            Some(c) => c,
+            None => return Ok(tokens),
+        };
 
         match c {
             c if c.is_whitespace() => (),
@@ -165,7 +170,7 @@ pub fn lex<'a>(stream: impl Into<StrStream<'a>>) -> Result<Vec<Spanned<Token>>, 
                         char_buf.push(maybe_char.ok_or_else(|| {
                             Spanned::new(
                                 LexError::MissingStringEndDelimiter,
-                                stream.span_at_current(),
+                                stream.last_char_span(),
                             )
                         })?);
                     } else {
@@ -177,7 +182,7 @@ pub fn lex<'a>(stream: impl Into<StrStream<'a>>) -> Result<Vec<Spanned<Token>>, 
                 if stream.next().is_none() {
                     return Err(Spanned::new(
                         LexError::MissingStringEndDelimiter,
-                        stream.span(),
+                        stream.last_char_span(),
                     ));
                 }
 
@@ -309,8 +314,6 @@ pub fn lex<'a>(stream: impl Into<StrStream<'a>>) -> Result<Vec<Spanned<Token>>, 
             _ => return Err(Spanned::new(LexError::UnknownToken, stream.span())),
         }
     }
-
-    Ok(tokens)
 }
 
 fn is_ident_char(c: char) -> bool {

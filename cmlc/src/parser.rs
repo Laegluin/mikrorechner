@@ -93,7 +93,7 @@ impl<'t> TokenStream<'t> {
 
     fn eof_span(&self) -> Span {
         if self.tokens.is_empty() {
-            Span::new(Index(0), Index(0))
+            Span::new(Index(1), Index(1))
         } else {
             let this_is_the_end = self.tokens[self.tokens.len() - 1].span.end();
             Span::new(this_is_the_end, this_is_the_end)
@@ -628,7 +628,7 @@ fn unary(
         || tokens.peek() == Some(Token::DoubleAmp)
     {
         let mut is_double_ref = false;
-        let mut inner_ref_start = Index(0);
+        let mut inner_ref_start = Index(1);
 
         let op = match tokens.next() {
             Some(Token::Bang) => UnOpKind::Not,
