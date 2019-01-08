@@ -54,6 +54,12 @@ pub enum Type {
     Variants(Variants),
 }
 
+impl Type {
+    pub fn unit() -> Type {
+        Type::Tuple(Vec::new())
+    }
+}
+
 #[derive(Debug)]
 pub struct Function {
     pub params: Vec<TypeRef>,
@@ -493,6 +499,42 @@ fn check_expr(
                 .unify(expected, actual)
                 .map_err(|err| Spanned::new(err, span))?;
 
+            Ok(*ty)
+        }
+        Expr::Block(ref mut block, ref mut ty) => {
+            let mut last_ty = None;
+
+            for expr in &mut block.exprs {
+                last_ty = Some(check_expr(
+                    expr.as_mut(),
+                    ret_ty,
+                    nested_mutability,
+                    type_env,
+                    type_bindings,
+                    value_bindings,
+                )?);
+            }
+
+            let is_last_ret_expr = match block.exprs.last() {
+                Some(Spanned {
+                    value: Expr::Ret(..),
+                    ..
+                }) => true,
+                _ => false,
+            };
+
+            // the type of a block that ends in a statement is unit, unless it's
+            // a ret expression, in which case the type of the expression is forwarded.
+            // that allows writing something like `ret 1;` which is then equivalent to
+            // `ret 1`.
+            // If the last expression is not a statement, the expression's type is the type of
+            // the block.
+            let block_ty = match last_ty {
+                Some(last_ty) if !block.is_last_expr_stmt || is_last_ret_expr => last_ty,
+                _ => type_env.insert(Type::unit()),
+            };
+
+            *ty = block_ty;
             Ok(*ty)
         }
         // TODO: mutability for member access
