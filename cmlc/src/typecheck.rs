@@ -20,6 +20,7 @@ pub enum TypeError {
     UnknownArgName(Ident),
     ArityMismatch(usize, usize),
     Mismatch(Type, Type),
+    NonLValueInAssignment,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -550,6 +551,51 @@ fn check_expr(
                 .collect::<Result<Vec<_>, _>>()?;
 
             *ty = type_env.insert(Type::Tuple(elem_tys));
+            Ok(*ty)
+        }
+        Expr::Assignment(ref mut assignment, ref mut ty) => {
+            // make sure target is an lvalue
+            match *assignment.target.value {
+                Expr::UnOp(
+                    UnOp {
+                        op: UnOpKind::Deref,
+                        ..
+                    },
+                    _,
+                )
+                | Expr::Var(..)
+                | Expr::MemberAccess(..) => (),
+                _ => {
+                    return Err(Spanned::new(
+                        TypeError::NonLValueInAssignment,
+                        assignment.target.span,
+                    ))
+                }
+            }
+
+            let target_ty = check_expr(
+                assignment.target.as_mut().map(Box::as_mut),
+                ret_ty,
+                nested_mutability,
+                type_env,
+                type_bindings,
+                value_bindings,
+            )?;
+
+            let value_ty = check_expr(
+                assignment.value.as_mut().map(Box::as_mut),
+                ret_ty,
+                nested_mutability,
+                type_env,
+                type_bindings,
+                value_bindings,
+            )?;
+
+            type_env
+                .unify(target_ty, value_ty)
+                .map_err(|err| Spanned::new(err, assignment.value.span))?;
+
+            *ty = type_env.insert(Type::unit());
             Ok(*ty)
         }
         Expr::AutoRef(ref mut expr, ref mut ty) => {
