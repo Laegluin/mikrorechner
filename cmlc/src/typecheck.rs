@@ -574,7 +574,7 @@ fn check_expr(
             let target_ty = check_expr(
                 assignment.target.as_mut().map(Box::as_mut),
                 ret_ty,
-                Mutability::Const,
+                Mutability::Assignment,
                 type_env,
                 type_bindings,
                 value_bindings,
