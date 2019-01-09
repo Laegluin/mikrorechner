@@ -511,6 +511,24 @@ fn check_expr(
             *ty = ret;
             Ok(*ty)
         }
+        Expr::Ret(ref mut expr, ref mut ty) => {
+            let expr_ty = check_expr(
+                expr.as_mut().map(Box::as_mut),
+                ret_ty,
+                nested_mutability,
+                type_env,
+                type_bindings,
+                value_bindings,
+            )?;
+
+            // make sure the expression's type unifies with the actual return type
+            type_env
+                .unify(ret_ty, expr_ty)
+                .map_err(|err| Spanned::new(err, expr.span))?;
+
+            *ty = type_env.insert(Type::Never);
+            Ok(*ty)
+        }
         Expr::Block(ref mut block, ref mut ty) => {
             type_bindings.enter_scope();
             value_bindings.enter_scope();
