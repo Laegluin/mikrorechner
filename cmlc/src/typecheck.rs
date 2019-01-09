@@ -150,10 +150,6 @@ impl Binding {
             param_names: Some(param_names),
         }
     }
-
-    fn ty(&self) -> TypeRef {
-        self.ty
-    }
 }
 
 pub fn typecheck(mut ast: Ast) -> Result<Ast, Spanned<TypeError>> {
@@ -596,6 +592,41 @@ fn check_expr(
             *ty = type_env.insert(Type::unit());
             Ok(*ty)
         }
+        Expr::LetBinding(
+            LetBinding {
+                ref pattern,
+                ref ty_hint,
+                ref mut expr,
+            },
+            ref mut ty,
+        ) => {
+            let expr_ty = check_expr(
+                expr.as_mut().map(Box::as_mut),
+                ret_ty,
+                Mutability::Assignment,
+                type_env,
+                type_bindings,
+                value_bindings,
+            )?;
+
+            // make sure the type and and the expr's type are compatible
+            if let Some(ref ty_hint) = ty_hint {
+                let hinted_ty = type_from_desc(ty_hint.as_ref(), false, type_env, type_bindings)?;
+
+                type_env
+                    .unify(hinted_ty, expr_ty)
+                    .map_err(|err| Spanned::new(err, expr.span))?;
+            }
+
+            // make sure the type is compatible with what can be inferred from the pattern
+            let inferred_ty = bind_pattern(&pattern.value, type_env, value_bindings)?;
+            type_env
+                .unify(inferred_ty, expr_ty)
+                .map_err(|err| Spanned::new(err, expr.span))?;
+
+            *ty = type_env.insert(Type::unit());
+            Ok(*ty)
+        }
         Expr::AutoRef(ref mut expr, ref mut ty) => {
             // not implemented at the moment, just forward the inner expression
             *ty = check_expr(
@@ -791,6 +822,37 @@ fn align_args(
     // swap aligned args in
     mem::replace(&mut call.args, aligned);
     Ok(())
+}
+
+fn bind_pattern(
+    pattern: &Pattern,
+    type_env: &mut TypeEnv,
+    value_bindings: &mut ScopeMap<Ident, Binding>,
+) -> Result<TypeRef, Spanned<TypeError>> {
+    let inferred_ty = match *pattern {
+        Pattern::Discard => type_env.insert(Type::Var),
+        Pattern::Binding(ref ident) => {
+            let ty = type_env.insert(Type::Var);
+            value_bindings.insert(ident.value.clone(), Binding::new(ty));
+            ty
+        }
+        Pattern::MutBinding(ref ident) => {
+            let ty = type_env.insert(Type::Var);
+            value_bindings.insert(ident.value.clone(), Binding::new_mut(ty));
+            ty
+        }
+        Pattern::Tuple(ref patterns) => {
+            let pattern_tys = patterns
+                .value
+                .iter()
+                .map(|pattern| bind_pattern(pattern, type_env, value_bindings))
+                .collect::<Result<Vec<_>, _>>()?;
+
+            type_env.insert(Type::Tuple(pattern_tys))
+        }
+    };
+
+    Ok(inferred_ty)
 }
 
 fn bind_record_def(
