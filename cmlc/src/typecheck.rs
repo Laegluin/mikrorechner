@@ -344,9 +344,6 @@ fn check_expr(
     type_bindings: &mut ScopeMap<Ident, TypeRef>,
     value_bindings: &mut ScopeMap<Ident, Binding>,
 ) -> Result<TypeRef, Spanned<TypeError>> {
-    // almost no expression requires a mut context for its nested expression;
-    // the exceptions have to set this accordingly
-    let mut nested_mutability = Mutability::Const;
     let Spanned { value: expr, span } = expr;
 
     match *expr {
@@ -383,18 +380,19 @@ fn check_expr(
             ref mut ty,
         ) => {
             let operand = operand.as_mut().map(Box::as_mut);
+            let mut new_mutability = Mutability::Const;
 
             let expected = match op {
                 UnOpKind::Not => type_env.insert(Type::Bool),
                 UnOpKind::Negate => type_env.insert(Type::I32),
                 UnOpKind::AddrOf => type_env.insert(Type::Var),
                 UnOpKind::AddrOfMut => {
-                    nested_mutability = Mutability::AddrOfMut;
+                    new_mutability = Mutability::AddrOfMut;
                     type_env.insert(Type::Var)
                 }
                 UnOpKind::Deref => {
                     if mutability != Mutability::Const {
-                        nested_mutability = Mutability::DerefMut;
+                        new_mutability = Mutability::DerefMut;
                     }
 
                     let pointee_ty = type_env.insert(Type::Var);
@@ -405,7 +403,7 @@ fn check_expr(
             let actual = check_expr(
                 operand,
                 ret_ty,
-                nested_mutability,
+                new_mutability,
                 type_env,
                 type_bindings,
                 value_bindings,
@@ -446,7 +444,7 @@ fn check_expr(
             let lhs_actual = check_expr(
                 lhs,
                 ret_ty,
-                nested_mutability,
+                Mutability::Const,
                 type_env,
                 type_bindings,
                 value_bindings,
@@ -455,7 +453,7 @@ fn check_expr(
             let rhs_actual = check_expr(
                 rhs,
                 ret_ty,
-                nested_mutability,
+                Mutability::Const,
                 type_env,
                 type_bindings,
                 value_bindings,
@@ -489,7 +487,7 @@ fn check_expr(
                 let arg_ty = check_expr(
                     arg_expr.as_mut(),
                     ret_ty,
-                    nested_mutability,
+                    Mutability::Const,
                     type_env,
                     type_bindings,
                     value_bindings,
@@ -520,7 +518,7 @@ fn check_expr(
                 let ty = check_expr(
                     elem.as_mut(),
                     ret_ty,
-                    nested_mutability,
+                    Mutability::Const,
                     type_env,
                     type_bindings,
                     value_bindings,
@@ -542,7 +540,7 @@ fn check_expr(
                     check_expr(
                         elem.as_mut(),
                         ret_ty,
-                        nested_mutability,
+                        Mutability::Const,
                         type_env,
                         type_bindings,
                         value_bindings,
@@ -576,7 +574,7 @@ fn check_expr(
             let target_ty = check_expr(
                 assignment.target.as_mut().map(Box::as_mut),
                 ret_ty,
-                nested_mutability,
+                Mutability::Const,
                 type_env,
                 type_bindings,
                 value_bindings,
@@ -585,7 +583,7 @@ fn check_expr(
             let value_ty = check_expr(
                 assignment.value.as_mut().map(Box::as_mut),
                 ret_ty,
-                nested_mutability,
+                Mutability::Const,
                 type_env,
                 type_bindings,
                 value_bindings,
@@ -603,7 +601,7 @@ fn check_expr(
             *ty = check_expr(
                 Spanned::new(expr, span),
                 ret_ty,
-                nested_mutability,
+                Mutability::Const,
                 type_env,
                 type_bindings,
                 value_bindings,
@@ -615,7 +613,7 @@ fn check_expr(
             let expr_ty = check_expr(
                 expr.as_mut().map(Box::as_mut),
                 ret_ty,
-                nested_mutability,
+                Mutability::Const,
                 type_env,
                 type_bindings,
                 value_bindings,
@@ -633,7 +631,7 @@ fn check_expr(
             let cond_ty = check_expr(
                 if_expr.cond.as_mut().map(Box::as_mut),
                 ret_ty,
-                nested_mutability,
+                Mutability::Const,
                 type_env,
                 type_bindings,
                 value_bindings,
@@ -648,7 +646,7 @@ fn check_expr(
             let then_ty = check_expr(
                 if_expr.then_block.as_mut().map(Box::as_mut),
                 ret_ty,
-                nested_mutability,
+                Mutability::Const,
                 type_env,
                 type_bindings,
                 value_bindings,
@@ -658,7 +656,7 @@ fn check_expr(
                 let else_ty = check_expr(
                     else_block.as_mut().map(Box::as_mut),
                     ret_ty,
-                    nested_mutability,
+                    Mutability::Const,
                     type_env,
                     type_bindings,
                     value_bindings,
@@ -687,7 +685,7 @@ fn check_expr(
                 last_ty = Some(check_expr(
                     expr.as_mut(),
                     ret_ty,
-                    nested_mutability,
+                    Mutability::Const,
                     type_env,
                     type_bindings,
                     value_bindings,
