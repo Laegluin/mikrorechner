@@ -511,6 +511,19 @@ fn check_expr(
             *ty = ret;
             Ok(*ty)
         }
+        Expr::AutoRef(ref mut expr, ref mut ty) => {
+            // not implemented at the moment, just forward the inner expression
+            *ty = check_expr(
+                Spanned::new(expr, span),
+                ret_ty,
+                nested_mutability,
+                type_env,
+                type_bindings,
+                value_bindings,
+            )?;
+
+            Ok(*ty)
+        }
         Expr::Ret(ref mut expr, ref mut ty) => {
             let expr_ty = check_expr(
                 expr.as_mut().map(Box::as_mut),
@@ -527,6 +540,55 @@ fn check_expr(
                 .map_err(|err| Spanned::new(err, expr.span))?;
 
             *ty = type_env.insert(Type::Never);
+            Ok(*ty)
+        }
+        Expr::IfExpr(ref mut if_expr, ref mut ty) => {
+            let cond_ty = check_expr(
+                if_expr.cond.as_mut().map(Box::as_mut),
+                ret_ty,
+                nested_mutability,
+                type_env,
+                type_bindings,
+                value_bindings,
+            )?;
+
+            // the condition must be a bool
+            let bool_ty = type_env.insert(Type::Bool);
+            type_env
+                .unify(bool_ty, cond_ty)
+                .map_err(|err| Spanned::new(err, if_expr.cond.span))?;
+
+            let then_ty = check_expr(
+                if_expr.then_block.as_mut().map(Box::as_mut),
+                ret_ty,
+                nested_mutability,
+                type_env,
+                type_bindings,
+                value_bindings,
+            )?;
+
+            if let Some(ref mut else_block) = if_expr.else_block {
+                let else_ty = check_expr(
+                    else_block.as_mut().map(Box::as_mut),
+                    ret_ty,
+                    nested_mutability,
+                    type_env,
+                    type_bindings,
+                    value_bindings,
+                )?;
+
+                type_env
+                    .unify(then_ty, else_ty)
+                    .map_err(|err| Spanned::new(err, else_block.span))?;
+            }
+
+            // use the blocks expression only both then and else exist
+            *ty = if if_expr.else_block.is_some() {
+                then_ty
+            } else {
+                type_env.insert(Type::unit())
+            };
+
             Ok(*ty)
         }
         Expr::Block(ref mut block, ref mut ty) => {
