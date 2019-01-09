@@ -38,6 +38,8 @@ pub enum Type {
     Var,
     /// An unspecified integer type. All instances of this type will be removed during typechecking.
     Int,
+    /// A record with zero or more fields. All instances of this type will be removed during typechecking.
+    RecordFields(Vec<Field>),
     Never,
     Bool,
     I32,
@@ -324,12 +326,13 @@ fn check_fn(
     Ok(())
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Mutability {
     Const,
     Assignment,
     AddrOfMut,
     DerefMut,
+    FieldAccess(Box<Mutability>),
 }
 
 fn check_expr(
@@ -504,6 +507,45 @@ fn check_expr(
 
             // assign the return type as the type of a function call
             *ty = ret;
+            Ok(*ty)
+        }
+        Expr::MemberAccess(
+            MemberAccess {
+                ref mut value,
+                ref member,
+            },
+            ref mut ty,
+        ) => {
+            // propagate required mutability for a field, since the record holding
+            // it must also be mutable
+            let new_mutability = if mutability == Mutability::Const {
+                Mutability::Const
+            } else {
+                Mutability::FieldAccess(Box::new(mutability))
+            };
+
+            let field_ty = type_env.insert(Type::Var);
+            let expected_record = type_env.insert(Type::RecordFields(vec![Field {
+                name: member.value.clone(),
+                ty: field_ty,
+            }]));
+
+            let actual_ty = check_expr(
+                value.as_mut().map(Box::as_mut),
+                ret_ty,
+                new_mutability,
+                type_env,
+                type_bindings,
+                value_bindings,
+            )?;
+
+            // unify the expected record with the actual type of value
+            // this also constraints our field type if possible
+            type_env
+                .unify(expected_record, actual_ty)
+                .map_err(|err| Spanned::new(err, value.span))?;
+
+            *ty = field_ty;
             Ok(*ty)
         }
         Expr::ArrayCons(ref mut cons, ref mut ty) => {
@@ -748,8 +790,6 @@ fn check_expr(
             *ty = block_ty;
             Ok(*ty)
         }
-        // TODO: mutability for member access
-        _ => unimplemented!(),
     }
 }
 

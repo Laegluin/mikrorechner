@@ -108,6 +108,7 @@ impl TypeEnv {
     }
 
     fn merge(&mut self, expected: Type, actual: Type) -> Result<Type, TypeError> {
+        // TODO: RecordFields unification
         match (expected, actual) {
             // always choose the other one, it can never be less specific
             (Type::Var, other) | (other, Type::Var) => Ok(other),
