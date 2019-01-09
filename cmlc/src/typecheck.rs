@@ -511,6 +511,47 @@ fn check_expr(
             *ty = ret;
             Ok(*ty)
         }
+        Expr::ArrayCons(ref mut cons, ref mut ty) => {
+            let elem_ty = type_env.insert(Type::Var);
+
+            // unify all element types with each other
+            for elem in &mut cons.elems {
+                let ty = check_expr(
+                    elem.as_mut(),
+                    ret_ty,
+                    nested_mutability,
+                    type_env,
+                    type_bindings,
+                    value_bindings,
+                )?;
+
+                type_env
+                    .unify(elem_ty, ty)
+                    .map_err(|err| Spanned::new(err, elem.span))?;
+            }
+
+            *ty = type_env.insert(Type::Array(elem_ty, cons.elems.len() as u32));
+            Ok(*ty)
+        }
+        Expr::TupleCons(ref mut cons, ref mut ty) => {
+            let elem_tys = cons
+                .elems
+                .iter_mut()
+                .map(|elem| {
+                    check_expr(
+                        elem.as_mut(),
+                        ret_ty,
+                        nested_mutability,
+                        type_env,
+                        type_bindings,
+                        value_bindings,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+
+            *ty = type_env.insert(Type::Tuple(elem_tys));
+            Ok(*ty)
+        }
         Expr::AutoRef(ref mut expr, ref mut ty) => {
             // not implemented at the moment, just forward the inner expression
             *ty = check_expr(
