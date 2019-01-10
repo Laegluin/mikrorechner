@@ -50,14 +50,10 @@ fn run() -> Result<bool, io::Error> {
 
 fn compile(file_map: &FileMap) -> Result<(), Spanned<Error>> {
     let tokens = lexer::lex(file_map.src()).map_err(|spanned| spanned.map(Error::Lex))?;
-    println!("=> tokens:");
-    println!("{:#?}", tokens);
-
     let ast = parser::parse(&tokens).map_err(|spanned| spanned.map(Error::Parse))?;
-    println!("=> ast:");
-    println!("{:#?}", ast);
-
     let typed_ast = typecheck::typecheck(ast).map_err(|spanned| spanned.map(Error::Type))?;
+    println!("=> ast:");
+    println!("{:#?}", typed_ast);
 
     Ok(())
 }
