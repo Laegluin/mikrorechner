@@ -1150,3 +1150,17 @@ fn bind_primitives(type_env: &mut TypeEnv, type_bindings: &mut ScopeMap<Ident, T
     type_bindings.insert(Ident::new("u32"), type_env.insert(Type::U32));
     type_bindings.insert(Ident::new("str"), type_env.insert(Type::Str));
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::lexer;
+    use crate::parser;
+
+    #[test]
+    fn check_syntax_example() {
+        let tokens = lexer::lex(include_str!("../tests/syntax.cml")).unwrap();
+        let ast = parser::parse(&tokens).unwrap();
+        typecheck(ast).unwrap();
+    }
+}
