@@ -1,7 +1,14 @@
 use crate::span::Spanned;
-use crate::typecheck::{unify::TypeEnv, TypeRef};
+use crate::typecheck::{unify::TypeEnv, Type, TypeRef};
+use fnv::FnvHashMap;
 use std::fmt::{self, Display};
 use std::rc::Rc;
+
+#[derive(Debug)]
+pub struct TypedAst {
+    pub items: Vec<Spanned<Item>>,
+    pub types: FnvHashMap<TypeRef, Type>,
+}
 
 #[derive(Debug)]
 pub struct Ast {

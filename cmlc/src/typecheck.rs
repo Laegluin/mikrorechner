@@ -1,3 +1,4 @@
+pub mod lint;
 pub mod scope_map;
 pub mod unify;
 
@@ -22,9 +23,10 @@ pub enum TypeError {
     ArityMismatch(usize, usize),
     Mismatch(Type, Type),
     NonLValueInAssignment,
+    CannotInfer,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct TypeRef(usize);
 
 impl TypeRef {
@@ -33,14 +35,12 @@ impl TypeRef {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Type {
     /// A free type variable. All instances of this type will be removed during typechecking.
     Var,
     /// An unspecified integer type. All instances of this type will be removed during typechecking.
     Int,
-    /// A record with zero or more fields. All instances of this type will be removed during typechecking.
-    RecordFields(Vec<Field>),
     Never,
     Bool,
     I32,
@@ -54,6 +54,8 @@ pub enum Type {
     Array(TypeRef, u32),
     Tuple(Vec<TypeRef>),
     Function(Function),
+    /// A record with zero or more fields. All instances of this type will be removed during typechecking.
+    RecordFields(Vec<Field>),
     Record(Record),
     Variants(Variants),
 }
@@ -64,13 +66,13 @@ impl Type {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Function {
     pub params: Vec<TypeRef>,
     pub ret: TypeRef,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Record {
     pub id: TypeId,
     pub fields: Vec<Field>,
@@ -82,13 +84,13 @@ impl PartialEq for Record {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Field {
     pub name: Ident,
     pub ty: TypeRef,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Variants {
     pub id: TypeId,
     pub variants: Vec<Variant>,
@@ -100,13 +102,13 @@ impl PartialEq for Variants {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Variant {
     pub name: Ident,
     pub params: Vec<TypeRef>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct TypeId(usize);
 
 impl TypeId {
@@ -155,7 +157,7 @@ impl Binding {
     }
 }
 
-pub fn typecheck(mut ast: Ast) -> Result<Ast, Spanned<TypeError>> {
+pub fn typecheck(mut ast: Ast) -> Result<TypedAst, Spanned<TypeError>> {
     let mut type_bindings = ScopeMap::new();
     bind_primitives(&mut ast.type_env, &mut type_bindings);
     let mut value_bindings = ScopeMap::new();
@@ -167,8 +169,7 @@ pub fn typecheck(mut ast: Ast) -> Result<Ast, Spanned<TypeError>> {
         &mut value_bindings,
     )?;
 
-    // TODO: verify generated types
-    Ok(ast)
+    lint::verify_types(ast)
 }
 
 fn check_items(

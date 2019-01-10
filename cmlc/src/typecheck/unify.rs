@@ -42,7 +42,21 @@ impl TypeEnv {
         self.insert(Type::Var)
     }
 
-    fn find(&mut self, node: usize) -> (usize, &mut Root) {
+    pub fn find_type(&self, ty: TypeRef) -> (TypeRef, &Type) {
+        let (node, root) = self.find(ty.0);
+        (TypeRef(node), &root.var)
+    }
+
+    fn find(&self, node: usize) -> (usize, &Root) {
+        assert!(node != TypeRef::invalid().0);
+
+        match self.nodes[node] {
+            Node::Next(next_node) => self.find(next_node),
+            Node::Root(ref root) => (node, root),
+        }
+    }
+
+    fn find_mut(&mut self, node: usize) -> (usize, &mut Root) {
         assert!(node != TypeRef::invalid().0);
 
         let start_node = node;
@@ -71,11 +85,11 @@ impl TypeEnv {
     }
 
     pub fn unify(&mut self, expected: TypeRef, actual: TypeRef) -> Result<TypeRef, TypeError> {
-        let (expected_idx, expected_root) = self.find(expected.0);
+        let (expected_idx, expected_root) = self.find_mut(expected.0);
         let expected_rank = expected_root.rank;
         let expected_var = mem::replace(&mut expected_root.var, Type::Var);
 
-        let (actual_idx, actual_root) = self.find(actual.0);
+        let (actual_idx, actual_root) = self.find_mut(actual.0);
         let actual_rank = actual_root.rank;
         let actual_var = mem::replace(&mut actual_root.var, Type::Var);
 
@@ -119,68 +133,6 @@ impl TypeEnv {
             | (Type::Int, int @ Type::I32)
             | (int @ Type::U32, Type::Int)
             | (int @ Type::I32, Type::Int) => Ok(int),
-            (Type::RecordFields(expected_fields), Type::RecordFields(mut actual_fields)) => {
-                let mut unified_fields = Vec::new();
-
-                // go over all expected fields, if they are also in the actual fields, unify their
-                // types, otherwise just add them
-                for expected_field in expected_fields {
-                    let field_match = support::find_remove(&mut actual_fields, |field| {
-                        expected_field.name == field.name
-                    });
-
-                    match field_match {
-                        Some(actual_field) => {
-                            unified_fields.push(Field {
-                                name: expected_field.name,
-                                ty: self.unify(expected_field.ty, actual_field.ty)?,
-                            });
-                        }
-                        None => {
-                            unified_fields.push(expected_field);
-                        }
-                    }
-                }
-
-                // if there are remaining fields in actual, just add them since the do not
-                // intersect with expected
-                for actual_field in actual_fields {
-                    unified_fields.push(actual_field);
-                }
-
-                Ok(Type::RecordFields(unified_fields))
-            }
-            (Type::Record(record), Type::RecordFields(mut fields))
-            | (Type::RecordFields(mut fields), Type::Record(record)) => {
-                let mut unified_fields = Vec::new();
-
-                // unify types if two fields overlap
-                for record_field in record.fields {
-                    let field_match =
-                        support::find_remove(&mut fields, |field| record_field.name == field.name);
-
-                    match field_match {
-                        Some(field) => {
-                            unified_fields.push(Field {
-                                name: record_field.name,
-                                ty: self.unify(record_field.ty, field.ty)?,
-                            });
-                        }
-                        None => {
-                            unified_fields.push(record_field);
-                        }
-                    }
-                }
-
-                if let Some(field) = fields.pop() {
-                    return Err(TypeError::UnknownFieldName(field.name));
-                }
-
-                Ok(Type::Record(Record {
-                    id: record.id,
-                    fields: unified_fields,
-                }))
-            }
             // all non-generic types can always be merged as themselves
             (eq @ Type::Int, Type::Int)
             | (eq @ Type::Bool, Type::Bool)
@@ -260,6 +212,68 @@ impl TypeEnv {
                 let ret = self.unify(expected_fn.ret, actual_fn.ret)?;
 
                 Ok(Type::Function(Function { params, ret }))
+            }
+            (Type::RecordFields(expected_fields), Type::RecordFields(mut actual_fields)) => {
+                let mut unified_fields = Vec::new();
+
+                // go over all expected fields, if they are also in the actual fields, unify their
+                // types, otherwise just add them
+                for expected_field in expected_fields {
+                    let field_match = support::find_remove(&mut actual_fields, |field| {
+                        expected_field.name == field.name
+                    });
+
+                    match field_match {
+                        Some(actual_field) => {
+                            unified_fields.push(Field {
+                                name: expected_field.name,
+                                ty: self.unify(expected_field.ty, actual_field.ty)?,
+                            });
+                        }
+                        None => {
+                            unified_fields.push(expected_field);
+                        }
+                    }
+                }
+
+                // if there are remaining fields in actual, just add them since the do not
+                // intersect with expected
+                for actual_field in actual_fields {
+                    unified_fields.push(actual_field);
+                }
+
+                Ok(Type::RecordFields(unified_fields))
+            }
+            (Type::Record(record), Type::RecordFields(mut fields))
+            | (Type::RecordFields(mut fields), Type::Record(record)) => {
+                let mut unified_fields = Vec::new();
+
+                // unify types if two fields overlap
+                for record_field in record.fields {
+                    let field_match =
+                        support::find_remove(&mut fields, |field| record_field.name == field.name);
+
+                    match field_match {
+                        Some(field) => {
+                            unified_fields.push(Field {
+                                name: record_field.name,
+                                ty: self.unify(record_field.ty, field.ty)?,
+                            });
+                        }
+                        None => {
+                            unified_fields.push(record_field);
+                        }
+                    }
+                }
+
+                if let Some(field) = fields.pop() {
+                    return Err(TypeError::UnknownFieldName(field.name));
+                }
+
+                Ok(Type::Record(Record {
+                    id: record.id,
+                    fields: unified_fields,
+                }))
             }
             // nominal types are always fully known, so they can be compared directly
             (Type::Record(expected_record), Type::Record(actual_record)) => {

@@ -1,0 +1,174 @@
+use crate::ast::*;
+use crate::span::{Span, Spanned};
+use crate::typecheck::unify::TypeEnv;
+use crate::typecheck::{Type, TypeError, TypeRef};
+use fnv::FnvHashMap;
+
+pub fn verify_types(mut ast: Ast) -> Result<TypedAst, Spanned<TypeError>> {
+    let mut types = FnvHashMap::default();
+
+    for item in &mut ast.items {
+        let Spanned { value: item, .. } = item;
+
+        match *item {
+            Item::FnDef(FnDef {
+                ref mut params,
+                ref mut ret_ty,
+                ref mut body,
+                ..
+            }) => {
+                for Spanned { value: param, span } in params {
+                    canonicalize_type_ref(&mut param.ty, &mut ast.type_env, &mut types, *span)?;
+                }
+
+                canonicalize_type_ref(ret_ty, &mut ast.type_env, &mut types, body.span)?;
+                verify_expr(body.as_mut(), &mut ast.type_env, &mut types)?;
+            }
+            _ => (),
+        }
+    }
+
+    Ok(TypedAst {
+        items: ast.items,
+        types,
+    })
+}
+
+fn verify_expr(
+    expr: Spanned<&mut Expr>,
+    type_env: &TypeEnv,
+    types: &mut FnvHashMap<TypeRef, Type>,
+) -> Result<(), Spanned<TypeError>> {
+    let Spanned { value: expr, span } = expr;
+
+    match *expr {
+        Expr::Lit(_, ref mut ty) | Expr::Var(_, ref mut ty) => {
+            canonicalize_type_ref(ty, type_env, types, span)?;
+        }
+        Expr::UnOp(
+            UnOp {
+                ref mut operand, ..
+            },
+            ref mut ty,
+        ) => {
+            verify_expr(operand.as_mut().map(Box::as_mut), type_env, types)?;
+            canonicalize_type_ref(ty, type_env, types, span)?;
+        }
+        Expr::BinOp(
+            BinOp {
+                ref mut lhs,
+                ref mut rhs,
+                ..
+            },
+            ref mut ty,
+        ) => {
+            verify_expr(lhs.as_mut().map(Box::as_mut), type_env, types)?;
+            verify_expr(rhs.as_mut().map(Box::as_mut), type_env, types)?;
+            canonicalize_type_ref(ty, type_env, types, span)?;
+        }
+        Expr::FnCall(FnCall { ref mut args, .. }, ref mut ty) => {
+            for arg in args {
+                verify_expr(arg.value.value.as_mut(), type_env, types)?;
+            }
+
+            canonicalize_type_ref(ty, type_env, types, span)?;
+        }
+        Expr::MemberAccess(MemberAccess { ref mut value, .. }, ref mut ty) => {
+            verify_expr(value.as_mut().map(Box::as_mut), type_env, types)?;
+            canonicalize_type_ref(ty, type_env, types, span)?;
+        }
+        Expr::ArrayCons(ArrayCons { ref mut elems }, ref mut ty) => {
+            for elem in elems {
+                verify_expr(elem.as_mut(), type_env, types)?;
+            }
+
+            canonicalize_type_ref(ty, type_env, types, span)?;
+        }
+        Expr::TupleCons(TupleCons { ref mut elems }, ref mut ty) => {
+            for elem in elems {
+                verify_expr(elem.as_mut(), type_env, types)?;
+            }
+
+            canonicalize_type_ref(ty, type_env, types, span)?;
+        }
+        Expr::Assignment(
+            Assignment {
+                ref mut target,
+                ref mut value,
+            },
+            ref mut ty,
+        ) => {
+            verify_expr(target.as_mut().map(Box::as_mut), type_env, types)?;
+            verify_expr(value.as_mut().map(Box::as_mut), type_env, types)?;
+            canonicalize_type_ref(ty, type_env, types, span)?;
+        }
+        Expr::LetBinding(LetBinding { ref mut expr, .. }, ref mut ty) => {
+            verify_expr(expr.as_mut().map(Box::as_mut), type_env, types)?;
+            canonicalize_type_ref(ty, type_env, types, span)?;
+        }
+        Expr::AutoRef(ref mut expr, ref mut ty) => {
+            verify_expr(Spanned::new(expr.as_mut(), span), type_env, types)?;
+            canonicalize_type_ref(ty, type_env, types, span)?;
+        }
+        Expr::Ret(ref mut expr, ref mut ty) => {
+            verify_expr(expr.as_mut().map(Box::as_mut), type_env, types)?;
+            canonicalize_type_ref(ty, type_env, types, span)?;
+        }
+        Expr::IfExpr(
+            IfExpr {
+                ref mut cond,
+                ref mut then_block,
+                ref mut else_block,
+            },
+            ref mut ty,
+        ) => {
+            verify_expr(cond.as_mut().map(Box::as_mut), type_env, types)?;
+            verify_expr(then_block.as_mut().map(Box::as_mut), type_env, types)?;
+
+            if let Some(else_block) = else_block {
+                verify_expr(else_block.as_mut().map(Box::as_mut), type_env, types)?;
+            }
+
+            canonicalize_type_ref(ty, type_env, types, span)?;
+        }
+        Expr::Block(Block { ref mut exprs, .. }, ref mut ty) => {
+            for expr in exprs {
+                verify_expr(expr.as_mut(), type_env, types)?;
+            }
+
+            canonicalize_type_ref(ty, type_env, types, span)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn canonicalize_type_ref(
+    ty_ref: &mut TypeRef,
+    type_env: &TypeEnv,
+    types: &mut FnvHashMap<TypeRef, Type>,
+    span: Span,
+) -> Result<(), Spanned<TypeError>> {
+    let (canonical_ref, ty) = type_env.find_type(*ty_ref);
+
+    match *ty {
+        Type::Var | Type::RecordFields(_) | Type::Ptr(_) => {
+            // TODO: add type desc the error
+            Err(Spanned::new(TypeError::CannotInfer, span))
+        }
+        _ => {
+            types.entry(canonical_ref).or_insert_with(|| {
+                // if the int type does not matter, default to i32
+                if let Type::Int = ty {
+                    Type::I32
+                } else {
+                    ty.clone()
+                }
+            });
+
+            // change ref to canonical ref
+            *ty_ref = canonical_ref;
+            Ok(())
+        }
+    }
+}
