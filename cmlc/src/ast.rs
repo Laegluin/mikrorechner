@@ -349,3 +349,9 @@ impl Display for Ident {
         write!(f, "{}", self.0)
     }
 }
+
+impl PartialEq<&str> for Ident {
+    fn eq(&self, rhs: &&str) -> bool {
+        &*self.0 == *rhs
+    }
+}

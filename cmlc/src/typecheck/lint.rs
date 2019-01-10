@@ -4,6 +4,8 @@ use crate::typecheck::unify::TypeEnv;
 use crate::typecheck::{Type, TypeError, TypeRef};
 use fnv::FnvHashMap;
 
+const ENTRY_POINT: &str = "main";
+
 pub fn verify_types(mut ast: Ast) -> Result<TypedAst, Spanned<TypeError>> {
     let mut types = FnvHashMap::default();
 
@@ -15,8 +17,13 @@ pub fn verify_types(mut ast: Ast) -> Result<TypedAst, Spanned<TypeError>> {
                 ref mut params,
                 ref mut ret_ty,
                 ref mut body,
+                ref name,
                 ..
             }) => {
+                if name.value == ENTRY_POINT {
+                    verify_entry_point(params, *ret_ty, &ast.type_env, name.span)?;
+                }
+
                 for Spanned { value: param, span } in params {
                     canonicalize_type_ref(&mut param.ty, &mut ast.type_env, &mut types, *span)?;
                 }
@@ -141,6 +148,24 @@ fn verify_expr(
     }
 
     Ok(())
+}
+
+fn verify_entry_point(
+    params: &[Spanned<ParamDef>],
+    ret_ty: TypeRef,
+    type_env: &TypeEnv,
+    span: Span,
+) -> Result<(), Spanned<TypeError>> {
+    let ret_ty = type_env.find_type(ret_ty).1;
+
+    if !params.is_empty() || !ret_ty.is_unit() {
+        Err(Spanned::new(
+            TypeError::EntryPointTypeMismatch(ret_ty.clone()),
+            span,
+        ))
+    } else {
+        Ok(())
+    }
 }
 
 fn canonicalize_type_ref(

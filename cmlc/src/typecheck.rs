@@ -24,6 +24,7 @@ pub enum TypeError {
     Mismatch(Type, Type),
     NonLValueInAssignment,
     CannotInfer,
+    EntryPointTypeMismatch(Type),
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -63,6 +64,13 @@ pub enum Type {
 impl Type {
     pub fn unit() -> Type {
         Type::Tuple(Vec::new())
+    }
+
+    pub fn is_unit(&self) -> bool {
+        match *self {
+            Type::Tuple(ref elems) if elems.is_empty() => true,
+            _ => false,
+        }
     }
 }
 
