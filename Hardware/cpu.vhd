@@ -14,7 +14,8 @@ entity cpu is
 
 port
 (
-    clk, sclk, reset          : in    std_logic
+    clk, sclk, reset          : in    std_logic;
+    dec_enable, pc_enable	: in std_logic
 --    pc_out, alu_result  : out   unsigned(bit_Width-1 downto 0)
 );
 
@@ -26,12 +27,14 @@ architecture behavior of cpu is
     -- Namen von Blockdiagramm (+ Phase falls mehrfach auftretend)
     -- instruction-fetch-phase
     signal instruction  : unsigned(bit_Width-1 downto 0);
-    signal PC_value     : unsigned(bit_Width-1 downto 0); 
+    signal PC_value_pc  : unsigned(bit_Width-1 downto 0); 
+	signal PC_value_mem	: unsigned(bit_Width-1 downto 0);
+	signal PC_value_de	: unsigned(bit_Width-1 downto 0);
     signal if_PC_enable : std_logic;
     signal if_PC_write_enable : std_logic;
     signal jump_to      : unsigned(bit_Width-1 downto 0);
     signal im_reset     : std_logic;
-    signal if_pc : unsigned(bit_Width-1 downto 0);
+    --signal if_pc : unsigned(bit_Width-1 downto 0);
 
     -- instruction-decode-phase
     signal de_enable        : std_logic;
@@ -95,6 +98,8 @@ architecture behavior of cpu is
         
     begin
 
+	if_PC_enable <= pc_enable;
+	de_enable <= dec_enable;
     --port map: PORT IN ENTITY => SIGNAL IN CPU
 
     pc : entity work.pc
@@ -105,15 +110,23 @@ architecture behavior of cpu is
             write_en        => if_PC_write_enable,
             reset           => reset,
             jump_to         => jump_to,
-            pc_value        => PC_value
+            pc_value        => PC_value_pc
         );
+
+	pc_value_mux : entity work.mux32OUT
+		port map
+		(
+			A	=>	PC_value_mem,
+			B	=>	PC_value_de,
+			X	=>	PC_value_pc
+		);
 
     instruction_mem : entity work.instruction_memory
         port map
         (
             clk             => clk,
             rst             => im_reset,
-            mem_address     => PC_value,
+            mem_address     => PC_value_mem,
             mem_out         => instruction
         );
 
@@ -125,7 +138,7 @@ architecture behavior of cpu is
 --            reg_write_en    => de_reg_write_en,
 --            pc_write_en     => de_pc_write_en,
 --            mem_write_en    => de_mem_write_en,
-            pc_in           => PC_value,
+            pc_in           => PC_value_de,
             pc_out          => de_PC_value,
             instruction     => instruction,
             opcode          => opcode,
@@ -220,7 +233,7 @@ architecture behavior of cpu is
             wb_control_out      => mem_wb_control,
             C_out               => mem_C_data,
             pc_write_enable_out => if_PC_write_enable,
-            pc_enable_out       => if_PC_enable,
+            pc_enable_out       => if_PC_write_enable, --change back to if_PC_enable
             c_address_in        => ex_C_address,
             c_address_out       => mem_C_address
         );
