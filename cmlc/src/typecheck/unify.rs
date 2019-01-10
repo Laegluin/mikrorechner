@@ -1,4 +1,5 @@
-use crate::typecheck::{Function, Type, TypeError, TypeRef};
+use crate::support;
+use crate::typecheck::{Field, Function, Record, Type, TypeError, TypeRef};
 use std::mem;
 
 /// The environment holding all types during type checking. The types are stored as disjoint-set
@@ -108,7 +109,6 @@ impl TypeEnv {
     }
 
     fn merge(&mut self, expected: Type, actual: Type) -> Result<Type, TypeError> {
-        // TODO: RecordFields unification
         match (expected, actual) {
             // always choose the other one, it can never be less specific
             (Type::Var, other) | (other, Type::Var) => Ok(other),
@@ -119,6 +119,68 @@ impl TypeEnv {
             | (Type::Int, int @ Type::I32)
             | (int @ Type::U32, Type::Int)
             | (int @ Type::I32, Type::Int) => Ok(int),
+            (Type::RecordFields(expected_fields), Type::RecordFields(mut actual_fields)) => {
+                let mut unified_fields = Vec::new();
+
+                // go over all expected fields, if they are also in the actual fields, unify their
+                // types, otherwise just add them
+                for expected_field in expected_fields {
+                    let field_match = support::find_remove(&mut actual_fields, |field| {
+                        expected_field.name == field.name
+                    });
+
+                    match field_match {
+                        Some(actual_field) => {
+                            unified_fields.push(Field {
+                                name: expected_field.name,
+                                ty: self.unify(expected_field.ty, actual_field.ty)?,
+                            });
+                        }
+                        None => {
+                            unified_fields.push(expected_field);
+                        }
+                    }
+                }
+
+                // if there are remaining fields in actual, just add them since the do not
+                // intersect with expected
+                for actual_field in actual_fields {
+                    unified_fields.push(actual_field);
+                }
+
+                Ok(Type::RecordFields(unified_fields))
+            }
+            (Type::Record(record), Type::RecordFields(mut fields))
+            | (Type::RecordFields(mut fields), Type::Record(record)) => {
+                let mut unified_fields = Vec::new();
+
+                // unify types if two fields overlap
+                for record_field in record.fields {
+                    let field_match =
+                        support::find_remove(&mut fields, |field| record_field.name == field.name);
+
+                    match field_match {
+                        Some(field) => {
+                            unified_fields.push(Field {
+                                name: record_field.name,
+                                ty: self.unify(record_field.ty, field.ty)?,
+                            });
+                        }
+                        None => {
+                            unified_fields.push(record_field);
+                        }
+                    }
+                }
+
+                if let Some(field) = fields.pop() {
+                    return Err(TypeError::UnknownFieldName(field.name));
+                }
+
+                Ok(Type::Record(Record {
+                    id: record.id,
+                    fields: unified_fields,
+                }))
+            }
             // all non-generic types can always be merged as themselves
             (eq @ Type::Int, Type::Int)
             | (eq @ Type::Bool, Type::Bool)

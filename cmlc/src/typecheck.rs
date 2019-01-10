@@ -16,6 +16,7 @@ pub enum TypeError {
     UndefinedVariable(ItemPath),
     DuplicatParamName(Ident),
     DuplicatFieldName(Ident),
+    UnknownFieldName(Ident),
     VarNotMut(Mutability),
     UnknownArgName(Ident),
     ArityMismatch(usize, usize),
