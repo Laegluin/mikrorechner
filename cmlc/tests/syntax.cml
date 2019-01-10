@@ -7,6 +7,7 @@ type Variant =
 fn variant -> Variant = {
     let a = Variant::Three: 1, 2;
     let b = Variant::One;
+    b
 }
 
 type User = {
@@ -42,12 +43,19 @@ fn get_stuff -> i32 = {
 }
 
 fn main -> i32 = {
+    let arg1 = 1;
+    let arg2 = 2;
+    let arg3 = 3;
+    
     function_call: arg1, arg2, arg3;
     named_args: arg1 = 1, arg2 = 2, arg3 = 3;
-    object method_call: arg1, arg2;
+
+    let user = user!;
+
+    user method_call: arg1, arg2;
     let array: [i32; 3] = [1, 2, 3];
 
-    object zero_arg_method!;
+    user zero_arg_method!;
     zero_arg_function!;
 
     // method chaining
@@ -71,8 +79,66 @@ fn main -> i32 = {
     }
 
     if !true && false || true {
-        explode!;
+        zero_arg_function!;
     }
+
+    0
+}
+
+type File = {
+    name: *str
+}
+
+fn open_file path = {
+    File: name = path
+}
+
+fn truncate file, _ = {
+    file
+}
+
+fn write file, _ = {
+    file
+}
+
+fn clear file = {
+    file
+}
+
+fn is_open path = {
+    true
+}
+
+fn set_permissions file, owner, group, all = {
+    file
+}
+
+fn set_name file: File, name: *str = {
+    file
+}
+
+fn close file: File -> () = {
+    ()
+}
+
+fn zero_arg_method user = {
+    ()
+}
+
+fn method_call user, a, b = {
+    ()
+}
+
+fn named_args arg1, arg2, arg3 = {
+    ()
+}
+
+fn zero_arg_function = {
+    ()
+}
+
+fn function_call x, y, z = {
+    ()
 }
 
 fn plus lhs: i32, rhs: i32 -> i32 = {
@@ -80,16 +146,15 @@ fn plus lhs: i32, rhs: i32 -> i32 = {
 }
 
 type Record = {
-    ptr_field: *i32,
+    ptr_field: *mut i32,
 }
 
 fn dangling_ptr -> *mut Record = {
-    let some_record = Record: ptr_field = &42;
-    let eq_record = Record: &42;
+    let mut some_record = Record: ptr_field = &mut 42;
 
-    let some_record_ptr: *Record = &some_record;
+    let some_record_ptr: *mut Record = &mut some_record;
     *some_record_ptr->ptr_field = 42;
-    *some_record.ptr_field = &13;
+    *some_record.ptr_field = 13;
     &mut some_record
 }
 

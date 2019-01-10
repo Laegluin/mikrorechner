@@ -324,13 +324,13 @@ fn fn_def(tokens: &TokenStream<'_>) -> Result<Item, Spanned<ParseError>> {
         Some(Token::Equal) => None,
         Some(_) => {
             return Err(Spanned::new(
-                ParseError::unexpected_token().expected("->"),
+                ParseError::unexpected_token().expected("->").expected("="),
                 tokens.last_token_span(),
             ))
         }
         None => {
             return Err(Spanned::new(
-                ParseError::eof().expected("->"),
+                ParseError::eof().expected("->").expected("="),
                 tokens.eof_span(),
             ))
         }

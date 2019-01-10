@@ -365,7 +365,11 @@ fn check_expr(
                 .ok_or_else(|| Spanned::new(TypeError::UndefinedVariable(path.clone()), span))?;
 
             // if a mut context is required, bindings have to be declared as such
-            if mutability != Mutability::Const && !binding.is_mut {
+            // mutable derefs are fine, since the pointer must be mut, not the binding
+            // for the pointer
+            if (mutability != Mutability::Const && mutability != Mutability::DerefMut)
+                && !binding.is_mut
+            {
                 return Err(Spanned::new(TypeError::VarNotMut(mutability), span));
             }
 
@@ -382,13 +386,25 @@ fn check_expr(
             let operand = operand.as_mut().map(Box::as_mut);
             let mut new_mutability = Mutability::Const;
 
-            let expected = match op {
-                UnOpKind::Not => type_env.insert(Type::Bool),
-                UnOpKind::Negate => type_env.insert(Type::I32),
-                UnOpKind::AddrOf => type_env.insert(Type::Var),
+            let (expected, expected_expr_ty) = match op {
+                UnOpKind::Not => {
+                    let ty = type_env.insert(Type::Bool);
+                    (ty, ty)
+                }
+                UnOpKind::Negate => {
+                    let ty = type_env.insert(Type::I32);
+                    (ty, ty)
+                }
+                UnOpKind::AddrOf => {
+                    let rvalue_ty = type_env.insert(Type::Var);
+                    let ptr_ty = type_env.insert(Type::ConstPtr(rvalue_ty));
+                    (rvalue_ty, ptr_ty)
+                }
                 UnOpKind::AddrOfMut => {
                     new_mutability = Mutability::AddrOfMut;
-                    type_env.insert(Type::Var)
+                    let rvalue_ty = type_env.insert(Type::Var);
+                    let ptr_ty = type_env.insert(Type::MutPtr(rvalue_ty));
+                    (rvalue_ty, ptr_ty)
                 }
                 UnOpKind::Deref => {
                     if mutability != Mutability::Const {
@@ -396,7 +412,8 @@ fn check_expr(
                     }
 
                     let pointee_ty = type_env.insert(Type::Var);
-                    type_env.insert(Type::Ptr(pointee_ty))
+                    let ptr_ty = type_env.insert(Type::Ptr(pointee_ty));
+                    (ptr_ty, pointee_ty)
                 }
             };
 
@@ -409,10 +426,11 @@ fn check_expr(
                 value_bindings,
             )?;
 
-            *ty = type_env
+            type_env
                 .unify(expected, actual)
                 .map_err(|err| Spanned::new(err, span))?;
 
+            *ty = expected_expr_ty;
             Ok(*ty)
         }
         Expr::BinOp(
@@ -426,19 +444,37 @@ fn check_expr(
             let lhs = lhs.as_mut().map(Box::as_mut);
             let rhs = rhs.as_mut().map(Box::as_mut);
 
-            let expected = match op {
-                BinOpKind::Or => type_env.insert(Type::Bool),
-                BinOpKind::And => type_env.insert(Type::Bool),
-                BinOpKind::Eq => type_env.insert(Type::Int),
-                BinOpKind::Ne => type_env.insert(Type::Int),
-                BinOpKind::Lt => type_env.insert(Type::Int),
-                BinOpKind::Le => type_env.insert(Type::Int),
-                BinOpKind::Gt => type_env.insert(Type::Int),
-                BinOpKind::Ge => type_env.insert(Type::Int),
-                BinOpKind::Add => type_env.insert(Type::Int),
-                BinOpKind::Sub => type_env.insert(Type::Int),
-                BinOpKind::Mul => type_env.insert(Type::Int),
-                BinOpKind::Div => type_env.insert(Type::Int),
+            let (expected, expected_expr_ty) = match op {
+                BinOpKind::Or => {
+                    let ty = type_env.insert(Type::Bool);
+                    (ty, ty)
+                }
+                BinOpKind::And => {
+                    let ty = type_env.insert(Type::Bool);
+                    (ty, ty)
+                }
+                BinOpKind::Eq => (type_env.insert(Type::Int), type_env.insert(Type::Bool)),
+                BinOpKind::Ne => (type_env.insert(Type::Int), type_env.insert(Type::Bool)),
+                BinOpKind::Lt => (type_env.insert(Type::Int), type_env.insert(Type::Bool)),
+                BinOpKind::Le => (type_env.insert(Type::Int), type_env.insert(Type::Bool)),
+                BinOpKind::Gt => (type_env.insert(Type::Int), type_env.insert(Type::Bool)),
+                BinOpKind::Ge => (type_env.insert(Type::Int), type_env.insert(Type::Bool)),
+                BinOpKind::Add => {
+                    let ty = type_env.insert(Type::Int);
+                    (ty, ty)
+                }
+                BinOpKind::Sub => {
+                    let ty = type_env.insert(Type::Int);
+                    (ty, ty)
+                }
+                BinOpKind::Mul => {
+                    let ty = type_env.insert(Type::Int);
+                    (ty, ty)
+                }
+                BinOpKind::Div => {
+                    let ty = type_env.insert(Type::Int);
+                    (ty, ty)
+                }
             };
 
             let lhs_actual = check_expr(
@@ -464,10 +500,11 @@ fn check_expr(
                 .unify(expected, lhs_actual)
                 .map_err(|err| Spanned::new(err, span))?;
 
-            *ty = type_env
+            type_env
                 .unify(expected, rhs_actual)
                 .map_err(|err| Spanned::new(err, span))?;
 
+            *ty = expected_expr_ty;
             Ok(*ty)
         }
         Expr::FnCall(ref mut call, ref mut ty) => {
@@ -646,7 +683,7 @@ fn check_expr(
             let expr_ty = check_expr(
                 expr.as_mut().map(Box::as_mut),
                 ret_ty,
-                Mutability::Assignment,
+                Mutability::Const,
                 type_env,
                 type_bindings,
                 value_bindings,
@@ -987,15 +1024,20 @@ fn bind_variants_def(
             params: params.clone(),
         });
 
-        let variant_cons = Function {
-            params,
-            ret: current_ty,
+        // if the params are empty, the variant is a constant value, otherwise
+        // it's as constructor function
+        let variant_cons_ty = if params.is_empty() {
+            current_ty
+        } else {
+            let cons = Function {
+                params,
+                ret: current_ty,
+            };
+            let cons_fn = type_env.insert(Type::Function(cons));
+            type_env.insert(Type::ConstPtr(cons_fn))
         };
 
-        // bind the variant constructor as function scoped under the type name
-        let cons_fn = type_env.insert(Type::Function(variant_cons));
-        let variant_cons_ty = type_env.insert(Type::ConstPtr(cons_fn));
-
+        // bind the variant constructor scoped under the type name
         value_bindings.path_insert(
             vec![def.name.value.clone(), variant_def.name.value.clone()],
             Binding::new(variant_cons_ty),
