@@ -86,6 +86,13 @@ begin
     stim_proc: process
     begin
 
+
+    -- init
+    enable <= '0';
+    pc_in  <= (others => '0');
+    pc_out <= (others => '0');
+    instruction <= (others => '0');
+
     -- Testwerte
     
     wait for 10 ns;    

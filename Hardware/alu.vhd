@@ -22,8 +22,9 @@ end entity ALU;
 
 architecture behavior of ALU is
 
-signal ALU_Result   : unsigned(bit_Width-1 downto 0);    -- Zwischenergebnis
-signal vorz_tmp     : unsigned(0 downto 0);
+signal ALU_Result   : unsigned(bit_Width-1 downto 0) := (others => '0');    -- Zwischenergebnis
+signal vorz_tmp     : unsigned(0 downto 0) := "0";
+signal Flag_tmp     : std_logic := '0';
 
 
 begin
@@ -99,7 +100,7 @@ begin
                 -- Ergebnis behaelt Vorzeichen von A bei.
                 -- Vorzeichen ist im MSB kodiert (höchstes Bit).
             when "10110" =>
-                    if (vorz_tmp = 1) then
+                    if (vorz_tmp = "1") then
                         ALU_Result <= A(bit_Width-1 downto bit_Width-1) & shift_right((not(A(bit_Width-2 downto 0)) + 1), to_integer(B));
                     else
                         ALU_Result <= A(bit_Width-1 downto bit_Width-1) & shift_right(A(bit_Width-2 downto 0), to_integer(B));
@@ -109,23 +110,23 @@ begin
             -- CMP_EQ
             when "00011" =>
                 if (A = B) then
-                    ALU_Flag <= '1';
+                    Flag_tmp <= '1';
                 else
-                    ALU_Flag <= '0';
+                    Flag_tmp <= '0';
                 end if;
             -- CMP_GT
             when "00100" =>
                 if (A > B) then
-                    ALU_Flag <= '1';
+                    Flag_tmp <= '1';
                 else
-                    ALU_Flag <= '0';
+                    Flag_tmp <= '0';
                 end if;
             -- CMP_GE
             when "00101" =>
                 if (A >= B) then
-                    ALU_Flag <= '1';
+                    Flag_tmp <= '1';
                 else
-                    ALU_Flag <= '0';
+                    Flag_tmp <= '0';
                 end if;
 
                 -- Adressen direkter Spruenge mit Offset berechnen
@@ -148,5 +149,8 @@ begin
 
     -- update ALU_Out Port
     ALU_Out <= ALU_Result;
+    -- update ALU_Flag Port
+    ALU_Flag <= Flag_tmp;
+
 
 end architecture behavior;

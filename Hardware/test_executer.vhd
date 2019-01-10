@@ -108,6 +108,10 @@ begin
 
     -- Testwerte
 
+    C_in       <= (others => '0');
+    mem_off_in <= (others => '0');
+    reg_imm_in <= (others => '0');
+
     enable <= '0';
     wait for 100 ns;
 

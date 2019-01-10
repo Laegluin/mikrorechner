@@ -32,7 +32,7 @@ end entity decoder;
 architecture behavior of decoder is
 
     -- sign extention
-signal sign_temp        : unsigned(0 downto 0); 
+signal sign_temp        : unsigned(0 downto 0) := "0";
 
 signal reg_imm_ext      : unsigned(bit_Width - reg_offset_Bits -1 downto 0)  := (others => '0');
 signal jump_offset_ext0 : unsigned(bit_Width - jump_offset_Bits -1 downto 0) := (others => '0');
