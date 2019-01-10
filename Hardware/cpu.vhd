@@ -135,6 +135,7 @@ architecture behavior of cpu is
         (
             clk             => clk,
             enable          => de_enable,
+            reset           => de_reset,
 --            reg_write_en    => de_reg_write_en,
 --            pc_write_en     => de_pc_write_en,
 --            mem_write_en    => de_mem_write_en,
@@ -182,6 +183,7 @@ architecture behavior of cpu is
         (
             clk             => clk,
             enable          => ex_enable,
+            reset           => ex_reset,
             pc_in           => de_PC_value,
             jump_off_in     => jump_offset,
             mem_off_in      => de_MEM_offset,
