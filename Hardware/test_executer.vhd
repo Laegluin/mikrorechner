@@ -20,6 +20,7 @@ architecture behavior of test_executer is
     port
     (
         clk, enable   : in       std_logic;
+        reset         : in       std_logic;
         pc_in         : in       unsigned(bit_Width-1 downto 0);
         jump_off_in   : in       unsigned(bit_Width-1 downto 0);
         mem_off_in    : in       unsigned(bit_Width-1 downto 0);
@@ -43,6 +44,7 @@ architecture behavior of test_executer is
 
     -- inputs
     signal clk, enable  : std_logic;
+    signal reset        : std_logic;
     signal pc_in        : unsigned(bit_Width-1 downto 0);
     signal jump_off_in  : unsigned(bit_Width-1 downto 0);
     signal mem_off_in   : unsigned(bit_Width-1 downto 0);
@@ -70,6 +72,7 @@ begin
     (
         clk         => clk,
         enable      => enable,
+        reset       => reset,
 
         pc_in       => pc_in,
         jump_off_in => jump_off_in,
@@ -106,8 +109,12 @@ begin
     stim_proc: process
     begin
 
+    -- reset
+    reset <= '1';
+    wait for 100 ns;
+    reset <= '0';
+    
     -- Testwerte
-
     C_in       <= (others => '0');
     mem_off_in <= (others => '0');
     reg_imm_in <= (others => '0');

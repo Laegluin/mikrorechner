@@ -20,6 +20,7 @@ architecture behavior of test_decoder is
     port
     (
         clk, enable   : in       std_logic;
+        reset         : in       std_logic;
         instruction   : in       unsigned(bit_Width-1 downto 0);
         pc_in         : in       unsigned(bit_Width-1 downto 0);
 
@@ -36,6 +37,7 @@ architecture behavior of test_decoder is
 
     -- inputs
     signal clk, enable   : std_logic;
+    signal reset         : std_logic;
     signal instruction   : unsigned(bit_Width-1 downto 0);
     signal pc_in         : unsigned(bit_Width-1 downto 0);
 
@@ -56,6 +58,7 @@ begin
     (
         clk           => clk,
         enable        => enable,
+        reset         => reset,
 
         pc_in         => pc_in,
         pc_out        => pc_out,
@@ -86,6 +89,11 @@ begin
     stim_proc: process
     begin
 
+
+    --reset
+    reset <= '1';
+    wait for 100 ns;
+    reset <= '0';
 
     -- init
     enable <= '0';

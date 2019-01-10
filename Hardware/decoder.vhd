@@ -14,6 +14,7 @@ entity decoder is
     port
     (
         clk, enable   : in       std_logic;
+        reset         : in       std_logic;
         instruction   : in       unsigned(bit_Width-1 downto 0);
         pc_in         : in       unsigned(bit_Width-1 downto 0);
 
@@ -48,7 +49,24 @@ begin
         -- init values
         sign_temp <= "0";
 
-        if rising_edge(clk) then
+        -- reset
+        if reset = '1' then
+            -- reset out ports
+            pc_out         <= (others => '0');
+            opcode         <= (others => '0');
+            A              <= (others => '0');
+            B              <= (others => '0');
+            C              <= (others => '0');
+            reg_imm        <= (others => '0');
+            jump_offset    <= (others => '0');
+            mem_offset     <= (others => '0');
+            reg_offset_en  <= '0';
+            -- reset signals
+            sign_temp      <= "0";
+
+
+        -- regular work mode
+        elsif rising_edge(clk) then
             if enable = '1' then
 
             -- init output
