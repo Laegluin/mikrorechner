@@ -7,6 +7,8 @@ import os
 #writeregs eher mit words als mit s
 #klein r für register auch möglich?
 #copy auch mit = anstatt set??
+# labels erweitern für load und store
+# datenstruktur einfügen und speichern und dann benutzen, hexstring
 
 befehle = {"copy": '00001',
            "set": '00010',
