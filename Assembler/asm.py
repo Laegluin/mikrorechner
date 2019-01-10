@@ -2,11 +2,13 @@ import re
 import os
 
 # TODO lieber integer als binärstrings?
-# tODO für set und comparisons bessere Syntax
-# eigentlich ist es ja load into...
+# tODO für set bessere Syntax
 # mit offsets vielleicht freie wahl bei +?
 #writeregs eher mit words als mit s
 #klein r für register auch möglich?
+#copy auch mit = anstatt set??
+# labels erweitern für load und store
+# datenstruktur einfügen und speichern und dann benutzen, hexstring
 
 befehle = {"copy": '00001',
            "set": '00010',
@@ -59,10 +61,9 @@ def check_registers(s):
     reg_ops = []
     words = re.sub("[\s]", " ", s).split()
     for w in words:  # wenn da ein R am anfang ist dann zahl konvertieren und prüfen und in opcode verändern
-        if(w == 'R32'): reg_ops.append('100000')
-        elif w[0] == 'R':
+        if w[0] == 'R':
             num = int(w[1:])
-            if (num >= 0 and num < 32):
+            if 0 <= num <= 33:
                 reg_ops.append("{0:{fill}6b}".format(num, fill='0'))
             else:
                 reg_ops = []
@@ -93,8 +94,8 @@ def check_format(input,path):
         b = '0' * 32
         s = re.sub(r'#(.)*','',s)
         s = s.replace('null','R32')
+        s = s.replace('offset','R33')
         words = re.sub("[\s]", " ", s).split()
-        #das ganze vielleicht eher wie beim neuen ansatz machen mit optionen
         #liste mit: [[opcodes],befehlswortIndex, registerSchreiben?, registerIndexe?, restImmediate?, [indexe], laengeImmediate,wordImmediate]
         if re.match(r'(R)\d{1,2}\s+(=)\s+(R)\d{1,2}\s+[+-/*^&|]\s+(R)\d{1,2}\s*$',s):  # format für arithmetische Befehle
             l = [['+', '-', '/', '*', '&', '|', '^'], 3 ,1,0,0]
@@ -105,7 +106,8 @@ def check_format(input,path):
         elif re.match(r'(compare)\s+(R)\d{1,2}\s+(>|>=|=)\s+(R)\d{1,2}\s*$',s):
             words[0] = words[0] + words[2]
             l = [['compare>','compare>=','compare='],0,1,1,0,[11,17]]
-        elif re.match(r'\w+\s+(R)\d{1,2}\s+(to)\s+[-]?\d+\s*$', s):  # format für set
+        elif re.match(r'(R)\d{1,2}\s+(=)\s+[-]?\d+\s*$', s):  # format für set
+            words[0] = 'set'
             l = [['set'],0,1,0,1,[],21,-1]
         elif re.match(r'\w+\s+(to)\s+R\d{1,2}\s*$', s):  # format für jumps ohne rel
             l = [['jump','jump_if'],0,1,1,0,[11]]
@@ -122,7 +124,7 @@ def check_format(input,path):
         elif re.match(r'R\d{1,2}\s+(=)\s+(R)\d{1,2}\s+[<>]{2}(\w{2})?\s+(R)\d{1,2}\s+(times)$',s):#format für shifts
             l = [['<<','>>','>>_s'],3,1,0,0]
         elif s:
-            print('Zeile ' + str(line + 1) + ' enthält keine gültige Form')
+            print('Zeile ' + str(line + 1) + ': ' + s + ' enthält keine gültige Form')
             fehler = 1
             continue
         else: continue
@@ -155,7 +157,7 @@ def check_format(input,path):
                 continue
         output_array.append(b)
     if not fehler:
-        show_output_array(output_array)
+        #show_output_array(output_array)
         save_binary(output_array, path)
 
 def show_output_array(a):
@@ -166,10 +168,9 @@ def show_output_array(a):
                 print(" ", end='')
         print('\n', end='')
 
-#binärdatei immer überschreiben!
 def save_binary(a,s):
     try:
-        with open(s, 'wb+') as f:
+        with open(s.replace('txt','bin'), 'wb+') as f:
             for w in a:
                 w = little_endian(w)
                 i = int(w,2)
