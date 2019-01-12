@@ -37,6 +37,11 @@ impl TypeRef {
         TypeRef(id, Rc::new(TypeName::from_type(ty)))
     }
 
+    /// Changes the shown type name without changing the type it refers to.
+    fn with_type(self, ty: &Type) -> TypeRef {
+        TypeRef::new(self.0, ty)
+    }
+
     pub fn invalid() -> TypeRef {
         TypeRef(
             usize::max_value(),

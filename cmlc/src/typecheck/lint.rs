@@ -121,7 +121,7 @@ fn verify_expr(
             if let Some(expr) = expr {
                 verify_expr(expr.as_mut().map(Box::as_mut), type_env, types)?;
             }
-            
+
             canonicalize_type_ref(ty, type_env, types, span)?;
         }
         Expr::IfExpr(
@@ -183,18 +183,22 @@ fn canonicalize_type_ref(
         Type::Var | Type::RecordFields(_) | Type::Ptr(_) => {
             Err(Spanned::new(TypeError::CannotInfer(canonical_ref.1), span))
         }
-        _ => {
-            // FIXME: update the type name
-            types.entry(canonical_ref.clone()).or_insert_with(|| {
-                // if the int type does not matter, default to i32
-                if let Type::Int = ty {
-                    Type::I32
-                } else {
-                    ty.clone()
-                }
-            });
+        // if the int type does not matter, default to i32
+        Type::Int => {
+            let canonical_ref = canonical_ref.with_type(&Type::I32);
 
-            // change ref to canonical ref
+            types
+                .entry(canonical_ref.clone())
+                .or_insert_with(|| Type::I32);
+
+            *ty_ref = canonical_ref;
+            Ok(())
+        }
+        _ => {
+            types
+                .entry(canonical_ref.clone())
+                .or_insert_with(|| ty.clone());
+
             *ty_ref = canonical_ref;
             Ok(())
         }
