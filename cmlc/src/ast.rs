@@ -88,23 +88,23 @@ pub struct ParamDef {
 pub enum TypeDesc {
     Hole,
     Name(Ident),
-    ConstPtr(Spanned<Box<TypeDesc>>),
-    MutPtr(Spanned<Box<TypeDesc>>),
+    ConstPtr(Spanned<Rc<TypeDesc>>),
+    MutPtr(Spanned<Rc<TypeDesc>>),
     Array(ArrayDesc),
     Function(FunctionDesc),
-    Tuple(Vec<Spanned<TypeDesc>>),
+    Tuple(Vec<Spanned<Rc<TypeDesc>>>),
 }
 
 #[derive(Debug)]
 pub struct ArrayDesc {
-    pub ty: Spanned<Box<TypeDesc>>,
+    pub ty: Spanned<Rc<TypeDesc>>,
     pub len: Spanned<u32>,
 }
 
 #[derive(Debug)]
 pub struct FunctionDesc {
-    pub param_tys: Vec<Spanned<TypeDesc>>,
-    pub ret_ty: Spanned<Box<TypeDesc>>,
+    pub param_tys: Vec<Spanned<Rc<TypeDesc>>>,
+    pub ret_ty: Spanned<Rc<TypeDesc>>,
 }
 
 #[derive(Debug)]

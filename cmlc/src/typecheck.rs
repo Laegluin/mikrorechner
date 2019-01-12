@@ -8,6 +8,7 @@ use crate::support;
 use crate::typecheck::scope_map::ScopeMap;
 use crate::typecheck::unify::TypeEnv;
 use std::mem;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Debug)]
@@ -1089,7 +1090,7 @@ fn type_from_desc(
         })?,
         TypeDesc::ConstPtr(ref desc) => {
             let inner_ty = type_from_desc(
-                desc.as_ref().map(Box::as_ref),
+                desc.as_ref().map(Rc::as_ref),
                 is_type_def,
                 type_env,
                 type_bindings,
@@ -1099,7 +1100,7 @@ fn type_from_desc(
         }
         TypeDesc::MutPtr(ref desc) => {
             let inner_ty = type_from_desc(
-                desc.as_ref().map(Box::as_ref),
+                desc.as_ref().map(Rc::as_ref),
                 is_type_def,
                 type_env,
                 type_bindings,
@@ -1109,7 +1110,7 @@ fn type_from_desc(
         }
         TypeDesc::Array(ArrayDesc { ref ty, ref len }) => {
             let elem_ty = type_from_desc(
-                ty.as_ref().map(Box::as_ref),
+                ty.as_ref().map(Rc::as_ref),
                 is_type_def,
                 type_env,
                 type_bindings,
@@ -1124,12 +1125,17 @@ fn type_from_desc(
             let params = param_tys
                 .iter()
                 .map(|param_desc| {
-                    type_from_desc(param_desc.as_ref(), is_type_def, type_env, type_bindings)
+                    type_from_desc(
+                        param_desc.as_ref().map(Rc::as_ref),
+                        is_type_def,
+                        type_env,
+                        type_bindings,
+                    )
                 })
                 .collect::<Result<Vec<_>, _>>()?;
 
             let ret = type_from_desc(
-                ret_ty.as_ref().map(Box::as_ref),
+                ret_ty.as_ref().map(Rc::as_ref),
                 is_type_def,
                 type_env,
                 type_bindings,
@@ -1142,7 +1148,12 @@ fn type_from_desc(
             let tys = ty_descs
                 .iter()
                 .map(|ty_desc| {
-                    type_from_desc(ty_desc.as_ref(), is_type_def, type_env, type_bindings)
+                    type_from_desc(
+                        ty_desc.as_ref().map(Rc::as_ref),
+                        is_type_def,
+                        type_env,
+                        type_bindings,
+                    )
                 })
                 .collect::<Result<Vec<_>, _>>()?;
 
