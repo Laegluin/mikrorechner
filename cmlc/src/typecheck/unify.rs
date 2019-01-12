@@ -98,7 +98,10 @@ impl TypeEnv {
         let actual_rank = actual_root.rank;
         let actual_var = mem::replace(&mut actual_root.var, Type::Var);
 
+        // if the two refs refer to the same type, just return one of them
+        // make sure to replace the type variable with the original again
         if expected_idx == actual_idx {
+            mem::replace(&mut actual_root.var, expected_var);
             return Ok(expected.clone());
         }
 

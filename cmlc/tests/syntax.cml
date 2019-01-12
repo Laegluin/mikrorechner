@@ -42,7 +42,7 @@ fn get_stuff -> i32 = {
     42
 }
 
-fn main -> i32 = {
+fn main -> () = {
     let arg1 = 1;
     let arg2 = 2;
     let arg3 = 3;
@@ -68,9 +68,9 @@ fn main -> i32 = {
         close!;
 
     if is_open: "file" {
-        ret 0;
+        ret ();
     } else {
-        ret -1;
+        ret ();
     }
 
     if 1 + 2 > 0 {
@@ -81,8 +81,6 @@ fn main -> i32 = {
     if !true && false || true {
         zero_arg_function!;
     }
-
-    0
 }
 
 type File = {

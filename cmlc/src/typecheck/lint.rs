@@ -181,6 +181,7 @@ fn canonicalize_type_ref(
             Err(Spanned::new(TypeError::CannotInfer(canonical_ref.1), span))
         }
         _ => {
+            // FIXME: update the type name
             types.entry(canonical_ref.clone()).or_insert_with(|| {
                 // if the int type does not matter, default to i32
                 if let Type::Int = ty {

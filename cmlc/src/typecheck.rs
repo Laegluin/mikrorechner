@@ -397,12 +397,15 @@ fn check_fn(
         type_env,
         type_bindings,
         value_bindings,
-    )?;
+    )?.clone();
 
     // make sure the return type and the type of the function body are compatible
     type_env
         .unify(&def.ret_ty, &actual_ret_ty)
         .map_err(|err| Spanned::new(err, def.body.span))?;
+
+        println!("{:?}", type_env.find_type(&def.ret_ty));
+    println!("{:?}", type_env.find_type(&actual_ret_ty));
 
     type_bindings.exit_scope();
     value_bindings.exit_scope();
