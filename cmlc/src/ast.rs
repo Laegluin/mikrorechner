@@ -120,7 +120,7 @@ pub enum Expr {
     Assignment(Assignment, TypeRef),
     LetBinding(LetBinding, TypeRef),
     AutoRef(Box<Expr>, TypeRef),
-    Ret(Spanned<Box<Expr>>, TypeRef),
+    Ret(Option<Spanned<Box<Expr>>>, TypeRef),
     IfExpr(IfExpr, TypeRef),
     Block(Block, TypeRef),
 }
@@ -170,7 +170,7 @@ impl Expr {
         Expr::AutoRef(auto_ref, TypeRef::invalid())
     }
 
-    pub fn ret(ret: Spanned<Box<Expr>>) -> Expr {
+    pub fn ret(ret: Option<Spanned<Box<Expr>>>) -> Expr {
         Expr::Ret(ret, TypeRef::invalid())
     }
 

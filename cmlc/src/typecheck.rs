@@ -397,14 +397,15 @@ fn check_fn(
         type_env,
         type_bindings,
         value_bindings,
-    )?.clone();
+    )?
+    .clone();
 
     // make sure the return type and the type of the function body are compatible
     type_env
         .unify(&def.ret_ty, &actual_ret_ty)
         .map_err(|err| Spanned::new(err, def.body.span))?;
 
-        println!("{:?}", type_env.find_type(&def.ret_ty));
+    println!("{:?}", type_env.find_type(&def.ret_ty));
     println!("{:?}", type_env.find_type(&actual_ret_ty));
 
     type_bindings.exit_scope();
@@ -815,19 +816,23 @@ fn check_expr<'a>(
             Ok(ty)
         }
         Expr::Ret(ref mut expr, ref mut ty) => {
-            let expr_ty = check_expr(
-                expr.as_mut().map(Box::as_mut),
-                ret_ty,
-                Mutability::Const,
-                type_env,
-                type_bindings,
-                value_bindings,
-            )?;
+            let expr_ty = match expr {
+                Some(expr) => check_expr(
+                    expr.as_mut().map(Box::as_mut),
+                    ret_ty,
+                    Mutability::Const,
+                    type_env,
+                    type_bindings,
+                    value_bindings,
+                )?
+                .clone(),
+                None => type_env.insert(Type::unit()),
+            };
 
             // make sure the expression's type unifies with the actual return type
             type_env
                 .unify(&ret_ty, &expr_ty)
-                .map_err(|err| Spanned::new(err, expr.span))?;
+                .map_err(|err| Spanned::new(err, expr.as_ref().map_or(span, |expr| expr.span)))?;
 
             *ty = type_env.insert(Type::Never);
             Ok(ty)

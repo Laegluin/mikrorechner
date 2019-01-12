@@ -1021,7 +1021,14 @@ fn parenthesized_or_tuple_cons(tokens: &TokenStream<'_>) -> Result<Expr, Spanned
 
 fn ret_expr(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
     token(tokens, Token::Keyword(Keyword::Ret), "ret")?;
-    Ok(Expr::ret(expr(tokens)?.map(Box::new)))
+
+    match tokens.peek() {
+        Some(Token::Semicolon) | Some(Token::CloseBrace) => Ok(Expr::ret(None)),
+        _ => {
+            let expr = expr(tokens)?.map(Box::new);
+            Ok(Expr::ret(Some(expr)))
+        }
+    }
 }
 
 fn if_expr(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {

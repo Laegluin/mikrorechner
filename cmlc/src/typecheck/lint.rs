@@ -118,7 +118,10 @@ fn verify_expr(
             canonicalize_type_ref(ty, type_env, types, span)?;
         }
         Expr::Ret(ref mut expr, ref mut ty) => {
-            verify_expr(expr.as_mut().map(Box::as_mut), type_env, types)?;
+            if let Some(expr) = expr {
+                verify_expr(expr.as_mut().map(Box::as_mut), type_env, types)?;
+            }
+            
             canonicalize_type_ref(ty, type_env, types, span)?;
         }
         Expr::IfExpr(
