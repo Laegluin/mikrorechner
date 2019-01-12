@@ -3,7 +3,6 @@ use crate::lexer::{Keyword, Token};
 use crate::span::{Index, Offset, Span, Spanned};
 use crate::typecheck::TypeRef;
 use std::cell::Cell;
-use std::rc::Rc;
 
 #[derive(Debug, Default)]
 pub struct ParseError {
@@ -1217,15 +1216,15 @@ fn ptr_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseErro
     match tokens.peek() {
         Some(Token::Keyword(Keyword::Mut)) => {
             tokens.next();
-            Ok(TypeDesc::MutPtr(type_desc(tokens)?.map(Rc::new)))
+            Ok(TypeDesc::MutPtr(type_desc(tokens)?.map(Box::new)))
         }
-        _ => Ok(TypeDesc::ConstPtr(type_desc(tokens)?.map(Rc::new))),
+        _ => Ok(TypeDesc::ConstPtr(type_desc(tokens)?.map(Box::new))),
     }
 }
 
 fn array_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseError>> {
     token(tokens, Token::OpenBracket, "[")?;
-    let ty = type_desc(tokens)?.map(Rc::new);
+    let ty = type_desc(tokens)?.map(Box::new);
     token(tokens, Token::Semicolon, ";")?;
 
     let len = match tokens.next() {
@@ -1253,7 +1252,7 @@ fn function_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<Pars
     let mut param_tys = Vec::new();
 
     while tokens.peek() != Some(Token::Arrow) {
-        param_tys.push(type_desc(tokens)?.map(Rc::new));
+        param_tys.push(type_desc(tokens)?);
 
         match tokens.peek() {
             Some(Token::Comma) => {
@@ -1264,7 +1263,7 @@ fn function_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<Pars
     }
 
     token(tokens, Token::Arrow, "->")?;
-    let ret_ty = type_desc(tokens)?.map(Rc::new);
+    let ret_ty = type_desc(tokens)?.map(Box::new);
 
     Ok(TypeDesc::Function(FunctionDesc { param_tys, ret_ty }))
 }
@@ -1288,7 +1287,7 @@ fn tuple_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseEr
             }
         }
 
-        tys.push(type_desc(tokens)?.map(Rc::new));
+        tys.push(type_desc(tokens)?);
 
         match tokens.next() {
             Some(Token::CloseParen) => {
