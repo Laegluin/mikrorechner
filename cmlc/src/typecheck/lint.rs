@@ -21,7 +21,7 @@ pub fn verify_types(mut ast: Ast) -> Result<TypedAst, Spanned<TypeError>> {
                 ..
             }) => {
                 if name.value == ENTRY_POINT {
-                    verify_entry_point(params, *ret_ty, &ast.type_env, name.span)?;
+                    verify_entry_point(params, ret_ty, &ast.type_env, name.span)?;
                 }
 
                 for Spanned { value: param, span } in params {
@@ -152,15 +152,15 @@ fn verify_expr(
 
 fn verify_entry_point(
     params: &[Spanned<ParamDef>],
-    ret_ty: TypeRef,
+    ret_ty_ref: &TypeRef,
     type_env: &TypeEnv,
     span: Span,
 ) -> Result<(), Spanned<TypeError>> {
-    let ret_ty = type_env.find_type(ret_ty).1;
+    let ret_ty = type_env.find_type(&ret_ty_ref).1;
 
     if !params.is_empty() || !ret_ty.is_unit() {
         Err(Spanned::new(
-            TypeError::EntryPointTypeMismatch(ret_ty.clone()),
+            TypeError::EntryPointTypeMismatch(ret_ty_ref.1.clone()),
             span,
         ))
     } else {
@@ -174,15 +174,14 @@ fn canonicalize_type_ref(
     types: &mut FnvHashMap<TypeRef, Type>,
     span: Span,
 ) -> Result<(), Spanned<TypeError>> {
-    let (canonical_ref, ty) = type_env.find_type(*ty_ref);
+    let (canonical_ref, ty) = type_env.find_type(ty_ref);
 
     match *ty {
         Type::Var | Type::RecordFields(_) | Type::Ptr(_) => {
-            // TODO: add type desc the error
-            Err(Spanned::new(TypeError::CannotInfer, span))
+            Err(Spanned::new(TypeError::CannotInfer(canonical_ref.1), span))
         }
         _ => {
-            types.entry(canonical_ref).or_insert_with(|| {
+            types.entry(canonical_ref.clone()).or_insert_with(|| {
                 // if the int type does not matter, default to i32
                 if let Type::Int = ty {
                     Type::I32

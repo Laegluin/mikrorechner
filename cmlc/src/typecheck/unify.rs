@@ -1,6 +1,7 @@
 use crate::support;
-use crate::typecheck::{Field, Function, Record, Type, TypeError, TypeRef};
+use crate::typecheck::{Field, Function, Record, Type, TypeError, TypeName, TypeRef};
 use std::mem;
+use std::rc::Rc;
 
 /// The environment holding all types during type checking. The types are stored as disjoint-set
 /// (see <https://en.wikipedia.org/wiki/Disjoint-set_data_structure>) backed by a Vec. Because
@@ -25,6 +26,7 @@ enum Node {
 #[derive(Debug)]
 struct Root {
     var: Type,
+    ty_ref: TypeRef,
     rank: u8,
 }
 
@@ -34,25 +36,28 @@ impl TypeEnv {
     }
 
     pub fn insert(&mut self, var: Type) -> TypeRef {
-        self.nodes.push(Node::Root(Root { var, rank: 0 }));
-        TypeRef(self.nodes.len() - 1)
+        let ty_ref = TypeRef::new(self.nodes.len() - 1, &var);
+
+        self.nodes.push(Node::Root(Root {
+            var,
+            ty_ref: ty_ref.clone(),
+            rank: 0,
+        }));
+
+        ty_ref
     }
 
-    pub fn new_type_var(&mut self) -> TypeRef {
-        self.insert(Type::Var)
+    pub fn find_type(&self, ty: &TypeRef) -> (TypeRef, &Type) {
+        let root = self.find(ty.0);
+        (root.ty_ref.clone(), &root.var)
     }
 
-    pub fn find_type(&self, ty: TypeRef) -> (TypeRef, &Type) {
-        let (node, root) = self.find(ty.0);
-        (TypeRef(node), &root.var)
-    }
-
-    fn find(&self, node: usize) -> (usize, &Root) {
+    fn find(&self, node: usize) -> &Root {
         assert!(node != TypeRef::invalid().0);
 
         match self.nodes[node] {
             Node::Next(next_node) => self.find(next_node),
-            Node::Root(ref root) => (node, root),
+            Node::Root(ref root) => root,
         }
     }
 
@@ -84,7 +89,7 @@ impl TypeEnv {
         }
     }
 
-    pub fn unify(&mut self, expected: TypeRef, actual: TypeRef) -> Result<TypeRef, TypeError> {
+    pub fn unify(&mut self, expected: &TypeRef, actual: &TypeRef) -> Result<TypeRef, TypeError> {
         let (expected_idx, expected_root) = self.find_mut(expected.0);
         let expected_rank = expected_root.rank;
         let expected_var = mem::replace(&mut expected_root.var, Type::Var);
@@ -94,23 +99,29 @@ impl TypeEnv {
         let actual_var = mem::replace(&mut actual_root.var, Type::Var);
 
         if expected_idx == actual_idx {
-            return Ok(TypeRef(expected_idx));
+            return Ok(expected.clone());
         }
 
         let merged = self.merge(expected_var, actual_var)?;
 
         if expected_rank < actual_rank {
+            let ty_ref = TypeRef::new(actual_idx, &merged);
+
             self.nodes[expected_idx] = Node::Next(actual_idx);
             self.nodes[actual_idx] = Node::Root(Root {
                 var: merged,
+                ty_ref: ty_ref.clone(),
                 rank: actual_rank,
             });
 
-            Ok(TypeRef(actual_idx))
+            Ok(ty_ref)
         } else {
+            let ty_ref = TypeRef::new(expected_idx, &merged);
+
             self.nodes[actual_idx] = Node::Next(expected_idx);
             self.nodes[expected_idx] = Node::Root(Root {
                 var: merged,
+                ty_ref: ty_ref.clone(),
                 rank: if expected_rank == actual_rank {
                     expected_rank + 1
                 } else {
@@ -118,7 +129,7 @@ impl TypeEnv {
                 },
             });
 
-            Ok(TypeRef(expected_idx))
+            Ok(ty_ref)
         }
     }
 
@@ -141,54 +152,57 @@ impl TypeEnv {
             | (eq @ Type::Str, Type::Str) => Ok(eq),
             // pointer coerces to the more specific pointer type (const, mut or it stays a generic pointer)
             (Type::Ptr(expected_inner), Type::Ptr(actual_inner)) => {
-                let inner = self.unify(expected_inner, actual_inner)?;
+                let inner = self.unify(&expected_inner, &actual_inner)?;
                 Ok(Type::Ptr(inner))
             }
             (Type::Ptr(expected_inner), Type::MutPtr(actual_inner))
             | (Type::MutPtr(expected_inner), Type::Ptr(actual_inner)) => {
-                let inner = self.unify(expected_inner, actual_inner)?;
+                let inner = self.unify(&expected_inner, &actual_inner)?;
                 Ok(Type::MutPtr(inner))
             }
             (Type::Ptr(expected_inner), Type::ConstPtr(actual_inner))
             | (Type::ConstPtr(expected_inner), Type::Ptr(actual_inner)) => {
-                let inner = self.unify(expected_inner, actual_inner)?;
+                let inner = self.unify(&expected_inner, &actual_inner)?;
                 Ok(Type::ConstPtr(inner))
             }
             // mut pointers can be coerced to const pointers
             (Type::ConstPtr(expected_inner), Type::ConstPtr(actual_inner))
             | (Type::ConstPtr(expected_inner), Type::MutPtr(actual_inner)) => {
-                let inner = self.unify(expected_inner, actual_inner)?;
+                let inner = self.unify(&expected_inner, &actual_inner)?;
                 Ok(Type::ConstPtr(inner))
             }
             // mut pointers are only equal to themselves (given equal pointees)
             (Type::MutPtr(expected_inner), Type::MutPtr(actual_inner)) => {
-                let inner = self.unify(expected_inner, actual_inner)?;
+                let inner = self.unify(&expected_inner, &actual_inner)?;
                 Ok(Type::MutPtr(inner))
             }
             // for generic types, unify the type parameters first
             (Type::Array(expected_inner, expected_len), Type::Array(actual_inner, actual_len)) => {
                 if expected_len != actual_len {
                     return Err(TypeError::Mismatch(
-                        Type::Array(expected_inner, expected_len),
-                        Type::Array(actual_inner, actual_len),
+                        Rc::new(TypeName::from_type(&Type::Array(
+                            expected_inner,
+                            expected_len,
+                        ))),
+                        Rc::new(TypeName::from_type(&Type::Array(actual_inner, actual_len))),
                     ));
                 }
 
-                let inner = self.unify(expected_inner, actual_inner)?;
+                let inner = self.unify(&expected_inner, &actual_inner)?;
                 Ok(Type::Array(inner, expected_len))
             }
             (Type::Tuple(expected_inner), Type::Tuple(actual_inner)) => {
                 if expected_inner.len() != actual_inner.len() {
                     return Err(TypeError::Mismatch(
-                        Type::Tuple(expected_inner),
-                        Type::Tuple(actual_inner),
+                        Rc::new(TypeName::from_type(&Type::Tuple(expected_inner))),
+                        Rc::new(TypeName::from_type(&Type::Tuple(actual_inner))),
                     ));
                 }
 
                 let inner = expected_inner
                     .into_iter()
                     .zip(actual_inner)
-                    .map(|(expected, actual)| self.unify(expected, actual))
+                    .map(|(expected, actual)| self.unify(&expected, &actual))
                     .collect::<Result<Vec<_>, _>>()?;
 
                 Ok(Type::Tuple(inner))
@@ -197,8 +211,8 @@ impl TypeEnv {
             (Type::Function(expected_fn), Type::Function(actual_fn)) => {
                 if expected_fn.params.len() != actual_fn.params.len() {
                     return Err(TypeError::Mismatch(
-                        Type::Function(expected_fn),
-                        Type::Function(actual_fn),
+                        Rc::new(TypeName::from_type(&Type::Function(expected_fn))),
+                        Rc::new(TypeName::from_type(&Type::Function(actual_fn))),
                     ));
                 }
 
@@ -206,10 +220,10 @@ impl TypeEnv {
                     .params
                     .into_iter()
                     .zip(actual_fn.params)
-                    .map(|(expected, actual)| self.unify(expected, actual))
+                    .map(|(expected, actual)| self.unify(&expected, &actual))
                     .collect::<Result<Vec<_>, _>>()?;
 
-                let ret = self.unify(expected_fn.ret, actual_fn.ret)?;
+                let ret = self.unify(&expected_fn.ret, &actual_fn.ret)?;
 
                 Ok(Type::Function(Function { params, ret }))
             }
@@ -227,7 +241,7 @@ impl TypeEnv {
                         Some(actual_field) => {
                             unified_fields.push(Field {
                                 name: expected_field.name,
-                                ty: self.unify(expected_field.ty, actual_field.ty)?,
+                                ty: self.unify(&expected_field.ty, &actual_field.ty)?,
                             });
                         }
                         None => {
@@ -257,7 +271,7 @@ impl TypeEnv {
                         Some(field) => {
                             unified_fields.push(Field {
                                 name: record_field.name,
-                                ty: self.unify(record_field.ty, field.ty)?,
+                                ty: self.unify(&record_field.ty, &field.ty)?,
                             });
                         }
                         None => {
@@ -272,6 +286,7 @@ impl TypeEnv {
 
                 Ok(Type::Record(Record {
                     id: record.id,
+                    name: record.name,
                     fields: unified_fields,
                 }))
             }
@@ -281,8 +296,8 @@ impl TypeEnv {
                     Ok(Type::Record(expected_record))
                 } else {
                     Err(TypeError::Mismatch(
-                        Type::Record(expected_record),
-                        Type::Record(actual_record),
+                        Rc::new(TypeName::from_type(&Type::Record(expected_record))),
+                        Rc::new(TypeName::from_type(&Type::Record(actual_record))),
                     ))
                 }
             }
@@ -291,13 +306,16 @@ impl TypeEnv {
                     Ok(Type::Variants(expected_variants))
                 } else {
                     Err(TypeError::Mismatch(
-                        Type::Variants(expected_variants),
-                        Type::Variants(actual_variants),
+                        Rc::new(TypeName::from_type(&Type::Variants(expected_variants))),
+                        Rc::new(TypeName::from_type(&Type::Variants(actual_variants))),
                     ))
                 }
             }
             // catch all for all types that definitely cannot be unified
-            (expected, actual) => Err(TypeError::Mismatch(expected, actual)),
+            (expected, actual) => Err(TypeError::Mismatch(
+                Rc::new(TypeName::from_type(&expected)),
+                Rc::new(TypeName::from_type(&actual)),
+            )),
         }
     }
 }

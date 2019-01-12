@@ -7,6 +7,7 @@ use crate::span::{Span, Spanned};
 use crate::support;
 use crate::typecheck::scope_map::ScopeMap;
 use crate::typecheck::unify::TypeEnv;
+use std::hash::{Hash, Hasher};
 use std::mem;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -22,18 +23,87 @@ pub enum TypeError {
     VarNotMut(Mutability),
     UnknownArgName(Ident),
     ArityMismatch(usize, usize),
-    Mismatch(Type, Type),
+    Mismatch(Rc<TypeName>, Rc<TypeName>),
     NonLValueInAssignment,
-    CannotInfer,
-    EntryPointTypeMismatch(Type),
+    CannotInfer(Rc<TypeName>),
+    EntryPointTypeMismatch(Rc<TypeName>),
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-pub struct TypeRef(usize);
+#[derive(Debug, Clone)]
+pub struct TypeRef(usize, Rc<TypeName>);
 
 impl TypeRef {
+    fn new(id: usize, ty: &Type) -> TypeRef {
+        TypeRef(id, Rc::new(TypeName::from_type(ty)))
+    }
+
     pub fn invalid() -> TypeRef {
-        TypeRef(usize::max_value())
+        TypeRef(
+            usize::max_value(),
+            Rc::new(TypeName::Name(Ident::new("{invalid}"))),
+        )
+    }
+}
+
+impl PartialEq for TypeRef {
+    fn eq(&self, rhs: &TypeRef) -> bool {
+        self.0 == rhs.0
+    }
+}
+
+impl Eq for TypeRef {}
+
+impl Hash for TypeRef {
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: Hasher,
+    {
+        self.0.hash(state)
+    }
+}
+
+#[derive(Debug)]
+pub enum TypeName {
+    Hole,
+    Name(Ident),
+    ConstPtr(Rc<TypeName>),
+    MutPtr(Rc<TypeName>),
+    Array(Rc<TypeName>, u32),
+    Function(Vec<Rc<TypeName>>, Rc<TypeName>),
+    Tuple(Vec<Rc<TypeName>>),
+    RecordFields(Vec<(Ident, Rc<TypeName>)>),
+}
+
+impl TypeName {
+    fn from_type(ty: &Type) -> TypeName {
+        match *ty {
+            Type::Var => TypeName::Hole,
+            Type::Int => TypeName::Name(Ident::new("{integer}")),
+            Type::Never => TypeName::Name(Ident::new("!")),
+            Type::Bool => TypeName::Name(Ident::new("bool")),
+            Type::I32 => TypeName::Name(Ident::new("i32")),
+            Type::U32 => TypeName::Name(Ident::new("u32")),
+            Type::Str => TypeName::Name(Ident::new("str")),
+            Type::Ptr(ref ty_ref) => TypeName::ConstPtr(ty_ref.1.clone()),
+            Type::ConstPtr(ref ty_ref) => TypeName::ConstPtr(ty_ref.1.clone()),
+            Type::MutPtr(ref ty_ref) => TypeName::MutPtr(ty_ref.1.clone()),
+            Type::Array(ref ty_ref, len) => TypeName::Array(ty_ref.1.clone(), len),
+            Type::Tuple(ref ty_refs) => {
+                TypeName::Tuple(ty_refs.iter().map(|ty_ref| ty_ref.1.clone()).collect())
+            }
+            Type::Function(ref func) => TypeName::Function(
+                func.params.iter().map(|ty_ref| ty_ref.1.clone()).collect(),
+                func.ret.1.clone(),
+            ),
+            Type::RecordFields(ref fields) => TypeName::RecordFields(
+                fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.ty.1.clone()))
+                    .collect(),
+            ),
+            Type::Record(ref record) => TypeName::Name(record.name.clone()),
+            Type::Variants(ref variants) => TypeName::Name(variants.name.clone()),
+        }
     }
 }
 
@@ -84,6 +154,7 @@ pub struct Function {
 #[derive(Debug, Clone)]
 pub struct Record {
     pub id: TypeId,
+    pub name: Ident,
     pub fields: Vec<Field>,
 }
 
@@ -102,6 +173,7 @@ pub struct Field {
 #[derive(Debug, Clone)]
 pub struct Variants {
     pub id: TypeId,
+    pub name: Ident,
     pub variants: Vec<Variant>,
 }
 
@@ -203,14 +275,14 @@ fn check_items(
                 value: VariantsDef { ref name, .. },
                 ..
             })) => {
-                type_bindings.insert(name.value.clone(), type_env.new_type_var());
+                type_bindings.insert(name.value.clone(), type_env.insert(Type::Var));
             }
             Item::FnDef(FnDef {
                 ref name,
                 ref params,
                 ..
             }) => {
-                let ty = type_env.new_type_var();
+                let ty = type_env.insert(Type::Var);
 
                 // collect the param names to attach them to the binding
                 let mut param_names = Vec::with_capacity(params.len());
@@ -247,8 +319,8 @@ fn check_items(
             })) => {
                 // TODO: also alias the constructors
                 let ty = type_from_desc(ty.as_ref(), true, type_env, type_bindings)?;
-                let var = *type_bindings.get(&name.value).unwrap();
-                type_env.unify(var, ty).unwrap();
+                let var = &type_bindings.get(&name.value).unwrap();
+                type_env.unify(&var, &ty).unwrap();
             }
             Item::TypeDef(TypeDef::RecordDef(Spanned { value: ref def, .. })) => {
                 bind_record_def(def, type_env, type_bindings, value_bindings)?
@@ -279,7 +351,7 @@ fn check_fn(
 ) -> Result<(), Spanned<TypeError>> {
     // get the function type before entering the new scope
     // the type binding must already have been created by `check_items`
-    let current_ty = value_bindings.get(&def.name.value).unwrap().ty;
+    let current_ty = value_bindings.get(&def.name.value).unwrap().ty.clone();
 
     type_bindings.enter_scope();
     value_bindings.enter_scope();
@@ -291,36 +363,36 @@ fn check_fn(
 
         param.ty = match param.ty_hint.as_ref() {
             Some(hint) => type_from_desc(hint.as_ref(), false, type_env, type_bindings)?,
-            None => type_env.new_type_var(),
+            None => type_env.insert(Type::Var),
         };
 
         // bind the parameter if it has a name
         if let Some(ref name) = &param.name.value {
-            value_bindings.insert(name.clone(), Binding::new(param.ty));
+            value_bindings.insert(name.clone(), Binding::new(param.ty.clone()));
         }
 
-        params.push(param.ty);
+        params.push(param.ty.clone());
     }
 
     def.ret_ty = match def.ret_ty_hint.as_ref() {
         Some(ty) => type_from_desc(ty.as_ref(), false, type_env, type_bindings)?,
-        None => type_env.new_type_var(),
+        None => type_env.insert(Type::Var),
     };
 
     // update the functions type
     // since it was just a variable before, unification cannot fail
     let fn_ty = type_env.insert(Type::Function(Function {
         params,
-        ret: def.ret_ty,
+        ret: def.ret_ty.clone(),
     }));
 
     let ty = type_env.insert(Type::ConstPtr(fn_ty));
-    type_env.unify(current_ty, ty).unwrap();
+    type_env.unify(&current_ty, &ty).unwrap();
 
     // check the function body
     let actual_ret_ty = check_expr(
         def.body.as_mut(),
-        def.ret_ty,
+        &def.ret_ty,
         Mutability::Const,
         type_env,
         type_bindings,
@@ -329,7 +401,7 @@ fn check_fn(
 
     // make sure the return type and the type of the function body are compatible
     type_env
-        .unify(def.ret_ty, actual_ret_ty)
+        .unify(&def.ret_ty, &actual_ret_ty)
         .map_err(|err| Spanned::new(err, def.body.span))?;
 
     type_bindings.exit_scope();
@@ -346,14 +418,14 @@ pub enum Mutability {
     FieldAccess(Box<Mutability>),
 }
 
-fn check_expr(
-    expr: Spanned<&mut Expr>,
-    ret_ty: TypeRef,
+fn check_expr<'a>(
+    expr: Spanned<&'a mut Expr>,
+    ret_ty: &TypeRef,
     mutability: Mutability,
     type_env: &mut TypeEnv,
     type_bindings: &mut ScopeMap<Ident, TypeRef>,
     value_bindings: &mut ScopeMap<Ident, Binding>,
-) -> Result<TypeRef, Spanned<TypeError>> {
+) -> Result<&'a TypeRef, Spanned<TypeError>> {
     let Spanned { value: expr, span } = expr;
 
     match *expr {
@@ -367,7 +439,7 @@ fn check_expr(
                 Lit::Bool(_) => type_env.insert(Type::Bool),
             };
 
-            Ok(*ty)
+            Ok(ty)
         }
         Expr::Var(ref path, ref mut ty) => {
             let binding = value_bindings
@@ -383,8 +455,8 @@ fn check_expr(
                 return Err(Spanned::new(TypeError::VarNotMut(mutability), span));
             }
 
-            *ty = binding.ty;
-            Ok(*ty)
+            *ty = binding.ty.clone();
+            Ok(ty)
         }
         Expr::UnOp(
             UnOp {
@@ -399,21 +471,21 @@ fn check_expr(
             let (expected, expected_expr_ty) = match op {
                 UnOpKind::Not => {
                     let ty = type_env.insert(Type::Bool);
-                    (ty, ty)
+                    (ty.clone(), ty)
                 }
                 UnOpKind::Negate => {
                     let ty = type_env.insert(Type::I32);
-                    (ty, ty)
+                    (ty.clone(), ty)
                 }
                 UnOpKind::AddrOf => {
                     let rvalue_ty = type_env.insert(Type::Var);
-                    let ptr_ty = type_env.insert(Type::ConstPtr(rvalue_ty));
+                    let ptr_ty = type_env.insert(Type::ConstPtr(rvalue_ty.clone()));
                     (rvalue_ty, ptr_ty)
                 }
                 UnOpKind::AddrOfMut => {
                     new_mutability = Mutability::AddrOfMut;
                     let rvalue_ty = type_env.insert(Type::Var);
-                    let ptr_ty = type_env.insert(Type::MutPtr(rvalue_ty));
+                    let ptr_ty = type_env.insert(Type::MutPtr(rvalue_ty.clone()));
                     (rvalue_ty, ptr_ty)
                 }
                 UnOpKind::Deref => {
@@ -422,7 +494,7 @@ fn check_expr(
                     }
 
                     let pointee_ty = type_env.insert(Type::Var);
-                    let ptr_ty = type_env.insert(Type::Ptr(pointee_ty));
+                    let ptr_ty = type_env.insert(Type::Ptr(pointee_ty.clone()));
                     (ptr_ty, pointee_ty)
                 }
             };
@@ -437,11 +509,11 @@ fn check_expr(
             )?;
 
             type_env
-                .unify(expected, actual)
+                .unify(&expected, &actual)
                 .map_err(|err| Spanned::new(err, span))?;
 
             *ty = expected_expr_ty;
-            Ok(*ty)
+            Ok(ty)
         }
         Expr::BinOp(
             BinOp {
@@ -457,11 +529,11 @@ fn check_expr(
             let (expected, expected_expr_ty) = match op {
                 BinOpKind::Or => {
                     let ty = type_env.insert(Type::Bool);
-                    (ty, ty)
+                    (ty.clone(), ty)
                 }
                 BinOpKind::And => {
                     let ty = type_env.insert(Type::Bool);
-                    (ty, ty)
+                    (ty.clone(), ty)
                 }
                 BinOpKind::Eq => (type_env.insert(Type::Int), type_env.insert(Type::Bool)),
                 BinOpKind::Ne => (type_env.insert(Type::Int), type_env.insert(Type::Bool)),
@@ -471,19 +543,19 @@ fn check_expr(
                 BinOpKind::Ge => (type_env.insert(Type::Int), type_env.insert(Type::Bool)),
                 BinOpKind::Add => {
                     let ty = type_env.insert(Type::Int);
-                    (ty, ty)
+                    (ty.clone(), ty)
                 }
                 BinOpKind::Sub => {
                     let ty = type_env.insert(Type::Int);
-                    (ty, ty)
+                    (ty.clone(), ty)
                 }
                 BinOpKind::Mul => {
                     let ty = type_env.insert(Type::Int);
-                    (ty, ty)
+                    (ty.clone(), ty)
                 }
                 BinOpKind::Div => {
                     let ty = type_env.insert(Type::Int);
-                    (ty, ty)
+                    (ty.clone(), ty)
                 }
             };
 
@@ -507,22 +579,22 @@ fn check_expr(
 
             // unify lhs, then unify the result with rhs
             let expected = type_env
-                .unify(expected, lhs_actual)
+                .unify(&expected, &lhs_actual)
                 .map_err(|err| Spanned::new(err, span))?;
 
             type_env
-                .unify(expected, rhs_actual)
+                .unify(&expected, &rhs_actual)
                 .map_err(|err| Spanned::new(err, span))?;
 
             *ty = expected_expr_ty;
-            Ok(*ty)
+            Ok(ty)
         }
         Expr::FnCall(ref mut call, ref mut ty) => {
             let binding = value_bindings.path_get(&call.name.value).ok_or_else(|| {
                 Spanned::new(TypeError::UndefinedVariable(call.name.value.clone()), span)
             })?;
 
-            let expected = binding.ty;
+            let expected = binding.ty.clone();
 
             // make sure the args are aligned (in case of out of order named args)
             align_args(&binding, call, span)?;
@@ -540,22 +612,27 @@ fn check_expr(
                     value_bindings,
                 )?;
 
-                params.push(arg_ty);
+                params.push(arg_ty.clone());
             }
 
             // there's no way to know the return type, so just use a variable
             let ret = type_env.insert(Type::Var);
-            let fn_ty = type_env.insert(Type::Function(Function { params, ret }));
+
+            let fn_ty = type_env.insert(Type::Function(Function {
+                params,
+                ret: ret.clone(),
+            }));
+
             let actual = type_env.insert(Type::ConstPtr(fn_ty));
 
             // try to unify with the type of the binding
             type_env
-                .unify(expected, actual)
+                .unify(&expected, &actual)
                 .map_err(|err| Spanned::new(err, span))?;
 
             // assign the return type as the type of a function call
             *ty = ret;
-            Ok(*ty)
+            Ok(ty)
         }
         Expr::MemberAccess(
             MemberAccess {
@@ -575,7 +652,7 @@ fn check_expr(
             let field_ty = type_env.insert(Type::Var);
             let expected_record = type_env.insert(Type::RecordFields(vec![Field {
                 name: member.value.clone(),
-                ty: field_ty,
+                ty: field_ty.clone(),
             }]));
 
             let actual_ty = check_expr(
@@ -590,11 +667,11 @@ fn check_expr(
             // unify the expected record with the actual type of value
             // this also constraints our field type if possible
             type_env
-                .unify(expected_record, actual_ty)
+                .unify(&expected_record, &actual_ty)
                 .map_err(|err| Spanned::new(err, value.span))?;
 
             *ty = field_ty;
-            Ok(*ty)
+            Ok(ty)
         }
         Expr::ArrayCons(ref mut cons, ref mut ty) => {
             let elem_ty = type_env.insert(Type::Var);
@@ -611,12 +688,12 @@ fn check_expr(
                 )?;
 
                 type_env
-                    .unify(elem_ty, ty)
+                    .unify(&elem_ty, &ty)
                     .map_err(|err| Spanned::new(err, elem.span))?;
             }
 
             *ty = type_env.insert(Type::Array(elem_ty, cons.elems.len() as u32));
-            Ok(*ty)
+            Ok(ty)
         }
         Expr::TupleCons(ref mut cons, ref mut ty) => {
             let elem_tys = cons
@@ -631,11 +708,12 @@ fn check_expr(
                         type_bindings,
                         value_bindings,
                     )
+                    .map(TypeRef::clone)
                 })
                 .collect::<Result<Vec<_>, _>>()?;
 
             *ty = type_env.insert(Type::Tuple(elem_tys));
-            Ok(*ty)
+            Ok(ty)
         }
         Expr::Assignment(ref mut assignment, ref mut ty) => {
             // make sure target is an lvalue
@@ -676,11 +754,11 @@ fn check_expr(
             )?;
 
             type_env
-                .unify(target_ty, value_ty)
+                .unify(&target_ty, &value_ty)
                 .map_err(|err| Spanned::new(err, assignment.value.span))?;
 
             *ty = type_env.insert(Type::unit());
-            Ok(*ty)
+            Ok(ty)
         }
         Expr::LetBinding(
             LetBinding {
@@ -690,6 +768,8 @@ fn check_expr(
             },
             ref mut ty,
         ) => {
+            let expr_span = expr.span;
+
             let expr_ty = check_expr(
                 expr.as_mut().map(Box::as_mut),
                 ret_ty,
@@ -704,18 +784,18 @@ fn check_expr(
                 let hinted_ty = type_from_desc(ty_hint.as_ref(), false, type_env, type_bindings)?;
 
                 type_env
-                    .unify(hinted_ty, expr_ty)
-                    .map_err(|err| Spanned::new(err, expr.span))?;
+                    .unify(&hinted_ty, &expr_ty)
+                    .map_err(|err| Spanned::new(err, expr_span))?;
             }
 
             // make sure the type is compatible with what can be inferred from the pattern
             let inferred_ty = bind_pattern(&pattern.value, type_env, value_bindings)?;
             type_env
-                .unify(inferred_ty, expr_ty)
+                .unify(&inferred_ty, &expr_ty)
                 .map_err(|err| Spanned::new(err, expr.span))?;
 
             *ty = type_env.insert(Type::unit());
-            Ok(*ty)
+            Ok(ty)
         }
         Expr::AutoRef(ref mut expr, ref mut ty) => {
             // not implemented at the moment, just forward the inner expression
@@ -726,9 +806,10 @@ fn check_expr(
                 type_env,
                 type_bindings,
                 value_bindings,
-            )?;
+            )?
+            .clone();
 
-            Ok(*ty)
+            Ok(ty)
         }
         Expr::Ret(ref mut expr, ref mut ty) => {
             let expr_ty = check_expr(
@@ -742,11 +823,11 @@ fn check_expr(
 
             // make sure the expression's type unifies with the actual return type
             type_env
-                .unify(ret_ty, expr_ty)
+                .unify(&ret_ty, &expr_ty)
                 .map_err(|err| Spanned::new(err, expr.span))?;
 
             *ty = type_env.insert(Type::Never);
-            Ok(*ty)
+            Ok(ty)
         }
         Expr::IfExpr(ref mut if_expr, ref mut ty) => {
             let cond_ty = check_expr(
@@ -761,7 +842,7 @@ fn check_expr(
             // the condition must be a bool
             let bool_ty = type_env.insert(Type::Bool);
             type_env
-                .unify(bool_ty, cond_ty)
+                .unify(&bool_ty, &cond_ty)
                 .map_err(|err| Spanned::new(err, if_expr.cond.span))?;
 
             let then_ty = check_expr(
@@ -784,18 +865,18 @@ fn check_expr(
                 )?;
 
                 type_env
-                    .unify(then_ty, else_ty)
+                    .unify(&then_ty, &else_ty)
                     .map_err(|err| Spanned::new(err, else_block.span))?;
             }
 
             // use the blocks expression only both then and else exist
             *ty = if if_expr.else_block.is_some() {
-                then_ty
+                then_ty.clone()
             } else {
                 type_env.insert(Type::unit())
             };
 
-            Ok(*ty)
+            Ok(ty)
         }
         Expr::Block(ref mut block, ref mut ty) => {
             type_bindings.enter_scope();
@@ -810,7 +891,8 @@ fn check_expr(
                     type_env,
                     type_bindings,
                     value_bindings,
-                )?);
+                )?)
+                .cloned();
             }
 
             type_bindings.exit_scope();
@@ -831,12 +913,14 @@ fn check_expr(
             // If the last expression is not a statement, the expression's type is the type of
             // the block.
             let block_ty = match last_ty {
-                Some(last_ty) if !block.is_last_expr_stmt || is_last_ret_expr => last_ty,
+                Some(ref last_ty) if !block.is_last_expr_stmt || is_last_ret_expr => {
+                    last_ty.clone()
+                }
                 _ => type_env.insert(Type::unit()),
             };
 
             *ty = block_ty;
-            Ok(*ty)
+            Ok(ty)
         }
     }
 }
@@ -921,12 +1005,12 @@ fn bind_pattern(
         Pattern::Discard => type_env.insert(Type::Var),
         Pattern::Binding(ref ident) => {
             let ty = type_env.insert(Type::Var);
-            value_bindings.insert(ident.value.clone(), Binding::new(ty));
+            value_bindings.insert(ident.value.clone(), Binding::new(ty.clone()));
             ty
         }
         Pattern::MutBinding(ref ident) => {
             let ty = type_env.insert(Type::Var);
-            value_bindings.insert(ident.value.clone(), Binding::new_mut(ty));
+            value_bindings.insert(ident.value.clone(), Binding::new_mut(ty.clone()));
             ty
         }
         Pattern::Tuple(ref patterns) => {
@@ -950,7 +1034,7 @@ fn bind_record_def(
     value_bindings: &mut ScopeMap<Ident, Binding>,
 ) -> Result<(), Spanned<TypeError>> {
     // the type binding must already have been created by `check_items`
-    let current_ty = *type_bindings.get(&def.name.value).unwrap();
+    let current_ty = &type_bindings.get(&def.name.value).unwrap();
 
     let mut fields = Vec::with_capacity(def.fields.len());
     let mut cons_params = Vec::with_capacity(def.fields.len());
@@ -965,7 +1049,7 @@ fn bind_record_def(
 
         fields.push(Field {
             name: name.clone(),
-            ty,
+            ty: ty.clone(),
         });
 
         // do not allow duplicate field names
@@ -985,12 +1069,13 @@ fn bind_record_def(
 
     let record = Record {
         id: TypeId::new(),
+        name: def.name.value.clone(),
         fields,
     };
 
     // type must be a variable right now, since we are creating the actual type
     let ty = type_env.insert(Type::Record(record));
-    type_env.unify(current_ty, ty).unwrap();
+    type_env.unify(&current_ty, &ty).unwrap();
 
     let cons = Function {
         params: cons_params,
@@ -1016,7 +1101,7 @@ fn bind_variants_def(
     value_bindings: &mut ScopeMap<Ident, Binding>,
 ) -> Result<(), Spanned<TypeError>> {
     // the type binding must already have been created by `check_items`
-    let current_ty = *type_bindings.get(&def.name.value).unwrap();
+    let current_ty = type_bindings.get(&def.name.value).unwrap();
 
     let mut variants = Vec::with_capacity(def.variants.len());
 
@@ -1037,11 +1122,11 @@ fn bind_variants_def(
         // if the params are empty, the variant is a constant value, otherwise
         // it's as constructor function
         let variant_cons_ty = if params.is_empty() {
-            current_ty
+            current_ty.clone()
         } else {
             let cons = Function {
                 params,
-                ret: current_ty,
+                ret: current_ty.clone(),
             };
             let cons_fn = type_env.insert(Type::Function(cons));
             type_env.insert(Type::ConstPtr(cons_fn))
@@ -1056,12 +1141,13 @@ fn bind_variants_def(
 
     let variants = Variants {
         id: TypeId::new(),
+        name: def.name.value.clone(),
         variants,
     };
 
     // type must be a variable right now, since we are creating the actual type
     let ty = type_env.insert(Type::Variants(variants));
-    type_env.unify(current_ty, ty).unwrap();
+    type_env.unify(&current_ty, &ty).unwrap();
 
     Ok(())
 }
@@ -1079,15 +1165,18 @@ fn type_from_desc(
             if is_type_def {
                 return Err(Spanned::new(TypeError::HoleInTypeDef, span));
             } else {
-                type_env.new_type_var()
+                type_env.insert(Type::Var)
             }
         }
-        TypeDesc::Name(ref ident) => *type_bindings.get(ident).ok_or_else(|| {
-            Spanned::new(
-                TypeError::UndefinedType(ItemPath::from(Spanned::new(ident.clone(), span))),
-                span,
-            )
-        })?,
+        TypeDesc::Name(ref ident) => type_bindings
+            .get(ident)
+            .ok_or_else(|| {
+                Spanned::new(
+                    TypeError::UndefinedType(ItemPath::from(Spanned::new(ident.clone(), span))),
+                    span,
+                )
+            })?
+            .clone(),
         TypeDesc::ConstPtr(ref desc) => {
             let inner_ty = type_from_desc(
                 desc.as_ref().map(Rc::as_ref),
