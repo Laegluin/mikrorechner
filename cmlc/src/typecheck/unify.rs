@@ -36,7 +36,7 @@ impl TypeEnv {
     }
 
     pub fn insert(&mut self, var: Type) -> TypeRef {
-        let ty_ref = TypeRef::new(self.nodes.len() - 1, &var);
+        let ty_ref = TypeRef::new(self.nodes.len(), &var);
 
         self.nodes.push(Node::Root(Root {
             var,
