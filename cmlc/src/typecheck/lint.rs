@@ -20,16 +20,16 @@ pub fn verify_types(mut ast: Ast) -> Result<TypedAst, Spanned<TypeError>> {
                 ref name,
                 ..
             }) => {
-                if name.value == ENTRY_POINT {
-                    verify_entry_point(params, ret_ty, &ast.type_env, name.span)?;
-                }
-
-                for Spanned { value: param, span } in params {
+                for Spanned { value: param, span } in params.iter_mut() {
                     canonicalize_type_ref(&mut param.ty, &mut ast.type_env, &mut types, *span)?;
                 }
 
                 canonicalize_type_ref(ret_ty, &mut ast.type_env, &mut types, body.span)?;
                 verify_expr(body.as_mut(), &mut ast.type_env, &mut types)?;
+
+                if name.value == ENTRY_POINT {
+                    verify_entry_point(params, ret_ty, &ast.type_env, name.span)?;
+                }
             }
             _ => (),
         }
