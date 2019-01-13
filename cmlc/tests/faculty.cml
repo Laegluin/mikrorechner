@@ -2,7 +2,7 @@ fn faculty n = {
     if n <= 1 {
         1
     } else {
-        faculty: n - 1
+        n * faculty: n - 1
     }
 }
 
