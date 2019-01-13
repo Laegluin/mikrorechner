@@ -14,8 +14,8 @@ entity cpu is
 
 port
 (
-    clk, sclk, reset          : in    std_logic;
-    dec_enable, pc_enable	: in std_logic
+    clk, sclk, reset    : in std_logic;
+    enable, halt        : in std_logic
 --    pc_out, alu_result  : out   unsigned(bit_Width-1 downto 0)
 );
 
@@ -30,17 +30,21 @@ architecture behavior of cpu is
     signal PC_value_pc  : unsigned(bit_Width-1 downto 0); 
 	signal PC_value_mem	: unsigned(bit_Width-1 downto 0);
 	signal PC_value_de	: unsigned(bit_Width-1 downto 0);
+    signal pc_reset     : std_logic;
     signal if_PC_enable : std_logic;
-    signal if_PC_write_enable : std_logic;
+    signal manual_halt  : std_logic;
+    signal manual_PC_enable     : std_logic;
+    signal PC_enable    : std_logic;
+    signal if_PC_write_enable   : std_logic;
     signal jump_to      : unsigned(bit_Width-1 downto 0);
     signal im_reset     : std_logic;
     --signal if_pc : unsigned(bit_Width-1 downto 0);
 
     -- instruction-decode-phase
     signal de_enable        : std_logic;
+    signal de_reset         : std_logic;
     signal de_PC_value      : unsigned(bit_Width-1 downto 0);
     signal opcode           : unsigned(opcode_Bits-1 downto 0);
-    signal de_ALU_opcode    : unsigned(opcode_Bits-1 downto 0);
     signal jump_offset      : unsigned(bit_Width-1 downto 0);
     signal de_REG_immediate : unsigned(bit_Width-1 downto 0);
     signal de_MEM_offset    : unsigned(bit_Width-1 downto 0);
@@ -53,6 +57,7 @@ architecture behavior of cpu is
 
     -- execute-phase
     signal ex_enable        : std_logic;
+    signal ex_reset         : std_logic;
     signal ex_A_data        : unsigned(bit_Width-1 downto 0);
     signal ex_B_data        : unsigned(bit_Width-1 downto 0);
     signal ex_PC_enable     : std_logic; 
@@ -66,13 +71,14 @@ architecture behavior of cpu is
     signal ex_C_data        : unsigned(bit_Width-1 downto 0);
     signal ex_ALU_opcode    : unsigned(opcode_Bits-1 downto 0);
     signal ex_mem_address   : unsigned(bit_Width-1 downto 0);
+    signal dr_reset         : std_logic;
     
         -- operanden decodieren
 
         -- sprung berechnen
 
     -- memory-access-phase
-    signal mem_rst           : std_logic;
+    signal mem_reset         : std_logic;
     signal mem_wb_control    : unsigned(1 downto 0);
     signal mem_REG_immediate : unsigned(bit_Width-1 downto 0);
     signal mem_address       : unsigned(bit_Width-1 downto 0);
@@ -89,7 +95,7 @@ architecture behavior of cpu is
         -- sprung durchfuehren
 
     -- write-back-phase
-    signal reg_rst          : std_logic;
+    signal wb_reset         : std_logic;
     signal wb_C_data        : unsigned(bit_Width-1 downto 0);
     signal wb_C_address     : unsigned(adr_Width-1 downto 0);
     signal REG_write_enable : std_logic;
@@ -98,17 +104,39 @@ architecture behavior of cpu is
         
     begin
 
-	if_PC_enable <= pc_enable;
-	de_enable <= dec_enable;
+    --handle external input signals
+
+	manual_PC_enable <= enable;
+    manual_halt <= halt;
+	de_enable <= enable;
+    ex_enable <= enable;
+    pc_reset <= reset;
+    im_reset <= reset;
+    ex_reset <= reset;
+    REG_reset <= reset;
+    mem_reset <= reset;
+    dr_reset <= reset;
+    wb_reset <= reset;
+    de_reset <= reset;
+    
     --port map: PORT IN ENTITY => SIGNAL IN CPU
+
+    pc_en_mux : entity work.mux1
+        port map
+        (
+            SEL => manual_halt,
+            A   => manual_PC_enable,
+            B   => if_PC_enable,
+            X   => PC_enable
+        );
 
     pc : entity work.pc
         port map
         (
             clk             => sclk,
-            enable          => if_PC_enable,
+            enable          => PC_enable,
             write_en        => if_PC_write_enable,
-            reset           => reset,
+            reset           => pc_reset,
             jump_to         => jump_to,
             pc_value        => PC_value_pc
         );
@@ -173,7 +201,7 @@ architecture behavior of cpu is
         port map
         (
             clk             => clk,
-            rst             => reset,
+            rst             => dr_reset,
             A               => ex_mem_address,
             B               => mem_address
         );
@@ -217,7 +245,7 @@ architecture behavior of cpu is
         port map
         (
             clk                 => clk,
-            rst                 => mem_rst,
+            rst                 => mem_reset,
             mem_address         => mem_address,
             --mem_write_data      => mem_data,
             mem_rw_en           => MEM_rw_enable,
@@ -235,7 +263,7 @@ architecture behavior of cpu is
             wb_control_out      => mem_wb_control,
             C_out               => mem_C_data,
             pc_write_enable_out => if_PC_write_enable,
-            pc_enable_out       => if_PC_write_enable, --change back to if_PC_enable
+            pc_enable_out       => if_PC_enable, --change back to if_PC_enable
             c_address_in        => ex_C_address,
             c_address_out       => mem_C_address
         );
@@ -244,7 +272,7 @@ architecture behavior of cpu is
         port map
         (
             clk             => clk,
-            rst             => reg_rst,
+            rst             => wb_reset,
             wb_control      => mem_wb_control,
             ALU_Out         => mem_C_data,
             mem_out         => MEM_out,

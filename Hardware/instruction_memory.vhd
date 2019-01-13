@@ -48,7 +48,7 @@ begin
 end function;
 
 
-signal rom : rom_t := mem_read_file("/informatik2/students/home/6lahann/Projekt/work/instruction_mem.hex");
+signal rom : rom_t := mem_read_file("C:/Users/Moritz Lahann/Desktop/STUDIUM/PROJEKT MIKROPROZESSOR/GIT/Hardware/instruction_mem.hex");
 		--full filepath must always be specified!
 signal mem_read_data : unsigned(bit_Width-1 downto 0); 
 
@@ -56,7 +56,7 @@ begin
     process(clk, rst)
     begin
         if(rst = '1') then
-            rom <= mem_read_file("/informatik2/students/home/6lahann/Projekt/work/instruction_mem.hex");
+            rom <= mem_read_file("C:/Users/Moritz Lahann/Desktop/STUDIUM/PROJEKT MIKROPROZESSOR/GIT/Hardware/instruction_mem.hex");
 		--full filepath must always be specified!
         else
             if(rising_edge(clk)) then
