@@ -230,7 +230,7 @@ impl TypeEnv {
 
                 Ok(Type::Function(Function { params, ret }))
             }
-            (Type::RecordFields(expected_fields), Type::RecordFields(mut actual_fields)) => {
+            (Type::PartialRecord(expected_fields), Type::PartialRecord(mut actual_fields)) => {
                 let mut unified_fields = Vec::new();
 
                 // go over all expected fields, if they are also in the actual fields, unify their
@@ -259,10 +259,10 @@ impl TypeEnv {
                     unified_fields.push(actual_field);
                 }
 
-                Ok(Type::RecordFields(unified_fields))
+                Ok(Type::PartialRecord(unified_fields))
             }
-            (Type::Record(record), Type::RecordFields(mut fields))
-            | (Type::RecordFields(mut fields), Type::Record(record)) => {
+            (Type::Record(record), Type::PartialRecord(mut fields))
+            | (Type::PartialRecord(mut fields), Type::Record(record)) => {
                 let mut unified_fields = Vec::new();
 
                 // unify types if two fields overlap

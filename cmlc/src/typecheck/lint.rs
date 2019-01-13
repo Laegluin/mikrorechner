@@ -180,7 +180,7 @@ fn canonicalize_type_ref(
     let (canonical_ref, ty) = type_env.find_type(ty_ref);
 
     match *ty {
-        Type::Var | Type::RecordFields(_) | Type::Ptr(_) => {
+        Type::Var | Type::PartialRecord(_) | Type::Ptr(_) => {
             Err(Spanned::new(TypeError::CannotInfer(canonical_ref.1), span))
         }
         // if the int type does not matter, default to i32

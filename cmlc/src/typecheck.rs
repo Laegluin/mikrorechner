@@ -76,7 +76,7 @@ pub enum TypeDesc {
     Array(Rc<TypeDesc>, u32),
     Function(Vec<Rc<TypeDesc>>, Rc<TypeDesc>),
     Tuple(Vec<Rc<TypeDesc>>),
-    RecordFields(Vec<(Ident, Rc<TypeDesc>)>),
+    PartialRecord(Vec<(Ident, Rc<TypeDesc>)>),
 }
 
 impl TypeDesc {
@@ -100,7 +100,7 @@ impl TypeDesc {
                 func.params.iter().map(|ty_ref| ty_ref.1.clone()).collect(),
                 func.ret.1.clone(),
             ),
-            Type::RecordFields(ref fields) => TypeDesc::RecordFields(
+            Type::PartialRecord(ref fields) => TypeDesc::PartialRecord(
                 fields
                     .iter()
                     .map(|field| (field.name.clone(), field.ty.1.clone()))
@@ -132,7 +132,7 @@ pub enum Type {
     Tuple(Vec<TypeRef>),
     Function(Function),
     /// A record with zero or more fields. All instances of this type will be removed during typechecking.
-    RecordFields(Vec<Field>),
+    PartialRecord(Vec<Field>),
     Record(Record),
     Variants(Variants),
 }
@@ -656,7 +656,7 @@ fn check_expr<'a>(
             };
 
             let field_ty = type_env.insert(Type::Var);
-            let expected_record = type_env.insert(Type::RecordFields(vec![Field {
+            let expected_record = type_env.insert(Type::PartialRecord(vec![Field {
                 name: member.value.clone(),
                 ty: field_ty.clone(),
             }]));
