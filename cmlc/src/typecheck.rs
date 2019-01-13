@@ -1272,4 +1272,11 @@ mod test {
         let ast = parser::parse(&tokens).unwrap();
         typecheck(ast).unwrap();
     }
+
+    #[test]
+    fn check_faculty_example() {
+        let tokens = lexer::lex(include_str!("../tests/faculty.cml")).unwrap();
+        let ast = parser::parse(&tokens).unwrap();
+        typecheck(ast).unwrap();
+    }
 }
