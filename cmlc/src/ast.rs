@@ -41,7 +41,7 @@ pub enum TypeDef {
 #[derive(Debug)]
 pub struct AliasDef {
     pub name: Spanned<Ident>,
-    pub ty: Spanned<TypeDesc>,
+    pub ty: Spanned<TypeDecl>,
 }
 
 #[derive(Debug)]
@@ -53,7 +53,7 @@ pub struct RecordDef {
 #[derive(Debug)]
 pub struct FieldDef {
     pub name: Spanned<Ident>,
-    pub ty: Spanned<TypeDesc>,
+    pub ty: Spanned<TypeDecl>,
 }
 
 #[derive(Debug)]
@@ -65,14 +65,14 @@ pub struct VariantsDef {
 #[derive(Debug)]
 pub struct VariantDef {
     pub name: Spanned<Ident>,
-    pub param_tys: Vec<Spanned<TypeDesc>>,
+    pub param_tys: Vec<Spanned<TypeDecl>>,
 }
 
 #[derive(Debug)]
 pub struct FnDef {
     pub name: Spanned<Ident>,
     pub params: Vec<Spanned<ParamDef>>,
-    pub ret_ty_hint: Option<Spanned<TypeDesc>>,
+    pub ret_ty_hint: Option<Spanned<TypeDecl>>,
     pub ret_ty: TypeRef,
     pub body: Spanned<Expr>,
 }
@@ -80,31 +80,31 @@ pub struct FnDef {
 #[derive(Debug)]
 pub struct ParamDef {
     pub name: Spanned<Option<Ident>>,
-    pub ty_hint: Option<Spanned<TypeDesc>>,
+    pub ty_hint: Option<Spanned<TypeDecl>>,
     pub ty: TypeRef,
 }
 
 #[derive(Debug)]
-pub enum TypeDesc {
+pub enum TypeDecl {
     Hole,
     Name(Ident),
-    ConstPtr(Spanned<Box<TypeDesc>>),
-    MutPtr(Spanned<Box<TypeDesc>>),
-    Array(ArrayDesc),
-    Function(FunctionDesc),
-    Tuple(Vec<Spanned<TypeDesc>>),
+    ConstPtr(Spanned<Box<TypeDecl>>),
+    MutPtr(Spanned<Box<TypeDecl>>),
+    Array(ArrayDecl),
+    Function(FunctionDecl),
+    Tuple(Vec<Spanned<TypeDecl>>),
 }
 
 #[derive(Debug)]
-pub struct ArrayDesc {
-    pub ty: Spanned<Box<TypeDesc>>,
+pub struct ArrayDecl {
+    pub ty: Spanned<Box<TypeDecl>>,
     pub len: Spanned<u32>,
 }
 
 #[derive(Debug)]
-pub struct FunctionDesc {
-    pub param_tys: Vec<Spanned<TypeDesc>>,
-    pub ret_ty: Spanned<Box<TypeDesc>>,
+pub struct FunctionDecl {
+    pub param_tys: Vec<Spanned<TypeDecl>>,
+    pub ret_ty: Spanned<Box<TypeDecl>>,
 }
 
 #[derive(Debug)]
@@ -310,7 +310,7 @@ pub struct Assignment {
 #[derive(Debug)]
 pub struct LetBinding {
     pub pattern: Spanned<Pattern>,
-    pub ty_hint: Option<Spanned<TypeDesc>>,
+    pub ty_hint: Option<Spanned<TypeDecl>>,
     pub expr: Spanned<Box<Expr>>,
 }
 

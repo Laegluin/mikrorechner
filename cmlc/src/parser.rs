@@ -188,7 +188,7 @@ fn type_def(tokens: &TokenStream<'_>) -> Result<Item, Spanned<ParseError>> {
         }
         Some(_) => {
             let span_start = tokens.start_span();
-            let alias = type_desc(tokens)?;
+            let alias = type_decl(tokens)?;
             let span = span_start.end();
             token(tokens, Token::Semicolon, ";")?;
 
@@ -235,7 +235,7 @@ fn record_def(
 fn field_def(tokens: &TokenStream<'_>) -> Result<FieldDef, Spanned<ParseError>> {
     let name = ident(tokens)?;
     token(tokens, Token::Colon, ":")?;
-    let ty = type_desc(tokens)?;
+    let ty = type_decl(tokens)?;
 
     Ok(FieldDef { name, ty })
 }
@@ -263,7 +263,7 @@ fn variant_def(tokens: &TokenStream<'_>) -> Result<VariantDef, Spanned<ParseErro
     let mut param_tys = Vec::new();
 
     while tokens.peek() != Some(Token::Pipe) && tokens.peek() != Some(Token::Semicolon) {
-        param_tys.push(type_desc(tokens)?);
+        param_tys.push(type_decl(tokens)?);
 
         match tokens.peek() {
             Some(Token::Comma) => {
@@ -319,7 +319,7 @@ fn fn_def(tokens: &TokenStream<'_>) -> Result<Item, Spanned<ParseError>> {
     let ret_ty_hint = match tokens.peek() {
         Some(Token::Arrow) => {
             tokens.next();
-            Some(type_desc(tokens)?)
+            Some(type_decl(tokens)?)
         }
         Some(Token::Equal) => None,
         Some(_) => {
@@ -360,7 +360,7 @@ fn param_def(tokens: &TokenStream<'_>) -> Result<ParamDef, Spanned<ParseError>> 
     let ty_hint = match tokens.peek() {
         Some(Token::Colon) => {
             tokens.next();
-            Some(type_desc(tokens)?)
+            Some(type_decl(tokens)?)
         }
         _ => None,
     };
@@ -403,7 +403,7 @@ fn let_binding(
     let ty_hint = match tokens.peek() {
         Some(Token::Colon) => {
             tokens.next();
-            Some(type_desc(tokens)?)
+            Some(type_decl(tokens)?)
         }
         _ => None,
     };
@@ -1192,46 +1192,46 @@ fn tuple_pattern(tokens: &TokenStream<'_>) -> Result<Pattern, Spanned<ParseError
     }
 }
 
-fn type_desc(tokens: &TokenStream<'_>) -> Result<Spanned<TypeDesc>, Spanned<ParseError>> {
+fn type_decl(tokens: &TokenStream<'_>) -> Result<Spanned<TypeDecl>, Spanned<ParseError>> {
     one_of(
         tokens,
         &[
-            hole_type_desc,
-            name_type_desc,
-            ptr_type_desc,
-            array_type_desc,
-            function_type_desc,
-            tuple_type_desc,
+            hole_type_decl,
+            name_type_decl,
+            ptr_type_decl,
+            array_type_decl,
+            function_type_decl,
+            tuple_type_decl,
         ],
     )
 }
 
-fn hole_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseError>> {
+fn hole_type_decl(tokens: &TokenStream<'_>) -> Result<TypeDecl, Spanned<ParseError>> {
     token(tokens, Token::Underscore, "_")?;
-    Ok(TypeDesc::Hole)
+    Ok(TypeDecl::Hole)
 }
 
-fn name_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseError>> {
+fn name_type_decl(tokens: &TokenStream<'_>) -> Result<TypeDecl, Spanned<ParseError>> {
     ident(tokens)
-        .map(|ident| TypeDesc::Name(ident.value))
+        .map(|ident| TypeDecl::Name(ident.value))
         .map_err(|spanned| spanned.map(|err| err.set_expected("type name")))
 }
 
-fn ptr_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseError>> {
+fn ptr_type_decl(tokens: &TokenStream<'_>) -> Result<TypeDecl, Spanned<ParseError>> {
     token(tokens, Token::Star, "*")?;
 
     match tokens.peek() {
         Some(Token::Keyword(Keyword::Mut)) => {
             tokens.next();
-            Ok(TypeDesc::MutPtr(type_desc(tokens)?.map(Box::new)))
+            Ok(TypeDecl::MutPtr(type_decl(tokens)?.map(Box::new)))
         }
-        _ => Ok(TypeDesc::ConstPtr(type_desc(tokens)?.map(Box::new))),
+        _ => Ok(TypeDecl::ConstPtr(type_decl(tokens)?.map(Box::new))),
     }
 }
 
-fn array_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseError>> {
+fn array_type_decl(tokens: &TokenStream<'_>) -> Result<TypeDecl, Spanned<ParseError>> {
     token(tokens, Token::OpenBracket, "[")?;
-    let ty = type_desc(tokens)?.map(Box::new);
+    let ty = type_decl(tokens)?.map(Box::new);
     token(tokens, Token::Semicolon, ";")?;
 
     let len = match tokens.next() {
@@ -1251,15 +1251,15 @@ fn array_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseEr
     };
 
     token(tokens, Token::CloseBracket, "]")?;
-    Ok(TypeDesc::Array(ArrayDesc { ty, len }))
+    Ok(TypeDecl::Array(ArrayDecl { ty, len }))
 }
 
-fn function_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseError>> {
+fn function_type_decl(tokens: &TokenStream<'_>) -> Result<TypeDecl, Spanned<ParseError>> {
     token(tokens, Token::Keyword(Keyword::Fn), "fn")?;
     let mut param_tys = Vec::new();
 
     while tokens.peek() != Some(Token::Arrow) {
-        param_tys.push(type_desc(tokens)?);
+        param_tys.push(type_decl(tokens)?);
 
         match tokens.peek() {
             Some(Token::Comma) => {
@@ -1270,12 +1270,12 @@ fn function_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<Pars
     }
 
     token(tokens, Token::Arrow, "->")?;
-    let ret_ty = type_desc(tokens)?.map(Box::new);
+    let ret_ty = type_decl(tokens)?.map(Box::new);
 
-    Ok(TypeDesc::Function(FunctionDesc { param_tys, ret_ty }))
+    Ok(TypeDecl::Function(FunctionDecl { param_tys, ret_ty }))
 }
 
-fn tuple_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseError>> {
+fn tuple_type_decl(tokens: &TokenStream<'_>) -> Result<TypeDecl, Spanned<ParseError>> {
     token(tokens, Token::OpenParen, "(")?;
     let mut tys = Vec::new();
 
@@ -1283,7 +1283,7 @@ fn tuple_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseEr
         match tokens.peek() {
             Some(Token::CloseParen) => {
                 tokens.next();
-                return Ok(TypeDesc::Tuple(tys));
+                return Ok(TypeDecl::Tuple(tys));
             }
             Some(_) => (),
             None => {
@@ -1294,11 +1294,11 @@ fn tuple_type_desc(tokens: &TokenStream<'_>) -> Result<TypeDesc, Spanned<ParseEr
             }
         }
 
-        tys.push(type_desc(tokens)?);
+        tys.push(type_decl(tokens)?);
 
         match tokens.next() {
             Some(Token::CloseParen) => {
-                return Ok(TypeDesc::Tuple(tys));
+                return Ok(TypeDecl::Tuple(tys));
             }
             Some(Token::Comma) => continue,
             Some(_) => {

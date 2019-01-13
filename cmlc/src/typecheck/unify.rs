@@ -1,5 +1,5 @@
 use crate::support;
-use crate::typecheck::{Field, Function, Record, Type, TypeError, TypeName, TypeRef};
+use crate::typecheck::{Field, Function, Record, Type, TypeDesc, TypeError, TypeRef};
 use std::mem;
 use std::rc::Rc;
 
@@ -183,11 +183,11 @@ impl TypeEnv {
             (Type::Array(expected_inner, expected_len), Type::Array(actual_inner, actual_len)) => {
                 if expected_len != actual_len {
                     return Err(TypeError::Mismatch(
-                        Rc::new(TypeName::from_type(&Type::Array(
+                        Rc::new(TypeDesc::from_type(&Type::Array(
                             expected_inner,
                             expected_len,
                         ))),
-                        Rc::new(TypeName::from_type(&Type::Array(actual_inner, actual_len))),
+                        Rc::new(TypeDesc::from_type(&Type::Array(actual_inner, actual_len))),
                     ));
                 }
 
@@ -197,8 +197,8 @@ impl TypeEnv {
             (Type::Tuple(expected_inner), Type::Tuple(actual_inner)) => {
                 if expected_inner.len() != actual_inner.len() {
                     return Err(TypeError::Mismatch(
-                        Rc::new(TypeName::from_type(&Type::Tuple(expected_inner))),
-                        Rc::new(TypeName::from_type(&Type::Tuple(actual_inner))),
+                        Rc::new(TypeDesc::from_type(&Type::Tuple(expected_inner))),
+                        Rc::new(TypeDesc::from_type(&Type::Tuple(actual_inner))),
                     ));
                 }
 
@@ -214,8 +214,8 @@ impl TypeEnv {
             (Type::Function(expected_fn), Type::Function(actual_fn)) => {
                 if expected_fn.params.len() != actual_fn.params.len() {
                     return Err(TypeError::Mismatch(
-                        Rc::new(TypeName::from_type(&Type::Function(expected_fn))),
-                        Rc::new(TypeName::from_type(&Type::Function(actual_fn))),
+                        Rc::new(TypeDesc::from_type(&Type::Function(expected_fn))),
+                        Rc::new(TypeDesc::from_type(&Type::Function(actual_fn))),
                     ));
                 }
 
@@ -299,8 +299,8 @@ impl TypeEnv {
                     Ok(Type::Record(expected_record))
                 } else {
                     Err(TypeError::Mismatch(
-                        Rc::new(TypeName::from_type(&Type::Record(expected_record))),
-                        Rc::new(TypeName::from_type(&Type::Record(actual_record))),
+                        Rc::new(TypeDesc::from_type(&Type::Record(expected_record))),
+                        Rc::new(TypeDesc::from_type(&Type::Record(actual_record))),
                     ))
                 }
             }
@@ -309,15 +309,15 @@ impl TypeEnv {
                     Ok(Type::Variants(expected_variants))
                 } else {
                     Err(TypeError::Mismatch(
-                        Rc::new(TypeName::from_type(&Type::Variants(expected_variants))),
-                        Rc::new(TypeName::from_type(&Type::Variants(actual_variants))),
+                        Rc::new(TypeDesc::from_type(&Type::Variants(expected_variants))),
+                        Rc::new(TypeDesc::from_type(&Type::Variants(actual_variants))),
                     ))
                 }
             }
             // catch all for all types that definitely cannot be unified
             (expected, actual) => Err(TypeError::Mismatch(
-                Rc::new(TypeName::from_type(&expected)),
-                Rc::new(TypeName::from_type(&actual)),
+                Rc::new(TypeDesc::from_type(&expected)),
+                Rc::new(TypeDesc::from_type(&actual)),
             )),
         }
     }

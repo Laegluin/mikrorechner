@@ -23,29 +23,29 @@ pub enum TypeError {
     VarNotMut(Mutability),
     UnknownArgName(Ident),
     ArityMismatch(usize, usize),
-    Mismatch(Rc<TypeName>, Rc<TypeName>),
+    Mismatch(Rc<TypeDesc>, Rc<TypeDesc>),
     NonLValueInAssignment,
-    CannotInfer(Rc<TypeName>),
-    EntryPointTypeMismatch(Rc<TypeName>),
+    CannotInfer(Rc<TypeDesc>),
+    EntryPointTypeMismatch(Rc<TypeDesc>),
 }
 
 #[derive(Debug, Clone)]
-pub struct TypeRef(usize, Rc<TypeName>);
+pub struct TypeRef(usize, Rc<TypeDesc>);
 
 impl TypeRef {
     fn new(id: usize, ty: &Type) -> TypeRef {
-        TypeRef(id, Rc::new(TypeName::from_type(ty)))
+        TypeRef(id, Rc::new(TypeDesc::from_type(ty)))
     }
 
-    /// Changes the shown type name without changing the type it refers to.
-    fn with_type(self, ty: &Type) -> TypeRef {
+    /// Changes the type description without changing the type the `TypeRef` it refers to.
+    fn with_desc(self, ty: &Type) -> TypeRef {
         TypeRef::new(self.0, ty)
     }
 
     pub fn invalid() -> TypeRef {
         TypeRef(
             usize::max_value(),
-            Rc::new(TypeName::Name(Ident::new("{invalid}"))),
+            Rc::new(TypeDesc::Name(Ident::new("{invalid}"))),
         )
     }
 }
@@ -68,46 +68,46 @@ impl Hash for TypeRef {
 }
 
 #[derive(Debug)]
-pub enum TypeName {
+pub enum TypeDesc {
     Hole,
     Name(Ident),
-    ConstPtr(Rc<TypeName>),
-    MutPtr(Rc<TypeName>),
-    Array(Rc<TypeName>, u32),
-    Function(Vec<Rc<TypeName>>, Rc<TypeName>),
-    Tuple(Vec<Rc<TypeName>>),
-    RecordFields(Vec<(Ident, Rc<TypeName>)>),
+    ConstPtr(Rc<TypeDesc>),
+    MutPtr(Rc<TypeDesc>),
+    Array(Rc<TypeDesc>, u32),
+    Function(Vec<Rc<TypeDesc>>, Rc<TypeDesc>),
+    Tuple(Vec<Rc<TypeDesc>>),
+    RecordFields(Vec<(Ident, Rc<TypeDesc>)>),
 }
 
-impl TypeName {
-    fn from_type(ty: &Type) -> TypeName {
+impl TypeDesc {
+    fn from_type(ty: &Type) -> TypeDesc {
         match *ty {
-            Type::Var => TypeName::Hole,
-            Type::Int => TypeName::Name(Ident::new("{integer}")),
-            Type::Never => TypeName::Name(Ident::new("!")),
-            Type::Bool => TypeName::Name(Ident::new("bool")),
-            Type::I32 => TypeName::Name(Ident::new("i32")),
-            Type::U32 => TypeName::Name(Ident::new("u32")),
-            Type::Str => TypeName::Name(Ident::new("str")),
-            Type::Ptr(ref ty_ref) => TypeName::ConstPtr(ty_ref.1.clone()),
-            Type::ConstPtr(ref ty_ref) => TypeName::ConstPtr(ty_ref.1.clone()),
-            Type::MutPtr(ref ty_ref) => TypeName::MutPtr(ty_ref.1.clone()),
-            Type::Array(ref ty_ref, len) => TypeName::Array(ty_ref.1.clone(), len),
+            Type::Var => TypeDesc::Hole,
+            Type::Int => TypeDesc::Name(Ident::new("{integer}")),
+            Type::Never => TypeDesc::Name(Ident::new("!")),
+            Type::Bool => TypeDesc::Name(Ident::new("bool")),
+            Type::I32 => TypeDesc::Name(Ident::new("i32")),
+            Type::U32 => TypeDesc::Name(Ident::new("u32")),
+            Type::Str => TypeDesc::Name(Ident::new("str")),
+            Type::Ptr(ref ty_ref) => TypeDesc::ConstPtr(ty_ref.1.clone()),
+            Type::ConstPtr(ref ty_ref) => TypeDesc::ConstPtr(ty_ref.1.clone()),
+            Type::MutPtr(ref ty_ref) => TypeDesc::MutPtr(ty_ref.1.clone()),
+            Type::Array(ref ty_ref, len) => TypeDesc::Array(ty_ref.1.clone(), len),
             Type::Tuple(ref ty_refs) => {
-                TypeName::Tuple(ty_refs.iter().map(|ty_ref| ty_ref.1.clone()).collect())
+                TypeDesc::Tuple(ty_refs.iter().map(|ty_ref| ty_ref.1.clone()).collect())
             }
-            Type::Function(ref func) => TypeName::Function(
+            Type::Function(ref func) => TypeDesc::Function(
                 func.params.iter().map(|ty_ref| ty_ref.1.clone()).collect(),
                 func.ret.1.clone(),
             ),
-            Type::RecordFields(ref fields) => TypeName::RecordFields(
+            Type::RecordFields(ref fields) => TypeDesc::RecordFields(
                 fields
                     .iter()
                     .map(|field| (field.name.clone(), field.ty.1.clone()))
                     .collect(),
             ),
-            Type::Record(ref record) => TypeName::Name(record.name.clone()),
-            Type::Variants(ref variants) => TypeName::Name(variants.name.clone()),
+            Type::Record(ref record) => TypeDesc::Name(record.name.clone()),
+            Type::Variants(ref variants) => TypeDesc::Name(variants.name.clone()),
         }
     }
 }
@@ -323,7 +323,7 @@ fn check_items(
                 ..
             })) => {
                 // TODO: also alias the constructors
-                let ty = type_from_desc(ty.as_ref(), true, type_env, type_bindings)?;
+                let ty = type_from_decl(ty.as_ref(), true, type_env, type_bindings)?;
                 let var = &type_bindings.get(&name.value).unwrap();
                 type_env.unify(&var, &ty).unwrap();
             }
@@ -367,7 +367,7 @@ fn check_fn(
         let param = &mut param.value;
 
         param.ty = match param.ty_hint.as_ref() {
-            Some(hint) => type_from_desc(hint.as_ref(), false, type_env, type_bindings)?,
+            Some(hint) => type_from_decl(hint.as_ref(), false, type_env, type_bindings)?,
             None => type_env.insert(Type::Var),
         };
 
@@ -380,7 +380,7 @@ fn check_fn(
     }
 
     def.ret_ty = match def.ret_ty_hint.as_ref() {
-        Some(ty) => type_from_desc(ty.as_ref(), false, type_env, type_bindings)?,
+        Some(ty) => type_from_decl(ty.as_ref(), false, type_env, type_bindings)?,
         None => type_env.insert(Type::Var),
     };
 
@@ -787,7 +787,7 @@ fn check_expr<'a>(
 
             // make sure the type and and the expr's type are compatible
             if let Some(ref ty_hint) = ty_hint {
-                let hinted_ty = type_from_desc(ty_hint.as_ref(), false, type_env, type_bindings)?;
+                let hinted_ty = type_from_decl(ty_hint.as_ref(), false, type_env, type_bindings)?;
 
                 type_env
                     .unify(&hinted_ty, &expr_ty)
@@ -1055,7 +1055,7 @@ fn bind_record_def(
         let field_def = &field_def.value;
 
         let name = field_def.name.value.clone();
-        let ty = type_from_desc(field_def.ty.as_ref(), true, type_env, type_bindings)?;
+        let ty = type_from_decl(field_def.ty.as_ref(), true, type_env, type_bindings)?;
 
         fields.push(Field {
             name: name.clone(),
@@ -1121,7 +1121,7 @@ fn bind_variants_def(
         let params = variant_def
             .param_tys
             .iter()
-            .map(|param_ty| type_from_desc(param_ty.as_ref(), true, type_env, type_bindings))
+            .map(|param_ty| type_from_decl(param_ty.as_ref(), true, type_env, type_bindings))
             .collect::<Result<Vec<_>, _>>()?;
 
         variants.push(Variant {
@@ -1162,8 +1162,8 @@ fn bind_variants_def(
     Ok(())
 }
 
-fn type_from_desc(
-    desc: Spanned<&TypeDesc>,
+fn type_from_decl(
+    desc: Spanned<&TypeDecl>,
     is_type_def: bool,
     type_env: &mut TypeEnv,
     type_bindings: &ScopeMap<Ident, TypeRef>,
@@ -1171,14 +1171,14 @@ fn type_from_desc(
     let Spanned { value: desc, span } = desc;
 
     let ty = match *desc {
-        TypeDesc::Hole => {
+        TypeDecl::Hole => {
             if is_type_def {
                 return Err(Spanned::new(TypeError::HoleInTypeDef, span));
             } else {
                 type_env.insert(Type::Var)
             }
         }
-        TypeDesc::Name(ref ident) => type_bindings
+        TypeDecl::Name(ref ident) => type_bindings
             .get(ident)
             .ok_or_else(|| {
                 Spanned::new(
@@ -1187,8 +1187,8 @@ fn type_from_desc(
                 )
             })?
             .clone(),
-        TypeDesc::ConstPtr(ref desc) => {
-            let inner_ty = type_from_desc(
+        TypeDecl::ConstPtr(ref desc) => {
+            let inner_ty = type_from_decl(
                 desc.as_ref().map(Box::as_ref),
                 is_type_def,
                 type_env,
@@ -1197,8 +1197,8 @@ fn type_from_desc(
 
             type_env.insert(Type::ConstPtr(inner_ty))
         }
-        TypeDesc::MutPtr(ref desc) => {
-            let inner_ty = type_from_desc(
+        TypeDecl::MutPtr(ref desc) => {
+            let inner_ty = type_from_decl(
                 desc.as_ref().map(Box::as_ref),
                 is_type_def,
                 type_env,
@@ -1207,8 +1207,8 @@ fn type_from_desc(
 
             type_env.insert(Type::MutPtr(inner_ty))
         }
-        TypeDesc::Array(ArrayDesc { ref ty, ref len }) => {
-            let elem_ty = type_from_desc(
+        TypeDecl::Array(ArrayDecl { ref ty, ref len }) => {
+            let elem_ty = type_from_decl(
                 ty.as_ref().map(Box::as_ref),
                 is_type_def,
                 type_env,
@@ -1217,18 +1217,18 @@ fn type_from_desc(
 
             type_env.insert(Type::Array(elem_ty, len.into_inner()))
         }
-        TypeDesc::Function(FunctionDesc {
+        TypeDecl::Function(FunctionDecl {
             ref param_tys,
             ref ret_ty,
         }) => {
             let params = param_tys
                 .iter()
                 .map(|param_desc| {
-                    type_from_desc(param_desc.as_ref(), is_type_def, type_env, type_bindings)
+                    type_from_decl(param_desc.as_ref(), is_type_def, type_env, type_bindings)
                 })
                 .collect::<Result<Vec<_>, _>>()?;
 
-            let ret = type_from_desc(
+            let ret = type_from_decl(
                 ret_ty.as_ref().map(Box::as_ref),
                 is_type_def,
                 type_env,
@@ -1238,11 +1238,11 @@ fn type_from_desc(
             let fn_ty = type_env.insert(Type::Function(Function { params, ret }));
             type_env.insert(Type::ConstPtr(fn_ty))
         }
-        TypeDesc::Tuple(ref ty_descs) => {
+        TypeDecl::Tuple(ref ty_descs) => {
             let tys = ty_descs
                 .iter()
                 .map(|ty_desc| {
-                    type_from_desc(ty_desc.as_ref(), is_type_def, type_env, type_bindings)
+                    type_from_decl(ty_desc.as_ref(), is_type_def, type_env, type_bindings)
                 })
                 .collect::<Result<Vec<_>, _>>()?;
 

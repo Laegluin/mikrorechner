@@ -185,7 +185,7 @@ fn canonicalize_type_ref(
         }
         // if the int type does not matter, default to i32
         Type::Int => {
-            let canonical_ref = canonical_ref.with_type(&Type::I32);
+            let canonical_ref = canonical_ref.with_desc(&Type::I32);
 
             types
                 .entry(canonical_ref.clone())
