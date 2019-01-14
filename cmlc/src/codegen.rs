@@ -1,8 +1,16 @@
+use crate::ast::*;
+use crate::typecheck::{Type, TypeRef};
 use derive_more::{Add, AddAssign};
+use fnv::FnvHashMap;
+use std::cell::Cell;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
 const STACK_PTR_REG: Reg = Reg::R31;
+
+enum CodegenError {
+    InfiniteSize,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter)]
 enum Reg {
@@ -51,25 +59,128 @@ impl Reg {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-struct FieldIdx(usize);
-
 #[derive(Debug, Clone, Copy, Add, AddAssign)]
 struct StackOffset(u32);
 
 #[derive(Debug, Clone, Copy, Add, AddAssign)]
 struct RegOffset(u8);
 
-trait Layout {
-    fn stack_size(&self) -> StackOffset;
-
-    fn stack_field(&self, field: FieldIdx, value: &StackValue) -> StackValue;
-
-    fn reg_size(&self) -> RegOffset;
-
-    fn reg_field_offset(&self, field: FieldIdx) -> RegValue;
+#[derive(PartialEq, Eq)]
+enum FieldIdent<'a> {
+    Idx(usize),
+    Name(&'a Ident),
 }
 
+impl<'a> From<usize> for FieldIdent<'a> {
+    fn from(idx: usize) -> FieldIdent<'a> {
+        FieldIdent::Idx(idx)
+    }
+}
+
+impl<'a> From<&'a Ident> for FieldIdent<'a> {
+    fn from(name: &'a Ident) -> FieldIdent<'a> {
+        FieldIdent::Name(name)
+    }
+}
+
+struct LayoutCache {
+    generation: u32,
+    layouts: FnvHashMap<TypeRef, (u32, Layout)>,
+}
+
+impl LayoutCache {
+    fn new() -> LayoutCache {
+        LayoutCache {
+            generation: 0,
+            layouts: FnvHashMap::default(),
+        }
+    }
+
+    fn new_generation(&mut self) {
+        self.generation += 1;
+    }
+
+    fn get_or_insert(&mut self, ty: TypeRef, ast: &TypedAst) -> Result<&Layout, CodegenError> {
+        if self.layouts.contains_key(&ty) {
+            let (last_gen, ref layout) = self.layouts[&ty];
+
+            if last_gen < self.generation {
+                return Ok(layout);
+            } else {
+                return Err(CodegenError::InfiniteSize);
+            }
+        }
+
+        let layout = Layout::from_type(&ast.types[&ty], self)?;
+
+        let layout = &self
+            .layouts
+            .entry(ty)
+            .or_insert((self.generation, layout))
+            .1;
+
+        Ok(layout)
+    }
+}
+
+struct Layout {
+    reg_size: RegOffset,
+    reg_field_layout: Vec<(Option<Ident>, RegOffset)>,
+    stack_size: StackOffset,
+    stack_field_layout: Vec<(Option<Ident>, StackOffset)>,
+}
+
+impl Layout {
+    fn word() -> Layout {
+        Layout {
+            reg_size: RegOffset(1),
+            reg_field_layout: Vec::new(),
+            stack_size: StackOffset(4),
+            stack_field_layout: Vec::new(),
+        }
+    }
+
+    fn from_type(ty: &Type, layouts: &mut LayoutCache) -> Result<Layout, CodegenError> {
+        unimplemented!()
+    }
+
+    fn stack_size(&self) -> StackOffset {
+        self.stack_size
+    }
+
+    fn stack_field_offset<'a>(&self, field: impl Into<FieldIdent<'a>>) -> StackOffset {
+        Layout::find_field_offset(field.into(), &self.stack_field_layout)
+    }
+
+    fn reg_size(&self) -> RegOffset {
+        self.reg_size
+    }
+
+    fn reg_field_offset<'a>(&self, field: impl Into<FieldIdent<'a>>) -> RegOffset {
+        Layout::find_field_offset(field.into(), &self.reg_field_layout)
+    }
+
+    fn find_field_offset<O: Copy>(field: FieldIdent<'_>, offsets: &[(Option<Ident>, O)]) -> O {
+        offsets
+            .iter()
+            .enumerate()
+            .find_map(|(idx, (ident, offset))| {
+                let field_ident = ident
+                    .as_ref()
+                    .map(FieldIdent::Name)
+                    .unwrap_or(FieldIdent::Idx(idx));
+
+                if field == field_ident {
+                    Some(*offset)
+                } else {
+                    None
+                }
+            })
+            .expect("valid field for layout")
+    }
+}
+
+#[derive(Debug)]
 struct RegValue {
     regs: Vec<Reg>,
 }
@@ -78,8 +189,17 @@ impl RegValue {
     fn reg(&self) -> Reg {
         self.regs[0]
     }
+
+    fn field<'a>(&self, field: impl Into<FieldIdent<'a>>, layout: &Layout) -> RegValue {
+        let offset = layout.reg_field_offset(field);
+
+        RegValue {
+            regs: self.regs[offset.0 as usize..].iter().cloned().collect(),
+        }
+    }
 }
 
+#[derive(Debug)]
 struct StackValue {
     start: StackOffset,
 }
@@ -87,6 +207,14 @@ struct StackValue {
 impl StackValue {
     fn offset(&self) -> StackOffset {
         self.start
+    }
+
+    fn field<'a>(&self, field: impl Into<FieldIdent<'a>>, layout: &Layout) -> StackValue {
+        let offset = layout.stack_field_offset(field);
+
+        StackValue {
+            start: self.start + offset,
+        }
     }
 }
 
