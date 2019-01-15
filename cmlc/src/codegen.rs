@@ -1,7 +1,8 @@
 use crate::ast::*;
-use crate::typecheck::{Type, TypeRef};
+use crate::typecheck::{Type, TypeDesc, TypeRef};
 use derive_more::{Add, AddAssign};
 use fnv::FnvHashMap;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
@@ -9,7 +10,7 @@ use strum_macros::EnumIter;
 const STACK_PTR_REG: Reg = Reg::R31;
 
 enum CodegenError {
-    InfiniteSize,
+    InfiniteSize(Rc<TypeDesc>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter)]
@@ -107,19 +108,20 @@ impl LayoutCache {
             if last_gen < self.generation {
                 return Ok(layout);
             } else {
-                return Err(CodegenError::InfiniteSize);
+                return Err(CodegenError::InfiniteSize(ty.desc()));
             }
         }
 
+        // insert dummy layout to detect cyclic layouts (layouts with infinite size)
+        self.layouts
+            .insert(ty.clone(), (self.generation, Layout::word()));
+
+        // generate the actual layout and update the dummy value
         let layout = Layout::from_type(&ast.types[&ty], self)?;
+        let layout_ref = self.layouts.get_mut(&ty).unwrap();
+        *layout_ref = (self.generation, layout);
 
-        let layout = &self
-            .layouts
-            .entry(ty)
-            .or_insert((self.generation, layout))
-            .1;
-
-        Ok(layout)
+        Ok(&layout_ref.1)
     }
 }
 
@@ -203,7 +205,7 @@ impl RegValue {
 enum Value {
     Label(LabelValue),
     Reg(RegValue),
-    Stack(StackValue)
+    Stack(StackValue),
 }
 
 #[derive(Debug)]

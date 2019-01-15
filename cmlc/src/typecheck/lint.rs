@@ -163,7 +163,7 @@ fn verify_entry_point(
 
     if !params.is_empty() || !ret_ty.is_unit() {
         Err(Spanned::new(
-            TypeError::EntryPointTypeMismatch(ret_ty_ref.1.clone()),
+            TypeError::EntryPointTypeMismatch(ret_ty_ref.desc()),
             span,
         ))
     } else {
@@ -180,9 +180,10 @@ fn canonicalize_type_ref(
     let (canonical_ref, ty) = type_env.find_type(ty_ref);
 
     match *ty {
-        Type::Var | Type::PartialRecord(_) | Type::Ptr(_) => {
-            Err(Spanned::new(TypeError::CannotInfer(canonical_ref.1), span))
-        }
+        Type::Var | Type::PartialRecord(_) | Type::Ptr(_) => Err(Spanned::new(
+            TypeError::CannotInfer(canonical_ref.desc()),
+            span,
+        )),
         // if the int type does not matter, default to i32
         Type::Int => {
             let canonical_ref = canonical_ref.with_desc(&Type::I32);

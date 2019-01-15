@@ -42,6 +42,10 @@ impl TypeRef {
         TypeRef::new(self.0, ty)
     }
 
+    pub fn desc(&self) -> Rc<TypeDesc> {
+        Rc::clone(&self.1)
+    }
+
     pub fn invalid() -> TypeRef {
         TypeRef(
             usize::max_value(),
@@ -89,21 +93,21 @@ impl TypeDesc {
             Type::I32 => TypeDesc::Name(Ident::new("i32")),
             Type::U32 => TypeDesc::Name(Ident::new("u32")),
             Type::Str => TypeDesc::Name(Ident::new("str")),
-            Type::Ptr(ref ty_ref) => TypeDesc::ConstPtr(ty_ref.1.clone()),
-            Type::ConstPtr(ref ty_ref) => TypeDesc::ConstPtr(ty_ref.1.clone()),
-            Type::MutPtr(ref ty_ref) => TypeDesc::MutPtr(ty_ref.1.clone()),
-            Type::Array(ref ty_ref, len) => TypeDesc::Array(ty_ref.1.clone(), len),
+            Type::Ptr(ref ty_ref) => TypeDesc::ConstPtr(ty_ref.desc()),
+            Type::ConstPtr(ref ty_ref) => TypeDesc::ConstPtr(ty_ref.desc()),
+            Type::MutPtr(ref ty_ref) => TypeDesc::MutPtr(ty_ref.desc()),
+            Type::Array(ref ty_ref, len) => TypeDesc::Array(ty_ref.desc(), len),
             Type::Tuple(ref ty_refs) => {
-                TypeDesc::Tuple(ty_refs.iter().map(|ty_ref| ty_ref.1.clone()).collect())
+                TypeDesc::Tuple(ty_refs.iter().map(|ty_ref| ty_ref.desc()).collect())
             }
             Type::Function(ref func) => TypeDesc::Function(
-                func.params.iter().map(|ty_ref| ty_ref.1.clone()).collect(),
-                func.ret.1.clone(),
+                func.params.iter().map(|ty_ref| ty_ref.desc()).collect(),
+                func.ret.desc(),
             ),
             Type::PartialRecord(ref fields) => TypeDesc::PartialRecord(
                 fields
                     .iter()
-                    .map(|field| (field.name.clone(), field.ty.1.clone()))
+                    .map(|field| (field.name.clone(), field.ty.desc()))
                     .collect(),
             ),
             Type::Record(ref record) => TypeDesc::Name(record.name.clone()),
