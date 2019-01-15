@@ -104,47 +104,45 @@ impl<'a> From<&'a Ident> for FieldIdent<'a> {
 }
 
 struct LayoutCache {
-    generation: u32,
-    layouts: FnvHashMap<TypeRef, (u32, Layout)>,
+    layouts: FnvHashMap<TypeRef, Option<Layout>>,
 }
 
 impl LayoutCache {
     fn new() -> LayoutCache {
         LayoutCache {
-            generation: 0,
             layouts: FnvHashMap::default(),
         }
     }
 
-    fn new_generation(&mut self) {
-        self.generation += 1;
-    }
-
     fn get_or_insert(&mut self, ty: TypeRef, ast: &TypedAst) -> Result<&Layout, CodegenError> {
         if self.layouts.contains_key(&ty) {
-            let (last_gen, ref layout) = self.layouts[&ty];
+            let layout = &self.layouts[&ty];
 
-            if last_gen < self.generation {
+            if let Some(layout) = layout {
                 return Ok(layout);
             } else {
                 return Err(CodegenError::InfiniteSize(ty.desc()));
             }
         }
 
-        // insert dummy layout to detect cyclic layouts (layouts with infinite size)
-        self.layouts
-            .insert(ty.clone(), (self.generation, Layout::zero_sized()));
+        // insert `None` to detect cyclic layouts (layouts with infinite size)
+        self.layouts.insert(ty.clone(), None);
 
-        // generate the actual layout and update the dummy value
+        // generate the actual layout and update the value
         let layout = Layout::from_type(&ast.types[&ty], self, ast)?;
         let layout_ref = self.layouts.get_mut(&ty).unwrap();
-        *layout_ref = (self.generation, layout);
+        *layout_ref = Some(layout);
 
-        Ok(&layout_ref.1)
+        Ok(layout_ref.as_ref().unwrap())
     }
 }
 
+/// Stores the size and layout of a value for both its stack and its register representation.
+///
+/// Data may have fields that can be indexed by index and name (if the field has one).
 struct Layout {
+    // offsets for each field are stored as the total offset relative to the
+    // values start offset
     reg_size: RegOffset,
     reg_field_layout: Vec<(Option<Ident>, RegOffset)>,
     stack_size: StackOffset,
