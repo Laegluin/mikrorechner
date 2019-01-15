@@ -1,4 +1,5 @@
 use crate::ast::*;
+use crate::codegen::{CodegenError, STACK_FRAME_PTR_REG, TMP_OPERAND_REG, TMP_RESULT_REG};
 use crate::typecheck::{Type, TypeDesc, TypeRef};
 use derive_more::{Add, AddAssign};
 use fnv::FnvHashMap;
@@ -9,15 +10,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
-const STACK_PTR_REG: Reg = Reg::R31;
-
-enum CodegenError {
-    UnsizedType(Rc<TypeDesc>),
-    InfiniteSize(Rc<TypeDesc>),
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter)]
-enum Reg {
+pub enum Reg {
     R0,
     R1,
     R2,
@@ -57,7 +51,11 @@ enum Reg {
 impl Reg {
     fn is_general_purpose(&self) -> bool {
         match *self {
-            Reg::AddrOffset | Reg::Null | STACK_PTR_REG => false,
+            Reg::AddrOffset
+            | Reg::Null
+            | STACK_FRAME_PTR_REG
+            | TMP_RESULT_REG
+            | TMP_OPERAND_REG => false,
             _ => true,
         }
     }
