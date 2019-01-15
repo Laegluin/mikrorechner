@@ -2,7 +2,7 @@ use crate::ast::*;
 use crate::typecheck::{Type, TypeRef};
 use derive_more::{Add, AddAssign};
 use fnv::FnvHashMap;
-use std::cell::Cell;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
@@ -200,6 +200,13 @@ impl RegValue {
 }
 
 #[derive(Debug)]
+enum Value {
+    Label(LabelValue),
+    Reg(RegValue),
+    Stack(StackValue)
+}
+
+#[derive(Debug)]
 struct StackValue {
     start: StackOffset,
 }
@@ -214,6 +221,27 @@ impl StackValue {
 
         StackValue {
             start: self.start + offset,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct LabelValue {
+    label: Ident,
+}
+
+impl LabelValue {
+    fn new() -> LabelValue {
+        static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
+
+        let id = NEXT_ID.fetch_add(1, Ordering::AcqRel);
+
+        if id == usize::max_value() {
+            panic!("overflow for label ids");
+        }
+
+        LabelValue {
+            label: Ident::new(format!("_label_{}", id)),
         }
     }
 }
