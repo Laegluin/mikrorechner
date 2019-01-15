@@ -63,7 +63,7 @@ impl Reg {
     }
 }
 
-#[derive(Debug, Clone, Copy, Add, AddAssign)]
+#[derive(Debug, Clone, Copy, Add, AddAssign, Ord, PartialOrd, Eq, PartialEq)]
 struct StackOffset(u32);
 
 impl Mul<u32> for StackOffset {
@@ -74,7 +74,7 @@ impl Mul<u32> for StackOffset {
     }
 }
 
-#[derive(Debug, Clone, Copy, Add, AddAssign)]
+#[derive(Debug, Clone, Copy, Add, AddAssign, Ord, PartialOrd, Eq, PartialEq)]
 struct RegOffset(u32);
 
 impl Mul<u32> for RegOffset {
@@ -104,7 +104,7 @@ impl<'a> From<&'a Ident> for FieldIdent<'a> {
 }
 
 struct LayoutCache {
-    layouts: FnvHashMap<TypeRef, Option<Layout>>,
+    layouts: FnvHashMap<TypeRef, Option<Rc<Layout>>>,
 }
 
 impl LayoutCache {
@@ -114,26 +114,23 @@ impl LayoutCache {
         }
     }
 
-    fn get_or_insert(&mut self, ty: TypeRef, ast: &TypedAst) -> Result<&Layout, CodegenError> {
-        if self.layouts.contains_key(&ty) {
-            let layout = &self.layouts[&ty];
+    fn get_or_insert(&mut self, ty: TypeRef, ast: &TypedAst) -> Result<Rc<Layout>, CodegenError> {
+        match self.layouts.get(&ty) {
+            Some(Some(layout)) => Ok(Rc::clone(layout)),
+            Some(None) => Err(CodegenError::InfiniteSize(ty.desc())),
+            None => {
+                // insert `None` to detect cyclic layouts (layouts with infinite size)
+                self.layouts.insert(ty.clone(), None);
 
-            if let Some(layout) = layout {
-                return Ok(layout);
-            } else {
-                return Err(CodegenError::InfiniteSize(ty.desc()));
+                // generate the actual layout and update the value
+                let layout = Rc::new(Layout::from_type(&ast.types[&ty], self, ast)?);
+                self.layouts
+                    .get_mut(&ty)
+                    .map(|layout_ref| *layout_ref = Some(Rc::clone(&layout)));
+
+                Ok(layout)
             }
         }
-
-        // insert `None` to detect cyclic layouts (layouts with infinite size)
-        self.layouts.insert(ty.clone(), None);
-
-        // generate the actual layout and update the value
-        let layout = Layout::from_type(&ast.types[&ty], self, ast)?;
-        let layout_ref = self.layouts.get_mut(&ty).unwrap();
-        *layout_ref = Some(layout);
-
-        Ok(layout_ref.as_ref().unwrap())
     }
 }
 
@@ -195,7 +192,68 @@ impl Layout {
         }
     }
 
-    // FIXME: start a new generation somewhere
+    fn composite(elems: Vec<(Option<Ident>, Rc<Layout>)>) -> Layout {
+        let mut reg_size = RegOffset(0);
+
+        let reg_field_layout = elems
+            .iter()
+            .map(|(name, layout)| {
+                let field = (name.clone(), reg_size);
+                reg_size += layout.reg_size();
+                field
+            })
+            .collect();
+
+        let mut stack_size = StackOffset(0);
+
+        let stack_field_layout = elems
+            .into_iter()
+            .map(|(name, layout)| {
+                let field = (name, stack_size);
+                stack_size += layout.stack_size();
+                field
+            })
+            .collect();
+
+        Layout {
+            reg_size,
+            reg_field_layout,
+            stack_size,
+            stack_field_layout,
+        }
+    }
+
+    fn variants(variant_layouts: Vec<Layout>) -> Layout {
+        // reserve one word for the tag, for the rest use as much space as the
+        // largest variant requires
+        let reg_data_start = RegOffset(1);
+        let reg_field_layout = vec![(None, RegOffset(0)), (None, reg_data_start)];
+
+        let reg_size = reg_data_start
+            + variant_layouts
+                .iter()
+                .map(|layout| layout.reg_size())
+                .max()
+                .unwrap_or(RegOffset(0));
+
+        let stack_data_start = StackOffset(4);
+        let stack_field_layout = vec![(None, StackOffset(0)), (None, stack_data_start)];
+
+        let stack_size = stack_data_start
+            + variant_layouts
+                .iter()
+                .map(|layout| layout.stack_size())
+                .max()
+                .unwrap_or(StackOffset(0));
+
+        Layout {
+            reg_size,
+            reg_field_layout,
+            stack_size,
+            stack_field_layout,
+        }
+    }
+
     fn from_type(
         ty: &Type,
         layouts: &mut LayoutCache,
@@ -208,11 +266,51 @@ impl Layout {
             Type::ConstPtr(_) | Type::MutPtr(_) => Layout::word(),
             Type::Array(ref elem_ty, len) => {
                 let elem_layout = layouts.get_or_insert(elem_ty.clone(), ast)?;
-                Layout::array(elem_layout, len)
+                Layout::array(&*elem_layout, len)
             }
-            Type::Tuple(_) => unimplemented!(),
-            Type::Record(_) => unimplemented!(),
-            Type::Variants(_) => unimplemented!(),
+            Type::Tuple(ref elem_tys) => {
+                let layouts = elem_tys
+                    .iter()
+                    .map(|ty| {
+                        let layout = layouts.get_or_insert(ty.clone(), ast)?;
+                        Ok((None, layout))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                Layout::composite(layouts)
+            }
+            Type::Record(ref record) => {
+                let layouts = record
+                    .fields
+                    .iter()
+                    .map(|field| {
+                        let layout = layouts.get_or_insert(field.ty.clone(), ast)?;
+                        Ok((Some(field.name.clone()), layout))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                Layout::composite(layouts)
+            }
+            Type::Variants(ref variants) => {
+                let layouts = variants
+                    .variants
+                    .iter()
+                    .map(|variant| {
+                        let data_layouts = variant
+                            .params
+                            .iter()
+                            .map(|ty| {
+                                let layout = layouts.get_or_insert(ty.clone(), ast)?;
+                                Ok((None, layout))
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
+
+                        Ok(Layout::composite(data_layouts))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                Layout::variants(layouts)
+            }
             Type::Str | Type::Function(_) => {
                 return Err(CodegenError::UnsizedType(Rc::new(TypeDesc::from_type(ty))));
             }
