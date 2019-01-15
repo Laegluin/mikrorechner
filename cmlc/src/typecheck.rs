@@ -84,7 +84,7 @@ pub enum TypeDesc {
 }
 
 impl TypeDesc {
-    fn from_type(ty: &Type) -> TypeDesc {
+    pub fn from_type(ty: &Type) -> TypeDesc {
         match *ty {
             Type::Var => TypeDesc::Hole,
             Type::Int => TypeDesc::Name(Ident::new("{integer}")),

@@ -2,6 +2,8 @@ use crate::ast::*;
 use crate::typecheck::{Type, TypeDesc, TypeRef};
 use derive_more::{Add, AddAssign};
 use fnv::FnvHashMap;
+use std::iter;
+use std::ops::Mul;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use strum::IntoEnumIterator;
@@ -10,6 +12,7 @@ use strum_macros::EnumIter;
 const STACK_PTR_REG: Reg = Reg::R31;
 
 enum CodegenError {
+    UnsizedType(Rc<TypeDesc>),
     InfiniteSize(Rc<TypeDesc>),
 }
 
@@ -63,8 +66,24 @@ impl Reg {
 #[derive(Debug, Clone, Copy, Add, AddAssign)]
 struct StackOffset(u32);
 
+impl Mul<u32> for StackOffset {
+    type Output = StackOffset;
+
+    fn mul(self, rhs: u32) -> StackOffset {
+        StackOffset(self.0 * rhs)
+    }
+}
+
 #[derive(Debug, Clone, Copy, Add, AddAssign)]
-struct RegOffset(u8);
+struct RegOffset(u32);
+
+impl Mul<u32> for RegOffset {
+    type Output = RegOffset;
+
+    fn mul(self, rhs: u32) -> RegOffset {
+        RegOffset(self.0 * rhs)
+    }
+}
 
 #[derive(PartialEq, Eq)]
 enum FieldIdent<'a> {
@@ -114,10 +133,10 @@ impl LayoutCache {
 
         // insert dummy layout to detect cyclic layouts (layouts with infinite size)
         self.layouts
-            .insert(ty.clone(), (self.generation, Layout::word()));
+            .insert(ty.clone(), (self.generation, Layout::zero_sized()));
 
         // generate the actual layout and update the dummy value
-        let layout = Layout::from_type(&ast.types[&ty], self)?;
+        let layout = Layout::from_type(&ast.types[&ty], self, ast)?;
         let layout_ref = self.layouts.get_mut(&ty).unwrap();
         *layout_ref = (self.generation, layout);
 
@@ -133,6 +152,15 @@ struct Layout {
 }
 
 impl Layout {
+    fn zero_sized() -> Layout {
+        Layout {
+            reg_size: RegOffset(0),
+            reg_field_layout: Vec::new(),
+            stack_size: StackOffset(0),
+            stack_field_layout: Vec::new(),
+        }
+    }
+
     fn word() -> Layout {
         Layout {
             reg_size: RegOffset(1),
@@ -142,8 +170,58 @@ impl Layout {
         }
     }
 
-    fn from_type(ty: &Type, layouts: &mut LayoutCache) -> Result<Layout, CodegenError> {
-        unimplemented!()
+    fn array(elem_layout: &Layout, len: u32) -> Layout {
+        let reg_field_layout = iter::repeat((None, elem_layout.reg_size()))
+            .scan(RegOffset(0), |offset, (name, next_offset)| {
+                let field = (name, *offset);
+                *offset += next_offset;
+                Some(field)
+            })
+            .take(len as usize)
+            .collect();
+
+        let stack_field_layout = iter::repeat((None, elem_layout.stack_size()))
+            .scan(StackOffset(0), |offset, (name, next_offset)| {
+                let field = (name, *offset);
+                *offset += next_offset;
+                Some(field)
+            })
+            .take(len as usize)
+            .collect();
+
+        Layout {
+            reg_size: elem_layout.reg_size() * len,
+            reg_field_layout,
+            stack_size: elem_layout.stack_size() * len,
+            stack_field_layout,
+        }
+    }
+
+    // FIXME: start a new generation somewhere
+    fn from_type(
+        ty: &Type,
+        layouts: &mut LayoutCache,
+        ast: &TypedAst,
+    ) -> Result<Layout, CodegenError> {
+        let layout = match *ty {
+            Type::Never => Layout::zero_sized(),
+            Type::Bool => Layout::word(),
+            Type::I32 | Type::U32 => Layout::word(),
+            Type::ConstPtr(_) | Type::MutPtr(_) => Layout::word(),
+            Type::Array(ref elem_ty, len) => {
+                let elem_layout = layouts.get_or_insert(elem_ty.clone(), ast)?;
+                Layout::array(elem_layout, len)
+            }
+            Type::Tuple(_) => unimplemented!(),
+            Type::Record(_) => unimplemented!(),
+            Type::Variants(_) => unimplemented!(),
+            Type::Str | Type::Function(_) => {
+                return Err(CodegenError::UnsizedType(Rc::new(TypeDesc::from_type(ty))));
+            }
+            Type::Var | Type::Int | Type::Ptr(_) | Type::PartialRecord(_) => unreachable!(),
+        };
+
+        Ok(layout)
     }
 
     fn stack_size(&self) -> StackOffset {
