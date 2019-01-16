@@ -355,48 +355,10 @@ impl Layout {
 }
 
 #[derive(Debug)]
-pub struct RegValue {
-    regs: Vec<Reg>,
-}
-
-impl RegValue {
-    fn reg(&self) -> Reg {
-        self.regs[0]
-    }
-
-    fn field<'a>(&self, field: impl Into<FieldIdent<'a>>, layout: &Layout) -> RegValue {
-        let offset = layout.reg_field_offset(field);
-
-        RegValue {
-            regs: self.regs[offset.0 as usize..].iter().cloned().collect(),
-        }
-    }
-}
-
-#[derive(Debug)]
 pub enum Value {
     Label(LabelValue),
     Reg(RegValue),
     Stack(StackValue),
-}
-
-#[derive(Debug)]
-pub struct StackValue {
-    start: StackOffset,
-}
-
-impl StackValue {
-    fn offset(&self) -> StackOffset {
-        self.start
-    }
-
-    fn field<'a>(&self, field: impl Into<FieldIdent<'a>>, layout: &Layout) -> StackValue {
-        let offset = layout.stack_field_offset(field);
-
-        StackValue {
-            start: self.start + offset,
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -420,21 +382,41 @@ impl LabelValue {
     }
 }
 
-struct StackAllocator {
+#[derive(Debug)]
+pub struct RegValue {
+    regs: Vec<Reg>,
+}
+
+impl RegValue {
+    fn reg(&self) -> Reg {
+        self.regs[0]
+    }
+
+    fn field<'a>(&self, field: impl Into<FieldIdent<'a>>, layout: &Layout) -> RegValue {
+        let offset = layout.reg_field_offset(field);
+
+        RegValue {
+            regs: self.regs[offset.0 as usize..].iter().cloned().collect(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct StackValue {
     start: StackOffset,
 }
 
-impl StackAllocator {
-    fn new() -> StackAllocator {
-        StackAllocator {
-            start: StackOffset(0),
-        }
+impl StackValue {
+    fn offset(&self) -> StackOffset {
+        self.start
     }
 
-    fn alloc(&mut self, layout: &Layout) -> StackValue {
-        let value = StackValue { start: self.start };
-        self.start += layout.stack_size();
-        value
+    fn field<'a>(&self, field: impl Into<FieldIdent<'a>>, layout: &Layout) -> StackValue {
+        let offset = layout.stack_field_offset(field);
+
+        StackValue {
+            start: self.start + offset,
+        }
     }
 }
 
@@ -460,5 +442,23 @@ impl RegAllocator {
 
             Some(RegValue { regs })
         }
+    }
+}
+
+struct StackAllocator {
+    start: StackOffset,
+}
+
+impl StackAllocator {
+    fn new() -> StackAllocator {
+        StackAllocator {
+            start: StackOffset(0),
+        }
+    }
+
+    fn alloc(&mut self, layout: &Layout) -> StackValue {
+        let value = StackValue { start: self.start };
+        self.start += layout.stack_size();
+        value
     }
 }
