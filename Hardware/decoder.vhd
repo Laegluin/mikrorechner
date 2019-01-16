@@ -53,7 +53,7 @@ begin
         if reset = '1' then
             -- reset out ports
             pc_out         <= (others => '0');
-            opcode         <= (others => '0');
+            opcode         <= (others => '1');
             A              <= (others => '0');
             B              <= (others => '0');
             C              <= (others => '0');

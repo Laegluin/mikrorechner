@@ -41,15 +41,15 @@ begin
 		case(wb_control) is
 			when "11" => --Write back immediate (Set Operation)
 		        write_data <= reg_imm;
-				reg_write_en <= '1';
+				reg_write_en_sig <= '1';
 		    when "10" => --Write back ALU result (Arithmetic & Logic & Copy Ops)
 		        write_data <= ALU_Out;
-				reg_write_en <= '1';
+				reg_write_en_sig <= '1';
 		    when "01" => --Write back data from memory (Load Operation)
 		        write_data <= mem_Out;
-				reg_write_en <= '1';
+				reg_write_en_sig <= '1';
 		    when others => --Assume no write back (Jumps, Comparisons, Noop, etc.)
-				reg_write_en <= '0';
+				reg_write_en_sig <= '0';
 		end case;
 	    --end if;
 	end if;

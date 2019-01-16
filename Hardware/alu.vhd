@@ -28,7 +28,7 @@ signal Flag_tmp     : std_logic := '0';
 
 
 begin
-    process(A,B,opcode)
+    process(opcode)
 
     begin
 

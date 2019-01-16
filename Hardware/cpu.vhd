@@ -85,10 +85,6 @@ architecture behavior of cpu is
     --signal mem_data          : unsigned(bit_Width-1 downto 0);
     signal mem_out           : unsigned(bit_Width-1 downto 0);
     signal ex_jump_to        : unsigned(bit_Width-1 downto 0);
-    signal mem_C_address_in  : unsigned(adr_Width-1 downto 0);
-    signal mem_C_data_in     : unsigned(bit_Width-1 downto 0);      
-    signal mem_C_address_out : unsigned(adr_Width-1 downto 0);
-    signal mem_C_data_out    : unsigned(bit_Width-1 downto 0);
         
         -- operanden holen
 
