@@ -1,11 +1,10 @@
 pub mod lint;
-pub mod scope_map;
 pub mod unify;
 
 use crate::ast::*;
+use crate::scope_map::ScopeMap;
 use crate::span::{Span, Spanned};
 use crate::support;
-use crate::typecheck::scope_map::ScopeMap;
 use crate::typecheck::unify::TypeEnv;
 use std::hash::{Hash, Hasher};
 use std::mem;

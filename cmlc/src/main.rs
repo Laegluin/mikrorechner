@@ -2,6 +2,7 @@ mod ast;
 mod codegen;
 mod lexer;
 mod parser;
+mod scope_map;
 mod span;
 mod support;
 mod typecheck;
@@ -21,6 +22,7 @@ enum Error {
     Lex(lexer::LexError),
     Parse(parser::ParseError),
     Type(typecheck::TypeError),
+    Codegen(codegen::CodegenError),
 }
 
 #[derive(StructOpt)]
@@ -61,8 +63,9 @@ fn compile(file_map: &FileMap) -> Result<(), Spanned<Error>> {
     let tokens = lexer::lex(file_map.src()).map_err(|spanned| spanned.map(Error::Lex))?;
     let ast = parser::parse(&tokens).map_err(|spanned| spanned.map(Error::Parse))?;
     let typed_ast = typecheck::typecheck(ast).map_err(|spanned| spanned.map(Error::Type))?;
-    println!("=> ast:");
-    println!("{:#?}", typed_ast);
+    let asm = codegen::gen_asm(typed_ast).map_err(|spanned| spanned.map(Error::Codegen))?;
+    println!("=> asm:");
+    println!("{:#?}", asm);
 
     Ok(())
 }

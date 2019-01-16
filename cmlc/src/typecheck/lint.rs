@@ -1,10 +1,9 @@
 use crate::ast::*;
+use crate::codegen::ENTRY_POINT;
 use crate::span::{Span, Spanned};
 use crate::typecheck::unify::TypeEnv;
 use crate::typecheck::{Type, TypeError, TypeRef};
 use fnv::FnvHashMap;
-
-const ENTRY_POINT: &str = "main";
 
 pub fn verify_types(mut ast: Ast) -> Result<TypedAst, Spanned<TypeError>> {
     let mut types = FnvHashMap::default();

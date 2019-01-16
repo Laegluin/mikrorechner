@@ -355,7 +355,7 @@ impl Layout {
 }
 
 #[derive(Debug)]
-struct RegValue {
+pub struct RegValue {
     regs: Vec<Reg>,
 }
 
@@ -374,14 +374,14 @@ impl RegValue {
 }
 
 #[derive(Debug)]
-enum Value {
+pub enum Value {
     Label(LabelValue),
     Reg(RegValue),
     Stack(StackValue),
 }
 
 #[derive(Debug)]
-struct StackValue {
+pub struct StackValue {
     start: StackOffset,
 }
 
@@ -400,8 +400,8 @@ impl StackValue {
 }
 
 #[derive(Debug)]
-struct LabelValue {
-    label: Ident,
+pub struct LabelValue {
+    pub label: Ident,
 }
 
 impl LabelValue {
