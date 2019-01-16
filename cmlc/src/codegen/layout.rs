@@ -62,7 +62,7 @@ impl Reg {
 }
 
 #[derive(Debug, Clone, Copy, Add, AddAssign, Ord, PartialOrd, Eq, PartialEq)]
-struct StackOffset(u32);
+pub struct StackOffset(pub u32);
 
 impl Mul<u32> for StackOffset {
     type Output = StackOffset;
@@ -73,7 +73,7 @@ impl Mul<u32> for StackOffset {
 }
 
 #[derive(Debug, Clone, Copy, Add, AddAssign, Ord, PartialOrd, Eq, PartialEq)]
-struct RegOffset(u32);
+pub struct RegOffset(pub u32);
 
 impl Mul<u32> for RegOffset {
     type Output = RegOffset;
@@ -101,18 +101,18 @@ impl<'a> From<&'a Ident> for FieldIdent<'a> {
     }
 }
 
-struct LayoutCache {
+pub struct LayoutCache {
     layouts: FnvHashMap<TypeRef, Option<Rc<Layout>>>,
 }
 
 impl LayoutCache {
-    fn new() -> LayoutCache {
+    pub fn new() -> LayoutCache {
         LayoutCache {
             layouts: FnvHashMap::default(),
         }
     }
 
-    fn get_or_insert(&mut self, ty: TypeRef, ast: &TypedAst) -> Result<Rc<Layout>, CodegenError> {
+    pub fn get_or_gen(&mut self, ty: TypeRef, ast: &TypedAst) -> Result<Rc<Layout>, CodegenError> {
         match self.layouts.get(&ty) {
             Some(Some(layout)) => Ok(Rc::clone(layout)),
             Some(None) => Err(CodegenError::InfiniteSize(ty.desc())),
@@ -135,7 +135,7 @@ impl LayoutCache {
 /// Stores the size and layout of a value for both its stack and its register representation.
 ///
 /// Data may have fields that can be indexed by index and name (if the field has one).
-struct Layout {
+pub struct Layout {
     // offsets for each field are stored as the total offset relative to the
     // values start offset
     reg_size: RegOffset,
@@ -154,7 +154,7 @@ impl Layout {
         }
     }
 
-    fn word() -> Layout {
+    pub fn word() -> Layout {
         Layout {
             reg_size: RegOffset(1),
             reg_field_layout: Vec::new(),
@@ -263,14 +263,14 @@ impl Layout {
             Type::I32 | Type::U32 => Layout::word(),
             Type::ConstPtr(_) | Type::MutPtr(_) => Layout::word(),
             Type::Array(ref elem_ty, len) => {
-                let elem_layout = layouts.get_or_insert(elem_ty.clone(), ast)?;
+                let elem_layout = layouts.get_or_gen(elem_ty.clone(), ast)?;
                 Layout::array(&*elem_layout, len)
             }
             Type::Tuple(ref elem_tys) => {
                 let layouts = elem_tys
                     .iter()
                     .map(|ty| {
-                        let layout = layouts.get_or_insert(ty.clone(), ast)?;
+                        let layout = layouts.get_or_gen(ty.clone(), ast)?;
                         Ok((None, layout))
                     })
                     .collect::<Result<Vec<_>, _>>()?;
@@ -282,7 +282,7 @@ impl Layout {
                     .fields
                     .iter()
                     .map(|field| {
-                        let layout = layouts.get_or_insert(field.ty.clone(), ast)?;
+                        let layout = layouts.get_or_gen(field.ty.clone(), ast)?;
                         Ok((Some(field.name.clone()), layout))
                     })
                     .collect::<Result<Vec<_>, _>>()?;
@@ -298,7 +298,7 @@ impl Layout {
                             .params
                             .iter()
                             .map(|ty| {
-                                let layout = layouts.get_or_insert(ty.clone(), ast)?;
+                                let layout = layouts.get_or_gen(ty.clone(), ast)?;
                                 Ok((None, layout))
                             })
                             .collect::<Result<Vec<_>, _>>()?;
@@ -367,7 +367,7 @@ pub struct LabelValue {
 }
 
 impl LabelValue {
-    fn new() -> LabelValue {
+    pub fn new(desc: impl AsRef<str>) -> LabelValue {
         static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
 
         let id = NEXT_ID.fetch_add(1, Ordering::AcqRel);
@@ -377,7 +377,7 @@ impl LabelValue {
         }
 
         LabelValue {
-            label: Ident::new(format!("_label_{}", id)),
+            label: Ident::new(format!("label_{}_{}", id, desc.as_ref())),
         }
     }
 }
@@ -407,7 +407,7 @@ pub struct StackValue {
 }
 
 impl StackValue {
-    fn offset(&self) -> StackOffset {
+    pub fn offset(&self) -> StackOffset {
         self.start
     }
 
@@ -445,20 +445,23 @@ impl RegAllocator {
     }
 }
 
-struct StackAllocator {
-    start: StackOffset,
+pub struct StackAllocator {
+    frame_start: StackOffset,
 }
 
 impl StackAllocator {
-    fn new() -> StackAllocator {
+    pub fn new() -> StackAllocator {
         StackAllocator {
-            start: StackOffset(0),
+            frame_start: StackOffset(0),
         }
     }
 
-    fn alloc(&mut self, layout: &Layout) -> StackValue {
-        let value = StackValue { start: self.start };
-        self.start += layout.stack_size();
+    pub fn alloc(&mut self, layout: &Layout) -> StackValue {
+        let value = StackValue {
+            start: self.frame_start,
+        };
+
+        self.frame_start += layout.stack_size();
         value
     }
 }

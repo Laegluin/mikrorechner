@@ -350,6 +350,12 @@ impl Display for Ident {
     }
 }
 
+impl AsRef<str> for Ident {
+    fn as_ref(&self) -> &str {
+        self.0.as_ref()
+    }
+}
+
 impl PartialEq<&str> for Ident {
     fn eq(&self, rhs: &&str) -> bool {
         &*self.0 == *rhs
