@@ -1,14 +1,14 @@
 //! Generates code from a typed Ast. The generated data structure is close
 //! to the final assembler semantics, but must still be converted into actual
 //! assembly code.
-//! 
+//!
 //! ## Calling convention
-//! 
+//!
 //! All registers (including the frame pointer) must be saved by the caller
 //! as necessary.
-//! 
+//!
 //! When calling a function, a new stack frame must be initialized for it:
-//! 
+//!
 //! - starting with stack memory reserved for the return value
 //! - followed by the return address
 
@@ -28,8 +28,7 @@ pub const ENTRY_POINT: &str = "main";
 const NUM_RT_START_COMMANDS: usize = 8;
 
 const STACK_START_ADDR: u32 = 200_000;
-const SET_IMMEDIATE_MAX: u32 = 2097151;
-const LOAD_IMMEDIATE_MAX: u32 = 32767;
+const LOAD_IMMEDIATE_MAX: u32 = 0b_111_1111_1111_1111;
 
 const STACK_FRAME_PTR_REG: Reg = Reg::R31;
 const TMP_RESULT_REG: Reg = Reg::R0;
@@ -145,56 +144,10 @@ fn gen_items(
         let Spanned { value: item, span } = item;
 
         match item {
-            Item::TypeDef(TypeDef::Alias(_)) => continue,
-            Item::TypeDef(TypeDef::RecordDef(Spanned {
-                value: record_def, ..
-            })) => gen_record_cons(record_def, bindings, layouts, ast, asm)?,
-            Item::TypeDef(TypeDef::VariantsDef(Spanned {
-                value: variants_def,
-                ..
-            })) => unimplemented!(),
             Item::FnDef(ref fn_def) => unimplemented!(),
+            _ => continue,
         }
     }
 
     Ok(())
-}
-
-fn gen_record_cons(
-    def: &RecordDef,
-    bindings: &mut ScopeMap<Ident, Value>,
-    layouts: &mut LayoutCache,
-    ast: &TypedAst,
-    asm: &mut Asm,
-) -> Result<(), Spanned<CodegenError>> {
-    // since the caller already placed the contents of the fields as arguments
-    // to this function, we only have to find the return address and return
-    
-    let cons_value = LabelValue::new(&def.name.value);
-    // TODO: push function signature
-    asm.push(Command::Label(cons_value.label.clone()));
-    bindings.insert(def.name.value.clone(), Value::Label(cons_value));
-
-    let mut stack_frame = StackAllocator::new();
-
-    for field in &def.fields {
-        // FIXME: assign type refs to records
-        let layout = layouts
-            .get_or_gen(crate::typecheck::TypeRef::invalid(), ast)
-            .map_err(|err| Spanned::new(err, field.span))?;
-
-        stack_frame.alloc(&layout);
-    }
-
-    let ret_addr = stack_frame.alloc(&Layout::word());
-    load_stack_value(Reg::R0, &ret_addr, asm);
-    asm.push(Command::Jmp(Reg::R0));
-    
-    Ok(())
-}
-
-fn load_stack_value(dst: Reg,value: &StackValue, asm: &mut Asm) {
-    let offset = value.offset().0;
-    assert!(offset <= LOAD_IMMEDIATE_MAX);
-    asm.push(Command::Load(dst, STACK_FRAME_PTR_REG, offset));
 }
