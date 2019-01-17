@@ -26,8 +26,8 @@ pub fn verify_types(mut ast: Ast) -> Result<TypedAst, Spanned<TypeError>> {
                 canonicalize_type_ref(ret_ty, &mut ast.type_env, &mut types, body.span)?;
                 verify_expr(body.as_mut(), &mut ast.type_env, &mut types)?;
 
-                if name.value == ENTRY_POINT {
-                    verify_entry_point(params, ret_ty, &ast.type_env, name.span)?;
+                if *name.name() == ENTRY_POINT {
+                    verify_entry_point(params, ret_ty, &ast.type_env, name.span())?;
                 }
             }
             _ => (),
@@ -147,6 +147,8 @@ fn verify_expr(
 
             canonicalize_type_ref(ty, type_env, types, span)?;
         }
+        // nothing to check here
+        Expr::ConstructRecord | Expr::ConstructVariant(_) => (),
     }
 
     Ok(())

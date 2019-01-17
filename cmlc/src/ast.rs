@@ -1,4 +1,4 @@
-use crate::span::Spanned;
+use crate::span::{Spanned, Span};
 use crate::typecheck::{unify::TypeEnv, Type, TypeRef};
 use fnv::FnvHashMap;
 use std::fmt::{self, Display};
@@ -70,7 +70,7 @@ pub struct VariantDef {
 
 #[derive(Debug)]
 pub struct FnDef {
-    pub name: Spanned<Ident>,
+    pub name: ItemPath,
     pub params: Vec<Spanned<ParamDef>>,
     pub ret_ty_hint: Option<Spanned<TypeDecl>>,
     pub ret_ty: TypeRef,
@@ -84,7 +84,17 @@ pub struct ParamDef {
     pub ty: TypeRef,
 }
 
-#[derive(Debug)]
+impl ParamDef {
+    pub fn record_cons_param(field: &FieldDef, ty: TypeRef) -> ParamDef {
+        ParamDef {
+            name: field.name.clone().map(Some),
+            ty_hint: Some(field.ty.clone()),
+            ty,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum TypeDecl {
     Hole,
     Name(Ident),
@@ -95,13 +105,13 @@ pub enum TypeDecl {
     Tuple(Vec<Spanned<TypeDecl>>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ArrayDecl {
     pub ty: Spanned<Box<TypeDecl>>,
     pub len: Spanned<u32>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FunctionDecl {
     pub param_tys: Vec<Spanned<TypeDecl>>,
     pub ret_ty: Spanned<Box<TypeDecl>>,
@@ -123,6 +133,11 @@ pub enum Expr {
     Ret(Option<Spanned<Box<Expr>>>, TypeRef),
     IfExpr(IfExpr, TypeRef),
     Block(Block, TypeRef),
+    /// Placeholder expression representing the body of a record constructor function.
+    ConstructRecord,
+    /// Placeholder expression representing the body of a variant constructor function
+    /// for a variant with the given tag.
+    ConstructVariant(u32),
 }
 
 impl Expr {
@@ -258,7 +273,26 @@ pub struct Arg {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ItemPath {
-    pub segments: Vec<Spanned<Ident>>,
+    segments: Vec<Spanned<Ident>>,
+}
+
+impl ItemPath {
+    pub fn name(&self) -> &Ident {
+        self.segments[self.segments.len() - 1].as_ref().value
+    }
+
+    pub fn span(&self) -> Span {
+        self.segments[0]
+            .span
+            .to(self.segments[self.segments.len() - 1].span)
+    }
+}
+
+impl From<Vec<Spanned<Ident>>> for ItemPath {
+    fn from(idents: Vec<Spanned<Ident>>) -> ItemPath {
+        assert!(!idents.is_empty());
+        ItemPath { segments: idents }
+    }
 }
 
 impl From<Spanned<Ident>> for ItemPath {

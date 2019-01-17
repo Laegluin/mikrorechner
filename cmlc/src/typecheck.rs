@@ -262,7 +262,7 @@ pub fn typecheck(mut ast: Ast) -> Result<TypedAst, Spanned<TypeError>> {
 }
 
 fn check_items(
-    items: &mut [Spanned<Item>],
+    items: &mut Vec<Spanned<Item>>,
     type_env: &mut TypeEnv,
     type_bindings: &mut ScopeMap<Ident, TypeRef>,
     value_bindings: &mut ScopeMap<Ident, Binding>,
@@ -309,10 +309,12 @@ fn check_items(
                     param_names.push(name.clone());
                 }
 
-                value_bindings.insert(name.value.clone(), Binding::new_fn(ty, param_names));
+                value_bindings.path_insert(name.clone(), Binding::new_fn(ty, param_names));
             }
         }
     }
+
+    let mut constructors = Vec::new();
 
     // Resolve types; Function body unification is delayed so the type defs can be fully resolved first
     // (otherwise we could get type errors at the definition, causing the unwraps to fail
@@ -330,15 +332,31 @@ fn check_items(
                 let var = &type_bindings.get(&name.value).unwrap();
                 type_env.unify(&var, &ty).unwrap();
             }
-            Item::TypeDef(TypeDef::RecordDef(Spanned { value: ref def, .. })) => {
-                bind_record_def(def, type_env, type_bindings, value_bindings)?
+            Item::TypeDef(TypeDef::RecordDef(Spanned {
+                value: ref def,
+                span,
+            })) => {
+                let cons = bind_record_def(def, type_env, type_bindings, value_bindings)?;
+                constructors.push(Spanned::new(Item::FnDef(cons), span));
             }
-            Item::TypeDef(TypeDef::VariantsDef(Spanned { value: ref def, .. })) => {
-                bind_variants_def(def, type_env, type_bindings, value_bindings)?
+            Item::TypeDef(TypeDef::VariantsDef(Spanned {
+                value: ref def,
+                span,
+            })) => {
+                let conses = bind_variants_def(def, type_env, type_bindings, value_bindings)?;
+
+                constructors.extend(
+                    conses
+                        .into_iter()
+                        .map(|cons| Spanned::new(Item::FnDef(cons), span)),
+                );
             }
             Item::FnDef(_) => (),
         }
     }
+
+    // add the constructors to the items
+    items.append(&mut constructors);
 
     // start the actual unification for each function
     for item in items {
@@ -359,7 +377,7 @@ fn check_fn(
 ) -> Result<(), Spanned<TypeError>> {
     // get the function type before entering the new scope
     // the type binding must already have been created by `check_items`
-    let current_ty = value_bindings.get(&def.name.value).unwrap().ty.clone();
+    let current_ty = value_bindings.path_get(&def.name).unwrap().ty.clone();
 
     type_bindings.enter_scope();
     value_bindings.enter_scope();
@@ -429,7 +447,7 @@ pub enum Mutability {
 
 fn check_expr<'a>(
     expr: Spanned<&'a mut Expr>,
-    ret_ty: &TypeRef,
+    ret_ty: &'a TypeRef,
     mutability: Mutability,
     type_env: &mut TypeEnv,
     type_bindings: &mut ScopeMap<Ident, TypeRef>,
@@ -935,6 +953,7 @@ fn check_expr<'a>(
             *ty = block_ty;
             Ok(ty)
         }
+        Expr::ConstructRecord | Expr::ConstructVariant(_) => Ok(ret_ty),
     }
 }
 
@@ -1045,13 +1064,14 @@ fn bind_record_def(
     type_env: &mut TypeEnv,
     type_bindings: &ScopeMap<Ident, TypeRef>,
     value_bindings: &mut ScopeMap<Ident, Binding>,
-) -> Result<(), Spanned<TypeError>> {
+) -> Result<FnDef, Spanned<TypeError>> {
     // the type binding must already have been created by `check_items`
     let current_ty = &type_bindings.get(&def.name.value).unwrap();
 
     let mut fields = Vec::with_capacity(def.fields.len());
     let mut cons_params = Vec::with_capacity(def.fields.len());
     let mut cons_param_names = Vec::<Option<_>>::with_capacity(def.fields.len());
+    let mut def_params = Vec::with_capacity(def.fields.len());
 
     for field_def in &def.fields {
         let span = field_def.span;
@@ -1076,8 +1096,13 @@ fn bind_record_def(
             ));
         }
 
-        cons_params.push(ty);
+        cons_params.push(ty.clone());
         cons_param_names.push(Some(name));
+
+        def_params.push(Spanned::new(
+            ParamDef::record_cons_param(field_def, ty),
+            span,
+        ));
     }
 
     let record = Record {
@@ -1092,7 +1117,7 @@ fn bind_record_def(
 
     let cons = Function {
         params: cons_params,
-        ret: ty,
+        ret: ty.clone(),
     };
 
     let cons_fn = type_env.insert(Type::Function(cons));
@@ -1104,7 +1129,13 @@ fn bind_record_def(
         Binding::new_fn(cons_ty, cons_param_names),
     );
 
-    Ok(())
+    Ok(FnDef {
+        name: ItemPath::from(def.name.clone()),
+        params: def_params,
+        ret_ty_hint: Some(def.name.clone().map(TypeDecl::Name)),
+        ret_ty: ty,
+        body: Spanned::new(Expr::ConstructRecord, def.name.span),
+    })
 }
 
 fn bind_variants_def(
@@ -1112,20 +1143,32 @@ fn bind_variants_def(
     type_env: &mut TypeEnv,
     type_bindings: &ScopeMap<Ident, TypeRef>,
     value_bindings: &mut ScopeMap<Ident, Binding>,
-) -> Result<(), Spanned<TypeError>> {
+) -> Result<Vec<FnDef>, Spanned<TypeError>> {
     // the type binding must already have been created by `check_items`
     let current_ty = type_bindings.get(&def.name.value).unwrap();
 
     let mut variants = Vec::with_capacity(def.variants.len());
+    let mut constructors = Vec::with_capacity(def.variants.len());
 
-    for variant_def in &def.variants {
+    for (tag, variant_def) in def.variants.iter().enumerate() {
         let variant_def = &variant_def.value;
 
-        let params = variant_def
-            .param_tys
-            .iter()
-            .map(|param_ty| type_from_decl(param_ty.as_ref(), true, type_env, type_bindings))
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut params = Vec::with_capacity(variant_def.param_tys.len());
+        let mut param_defs = Vec::with_capacity(variant_def.param_tys.len());
+
+        for param_ty in &variant_def.param_tys {
+            let ty = type_from_decl(param_ty.as_ref(), true, type_env, type_bindings)?;
+            params.push(ty.clone());
+
+            param_defs.push(Spanned::new(
+                ParamDef {
+                    name: Spanned::new(None, param_ty.span),
+                    ty_hint: None,
+                    ty: ty.clone(),
+                },
+                param_ty.span,
+            ));
+        }
 
         variants.push(Variant {
             name: variant_def.name.value.clone(),
@@ -1137,10 +1180,22 @@ fn bind_variants_def(
         let variant_cons_ty = if params.is_empty() {
             current_ty.clone()
         } else {
+            // generate the definition
+            constructors.push(FnDef {
+                // FIXME: paths for correct binding
+                name: ItemPath::from(vec![def.name.clone(), variant_def.name.clone()]),
+                params: param_defs,
+                ret_ty_hint: None,
+                ret_ty: current_ty.clone(),
+                body: Spanned::new(Expr::ConstructVariant(tag as u32), variant_def.name.span),
+            });
+
+            // bind the type
             let cons = Function {
                 params,
                 ret: current_ty.clone(),
             };
+
             let cons_fn = type_env.insert(Type::Function(cons));
             type_env.insert(Type::ConstPtr(cons_fn))
         };
@@ -1162,7 +1217,7 @@ fn bind_variants_def(
     let ty = type_env.insert(Type::Variants(variants));
     type_env.unify(&current_ty, &ty).unwrap();
 
-    Ok(())
+    Ok(constructors)
 }
 
 fn type_from_decl(

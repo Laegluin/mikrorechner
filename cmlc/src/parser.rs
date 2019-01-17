@@ -340,7 +340,7 @@ fn fn_def(tokens: &TokenStream<'_>) -> Result<Item, Spanned<ParseError>> {
     let body = block(tokens)?;
 
     Ok(Item::FnDef(FnDef {
-        name,
+        name: ItemPath::from(name),
         params,
         ret_ty_hint,
         ret_ty: TypeRef::invalid(),
@@ -798,7 +798,7 @@ fn item_path(tokens: &TokenStream<'_>) -> Result<Spanned<ItemPath>, Spanned<Pars
         segments.push(segment(tokens)?);
     }
 
-    Ok(Spanned::new(ItemPath { segments }, span_start.end()))
+    Ok(Spanned::new(ItemPath::from(segments), span_start.end()))
 }
 
 fn segment(tokens: &TokenStream<'_>) -> Result<Spanned<Ident>, Spanned<ParseError>> {
