@@ -27,7 +27,7 @@ use std::rc::Rc;
 pub const ENTRY_POINT: &str = "main";
 const NUM_RT_START_COMMANDS: usize = 8;
 
-const STACK_START_ADDR: u32 = 200_000;
+const STACK_START_ADDR: u32 = 0xffffffff;
 const LOAD_IMMEDIATE_MAX: u32 = 0b_111_1111_1111_1111;
 
 const STACK_FRAME_PTR_REG: Reg = Reg::R31;
