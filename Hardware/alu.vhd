@@ -41,7 +41,7 @@ begin
             -- COPY
                 -- Wert aus Register B kopiert nach Register C
             when "00001" =>
-                ALU_Result <= B;
+                ALU_Result <= A;
 
                 -- Arithmetische Operationen mit Registern
             -- ADD

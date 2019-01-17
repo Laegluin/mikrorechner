@@ -74,7 +74,7 @@ begin
 		wait for 150 ns;
 		reset <= '0';
 		enable <= '1';
-		wait for 1000 ns;
+		wait;
 
         -- Testwerte
         

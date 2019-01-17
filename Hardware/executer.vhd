@@ -80,7 +80,7 @@ begin
                 pc_write_en  <= '0';
                 wb_control   <= "00";
                 mem_rw_en    <= "00";
-                C_out        <= C_in_tmp;
+                C_out        <= C_in;
                 mem_off_out  <= mem_off_in_tmp;
                 reg_imm_out  <= reg_imm_in_tmp;
                 opcode_out   <= opcode_in;

@@ -41,13 +41,12 @@ signal Jump_offset_ext1 : unsigned(bit_Width - jump_offset_Bits -1 downto 0) := 
 
 signal mem_offset_ext   : unsigned(bit_Width - mem_offset_Bits -1 downto 0)  := (others => '0');
 
-
 begin
     process(clk,enable)
     begin
 
         -- init values
-        sign_temp <= "0";
+        -- sign_temp <= "0"; should only change on rising edge if at all
 
         -- reset
         if reset = '1' then
@@ -86,7 +85,9 @@ begin
             if sign_temp = "0" then
                 jump_offset <= jump_offset_ext0 & instruction(bit_Width-opcode_Bits-1 downto 0);
             elsif sign_temp = "1" then
-                jump_offset <= jump_offset_ext1 & not instruction(bit_Width-opcode_Bits-1 downto 0) + "1";
+                -- jump_offset <= jump_offset_ext1 & not instruction(bit_Width-opcode_Bits-1 downto 0) + "1";
+                jump_offset <= jump_offset_ext1 & instruction(bit_Width-opcode_Bits-1 downto 0);
+                -- jump_offset <= temp + "1";
             else jump_offset <= (others => '0');
             end if;
 
