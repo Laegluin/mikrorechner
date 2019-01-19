@@ -4,13 +4,16 @@
 //!
 //! ## Calling convention
 //!
-//! All registers (including the frame pointer) must be saved by the caller
-//! as necessary.
+//! All standard registers must be saved by the callee as necessary. The excludes
+//! registers for temporary values.
 //!
-//! When calling a function, a new stack frame must be initialized for it:
+//! When calling a function, a new stack frame must be initialized by the caller:
 //!
-//! - starting with stack memory reserved for the return value
+//! - the frame pointer must be set to the new stack frame (the caller must save
+//!   its frame pointer if needed later)
+//! - the frame starts with memory reserved for the return value
 //! - followed by the return address
+//! - followed by the ordered arguments
 
 mod layout;
 
@@ -19,11 +22,11 @@ use crate::codegen::layout::*;
 use crate::scope_map::ScopeMap;
 use crate::span::Spanned;
 use crate::typecheck::TypeDesc;
+use fnv::FnvHashMap;
 use std::collections::HashMap;
 use std::rc::Rc;
 
 pub const ENTRY_POINT: &str = "main";
-const NUM_RT_START_COMMANDS: usize = 8;
 
 const STACK_START_ADDR: u32 = 0xffffffff;
 const LOAD_IMMEDIATE_MAX: u32 = 0b_111_1111_1111_1111;
@@ -47,7 +50,7 @@ pub struct Asm {
 impl Asm {
     fn new() -> Asm {
         Asm {
-            cmds: vec![Command::Noop; NUM_RT_START_COMMANDS],
+            cmds: Vec::new(),
             ro_data: HashMap::new(),
         }
     }
@@ -56,8 +59,12 @@ impl Asm {
         self.cmds.push(instr);
     }
 
-    fn set_rt_start(&mut self, rt_start: [Command; NUM_RT_START_COMMANDS]) {
-        self.cmds[..NUM_RT_START_COMMANDS].clone_from_slice(&rt_start);
+    fn insert_all(&mut self, idx: usize, cmds: &[Command]) {
+        assert!(idx < self.cmds.len());
+
+        let mut rest = self.cmds.drain(idx..).collect();
+        self.cmds.extend_from_slice(cmds);
+        self.cmds.append(&mut rest);
     }
 }
 
@@ -114,22 +121,23 @@ fn gen_rt_start(asm: &mut Asm, bindings: &ScopeMap<Ident, Value>) {
         _ => unreachable!(),
     };
 
-    let rt_start = [
-        Command::Comment(String::from(".rt_start")),
-        // set addr_offset to 0
-        Command::Set(Reg::AddrOffset, 0),
-        // initialize the stack
-        Command::Set(FRAME_PTR_REG, STACK_START_ADDR),
-        // set the return address to the last instruction in rt_start (halt)
-        Command::Set(Reg::R0, 20),
-        Command::Store(FRAME_PTR_REG, Reg::R0, 0),
-        // call main
-        Command::JmpLabel(entry_point),
-        Command::Halt,
-        Command::Comment(String::from(".text")),
-    ];
-
-    asm.set_rt_start(rt_start);
+    asm.insert_all(
+        0,
+        &[
+            Command::Comment(String::from(".rt_start")),
+            // set addr_offset to 0
+            Command::Set(Reg::AddrOffset, 0),
+            // initialize the stack
+            Command::Set(FRAME_PTR_REG, STACK_START_ADDR),
+            // set the return address to the last instruction in rt_start (halt)
+            Command::Set(TMP_REG, 20),
+            Command::Store(FRAME_PTR_REG, TMP_REG, 0),
+            // call main
+            Command::JmpLabel(entry_point),
+            Command::Halt,
+            Command::Comment(String::from(".text")),
+        ],
+    );
 }
 
 fn gen_items(
@@ -140,15 +148,132 @@ fn gen_items(
     asm: &mut Asm,
 ) -> Result<(), Spanned<CodegenError>> {
     for item in items {
-        let Spanned { value: item, span } = item;
+        let Spanned { value: item, .. } = item;
 
         match item {
-            Item::FnDef(ref fn_def) => unimplemented!(),
+            Item::FnDef(ref fn_def) => gen_fn(fn_def, bindings, layouts, ast, asm)?,
             _ => continue,
         }
     }
 
     Ok(())
+}
+
+struct FnContext<'a> {
+    ret_addr: &'a Value,
+    ret_value: &'a Value,
+    regs: RegAllocator,
+    stack: StackAllocator,
+    clobbered_regs: FnvHashMap<Reg, StackValue>,
+    bindings: &'a mut ScopeMap<Ident, Value>,
+    layouts: &'a mut LayoutCache,
+    ast: &'a TypedAst,
+}
+
+impl FnContext<'_> {
+    /// Allocates space for a value with the given `layout`. Allocates registers if possible and
+    /// falls back to stack memory if there are not enough free registers. If a register has not
+    /// been used before, it is saved to the stack for later recovery.
+    fn alloc(&mut self, layout: &Layout, asm: &mut Asm) -> Value {
+        let value = self
+            .regs
+            .alloc(&layout)
+            .map(Value::Reg)
+            .unwrap_or_else(|| Value::Stack(self.stack.alloc(&layout)));
+
+        // save clobbers
+        if let Value::Reg(ref value) = &value {
+            for reg in value.regs() {
+                let stack = &mut self.stack;
+
+                self.clobbered_regs.entry(*reg).or_insert_with(|| {
+                    let save = Value::Stack(stack.alloc(&Layout::word()));
+
+                    copy(
+                        &Value::Reg(RegValue::word(*reg)),
+                        &save,
+                        &Layout::word(),
+                        asm,
+                    );
+
+                    match save {
+                        Value::Stack(value) => value,
+                        _ => unreachable!(),
+                    }
+                });
+            }
+        }
+
+        value
+    }
+}
+
+fn gen_fn(
+    def: &FnDef,
+    bindings: &mut ScopeMap<Ident, Value>,
+    layouts: &mut LayoutCache,
+    ast: &TypedAst,
+    asm: &mut Asm,
+) -> Result<(), Spanned<CodegenError>> {
+    let mut stack = StackAllocator::new();
+
+    // reserve the space used by the return value
+    let ret_layout = layouts
+        .get_or_gen(def.ret_ty.clone(), ast)
+        .map_err(|err| Spanned::new(err, def.name.span()))?;
+
+    let ret_value = Value::Stack(stack.alloc(&ret_layout));
+
+    // reserve the space used by the return address
+    let ret_addr = Value::Stack(stack.alloc(&Layout::word()));
+
+    // bind the arguments
+    for param in &def.params {
+        let layout = layouts
+            .get_or_gen(param.value.ty.clone(), ast)
+            .map_err(|err| Spanned::new(err, param.span))?;
+
+        let value = Value::Stack(stack.alloc(&layout));
+
+        // only bind if it has a name; allocation must be done though,
+        // because the caller doesn't know the value is unused
+        if let Some(ref name) = param.value.name.value {
+            bindings.insert(name.clone(), value);
+        }
+    }
+
+    let mut ctx = FnContext {
+        ret_addr: &ret_addr,
+        ret_value: &ret_value,
+        regs: RegAllocator::new(),
+        stack,
+        clobbered_regs: FnvHashMap::default(),
+        bindings,
+        layouts,
+        ast,
+    };
+
+    gen_expr(&ret_value, &mut ctx, asm)?;
+
+    // restore saved registers for the caller
+    for (clobber, save) in ctx.clobbered_regs {
+        copy(
+            &Value::Stack(save),
+            &Value::Reg(RegValue::word(clobber)),
+            &Layout::word(),
+            asm,
+        );
+    }
+
+    Ok(())
+}
+
+fn gen_expr(
+    result_value: &Value,
+    ctx: &mut FnContext<'_>,
+    asm: &mut Asm,
+) -> Result<(), Spanned<CodegenError>> {
+    unimplemented!()
 }
 
 fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {

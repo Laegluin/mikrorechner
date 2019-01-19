@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, EnumIter)]
 pub enum Reg {
     R0,
     R1,
@@ -456,6 +456,10 @@ pub struct RegValue {
 }
 
 impl RegValue {
+    pub fn word(reg: Reg) -> RegValue {
+        RegValue { regs: vec![reg] }
+    }
+
     pub fn reg(&self) -> Reg {
         self.regs[0]
     }
@@ -473,20 +477,20 @@ impl RegValue {
     }
 }
 
-struct RegAllocator {
+pub struct RegAllocator {
     free_regs: Vec<Reg>,
     scopes: Vec<Vec<Reg>>,
 }
 
 impl RegAllocator {
-    fn new() -> RegAllocator {
+    pub fn new() -> RegAllocator {
         RegAllocator {
             free_regs: Reg::iter().filter(Reg::is_general_purpose).collect(),
             scopes: Vec::new(),
         }
     }
 
-    fn alloc(&mut self, layout: &Layout) -> Option<RegValue> {
+    pub fn alloc(&mut self, layout: &Layout) -> Option<RegValue> {
         if self.free_regs.len() < layout.reg_size().0 as usize {
             None
         } else {
