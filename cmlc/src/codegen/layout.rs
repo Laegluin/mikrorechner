@@ -1,7 +1,9 @@
 use crate::ast::*;
-use crate::codegen::{CodegenError, STACK_FRAME_PTR_REG, TMP_OPERAND_REG, TMP_RESULT_REG};
+use crate::codegen::{
+    CodegenError, FRAME_PTR_REG, LOAD_IMMEDIATE_MAX, STORE_IMMEDIATE_MAX, TMP_REG,
+};
 use crate::typecheck::{Type, TypeDesc, TypeRef};
-use derive_more::{Add, AddAssign};
+use derive_more::{Add, AddAssign, Sub};
 use fnv::FnvHashMap;
 use std::iter;
 use std::ops::Mul;
@@ -51,17 +53,13 @@ pub enum Reg {
 impl Reg {
     fn is_general_purpose(&self) -> bool {
         match *self {
-            Reg::AddrOffset
-            | Reg::Null
-            | STACK_FRAME_PTR_REG
-            | TMP_RESULT_REG
-            | TMP_OPERAND_REG => false,
+            Reg::AddrOffset | Reg::Null | FRAME_PTR_REG | TMP_REG => false,
             _ => true,
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, Add, AddAssign, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Sub, Add, AddAssign, Ord, PartialOrd, Eq, PartialEq)]
 pub struct StackOffset(pub u32);
 
 impl Mul<u32> for StackOffset {
@@ -72,7 +70,7 @@ impl Mul<u32> for StackOffset {
     }
 }
 
-#[derive(Debug, Clone, Copy, Add, AddAssign, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Sub, Add, AddAssign, Ord, PartialOrd, Eq, PartialEq)]
 pub struct RegOffset(pub u32);
 
 impl Mul<u32> for RegOffset {
@@ -318,7 +316,7 @@ impl Layout {
         Ok(layout)
     }
 
-    fn stack_size(&self) -> StackOffset {
+    pub fn stack_size(&self) -> StackOffset {
         self.stack_size
     }
 
@@ -326,7 +324,7 @@ impl Layout {
         Layout::find_field_offset(field.into(), &self.stack_field_layout)
     }
 
-    fn reg_size(&self) -> RegOffset {
+    pub fn reg_size(&self) -> RegOffset {
         self.reg_size
     }
 
@@ -352,6 +350,14 @@ impl Layout {
             })
             .expect("valid field for layout")
     }
+
+    pub fn is_zero_sized(&self) -> bool {
+        self.stack_size() == StackOffset(0) && self.reg_size() == RegOffset(0)
+    }
+
+    pub fn is_uniform(&self) -> bool {
+        self.stack_size().0 == self.reg_size().0 * 4
+    }
 }
 
 #[derive(Debug)]
@@ -363,7 +369,7 @@ pub enum Value {
 
 #[derive(Debug)]
 pub struct LabelValue {
-    pub label: Ident,
+    label: Ident,
 }
 
 impl LabelValue {
@@ -379,6 +385,10 @@ impl LabelValue {
         LabelValue {
             label: Ident::new(format!("label_{}_{}", id, desc.as_ref())),
         }
+    }
+
+    pub fn label(&self) -> &Ident {
+        &self.label
     }
 }
 
@@ -420,6 +430,11 @@ impl StackAllocator {
         };
 
         self.frame_start += layout.stack_size();
+
+        // make sure the value is still addressable by using offsets in load/store
+        assert!(self.frame_start.0 <= LOAD_IMMEDIATE_MAX);
+        assert!(self.frame_start.0 <= STORE_IMMEDIATE_MAX);
+
         value
     }
 
@@ -441,8 +456,12 @@ pub struct RegValue {
 }
 
 impl RegValue {
-    fn reg(&self) -> Reg {
+    pub fn reg(&self) -> Reg {
         self.regs[0]
+    }
+
+    pub fn regs(&self) -> &[Reg] {
+        &self.regs
     }
 
     fn field<'a>(&self, field: impl Into<FieldIdent<'a>>, layout: &Layout) -> RegValue {

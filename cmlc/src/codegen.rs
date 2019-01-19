@@ -15,9 +15,7 @@
 mod layout;
 
 use crate::ast::*;
-use crate::codegen::layout::{
-    LabelValue, Layout, LayoutCache, Reg, StackAllocator, StackValue, Value,
-};
+use crate::codegen::layout::*;
 use crate::scope_map::ScopeMap;
 use crate::span::Spanned;
 use crate::typecheck::TypeDesc;
@@ -29,10 +27,10 @@ const NUM_RT_START_COMMANDS: usize = 8;
 
 const STACK_START_ADDR: u32 = 0xffffffff;
 const LOAD_IMMEDIATE_MAX: u32 = 0b_111_1111_1111_1111;
+const STORE_IMMEDIATE_MAX: u32 = 0b_111_1111_1111_1111;
 
-const STACK_FRAME_PTR_REG: Reg = Reg::R31;
-const TMP_RESULT_REG: Reg = Reg::R0;
-const TMP_OPERAND_REG: Reg = Reg::R1;
+const FRAME_PTR_REG: Reg = Reg::R31;
+const TMP_REG: Reg = Reg::R0;
 
 #[derive(Debug)]
 pub enum CodegenError {
@@ -78,6 +76,7 @@ pub enum Command {
     SignedShiftR(Reg, Reg, Reg),
     Copy(Reg, Reg),
     Set(Reg, u32),
+    SetLabel(Reg, Ident),
     CmpEq(Reg, Reg),
     CmpGt(Reg, Reg),
     CmpGe(Reg, Reg),
@@ -111,7 +110,7 @@ fn gen_rt_start(asm: &mut Asm, bindings: &ScopeMap<Ident, Value>) {
     let entry_point = bindings.get(&Ident::new(ENTRY_POINT)).unwrap();
 
     let entry_point = match *entry_point {
-        Value::Label(LabelValue { ref label }) => label.clone(),
+        Value::Label(ref value) => value.label().clone(),
         _ => unreachable!(),
     };
 
@@ -120,10 +119,10 @@ fn gen_rt_start(asm: &mut Asm, bindings: &ScopeMap<Ident, Value>) {
         // set addr_offset to 0
         Command::Set(Reg::AddrOffset, 0),
         // initialize the stack
-        Command::Set(STACK_FRAME_PTR_REG, STACK_START_ADDR),
+        Command::Set(FRAME_PTR_REG, STACK_START_ADDR),
         // set the return address to the last instruction in rt_start (halt)
         Command::Set(Reg::R0, 20),
-        Command::Store(STACK_FRAME_PTR_REG, Reg::R0, 0),
+        Command::Store(FRAME_PTR_REG, Reg::R0, 0),
         // call main
         Command::JmpLabel(entry_point),
         Command::Halt,
@@ -150,4 +149,62 @@ fn gen_items(
     }
 
     Ok(())
+}
+
+fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
+    if layout.is_zero_sized() {
+        return;
+    }
+
+    match (src, dst) {
+        (_, Value::Label(_)) => panic!("cannot copy to label"),
+        (Value::Label(ref src), Value::Reg(ref dst)) => {
+            asm.push(Command::SetLabel(dst.reg(), src.label().clone()));
+        }
+        (Value::Label(ref src), Value::Stack(ref dst)) => {
+            asm.push(Command::SetLabel(TMP_REG, src.label().clone()));
+            asm.push(Command::Store(FRAME_PTR_REG, TMP_REG, dst.offset().0));
+        }
+        (Value::Stack(ref src), Value::Reg(ref dst)) => {
+            assert!(layout.is_uniform());
+
+            for (offset, reg) in (0..layout.stack_size().0).step_by(4).zip(dst.regs()) {
+                let offset = src.offset() + StackOffset(offset);
+                asm.push(Command::Load(*reg, FRAME_PTR_REG, offset.0));
+            }
+        }
+        (Value::Stack(ref src), Value::Stack(ref dst)) => {
+            // need at least four bytes a copy
+            assert!(layout.stack_size() >= StackOffset(4));
+
+            for offset in (0..layout.stack_size().0).step_by(4) {
+                // if the last value is not exactly four bytes, simply copy
+                // some bytes again
+                let offset = if offset <= (layout.stack_size().0 - 4) {
+                    StackOffset(offset)
+                } else {
+                    layout.stack_size() - StackOffset(4)
+                };
+
+                let src_offset = src.offset() + offset;
+                let dst_offset = dst.offset() + offset;
+
+                asm.push(Command::Load(TMP_REG, FRAME_PTR_REG, src_offset.0));
+                asm.push(Command::Store(FRAME_PTR_REG, TMP_REG, dst_offset.0));
+            }
+        }
+        (Value::Reg(ref src), Value::Stack(ref dst)) => {
+            assert!(layout.is_uniform());
+
+            for (offset, reg) in (0..layout.stack_size().0).step_by(4).zip(src.regs()) {
+                let offset = dst.offset() + StackOffset(offset);
+                asm.push(Command::Store(FRAME_PTR_REG, *reg, offset.0));
+            }
+        }
+        (Value::Reg(ref src), Value::Reg(ref dst)) => {
+            for (src, dst) in src.regs().iter().zip(dst.regs()) {
+                asm.push(Command::Copy(*src, *dst));
+            }
+        }
+    }
 }
