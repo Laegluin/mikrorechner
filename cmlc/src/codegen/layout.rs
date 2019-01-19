@@ -383,25 +383,6 @@ impl LabelValue {
 }
 
 #[derive(Debug)]
-pub struct RegValue {
-    regs: Vec<Reg>,
-}
-
-impl RegValue {
-    fn reg(&self) -> Reg {
-        self.regs[0]
-    }
-
-    fn field<'a>(&self, field: impl Into<FieldIdent<'a>>, layout: &Layout) -> RegValue {
-        let offset = layout.reg_field_offset(field);
-
-        RegValue {
-            regs: self.regs[offset.0 as usize..].iter().cloned().collect(),
-        }
-    }
-}
-
-#[derive(Debug)]
 pub struct StackValue {
     start: StackOffset,
 }
@@ -420,14 +401,69 @@ impl StackValue {
     }
 }
 
+pub struct StackAllocator {
+    frame_start: StackOffset,
+    scopes: Vec<StackOffset>,
+}
+
+impl StackAllocator {
+    pub fn new() -> StackAllocator {
+        StackAllocator {
+            frame_start: StackOffset(0),
+            scopes: Vec::new(),
+        }
+    }
+
+    pub fn alloc(&mut self, layout: &Layout) -> StackValue {
+        let value = StackValue {
+            start: self.frame_start,
+        };
+
+        self.frame_start += layout.stack_size();
+        value
+    }
+
+    pub fn enter_scope(&mut self) {
+        self.scopes.push(self.frame_start);
+    }
+
+    pub fn exit_scope(&mut self) {
+        self.frame_start = self
+            .scopes
+            .pop()
+            .unwrap_or_else(|| panic!("cannot exit global scope"));
+    }
+}
+
+#[derive(Debug)]
+pub struct RegValue {
+    regs: Vec<Reg>,
+}
+
+impl RegValue {
+    fn reg(&self) -> Reg {
+        self.regs[0]
+    }
+
+    fn field<'a>(&self, field: impl Into<FieldIdent<'a>>, layout: &Layout) -> RegValue {
+        let offset = layout.reg_field_offset(field);
+
+        RegValue {
+            regs: self.regs[offset.0 as usize..].iter().cloned().collect(),
+        }
+    }
+}
+
 struct RegAllocator {
     free_regs: Vec<Reg>,
+    scopes: Vec<Vec<Reg>>,
 }
 
 impl RegAllocator {
     fn new() -> RegAllocator {
         RegAllocator {
             free_regs: Reg::iter().filter(Reg::is_general_purpose).collect(),
+            scopes: Vec::new(),
         }
     }
 
@@ -443,25 +479,15 @@ impl RegAllocator {
             Some(RegValue { regs })
         }
     }
-}
 
-pub struct StackAllocator {
-    frame_start: StackOffset,
-}
-
-impl StackAllocator {
-    pub fn new() -> StackAllocator {
-        StackAllocator {
-            frame_start: StackOffset(0),
-        }
+    pub fn enter_scope(&mut self) {
+        self.scopes.push(self.free_regs.clone());
     }
 
-    pub fn alloc(&mut self, layout: &Layout) -> StackValue {
-        let value = StackValue {
-            start: self.frame_start,
-        };
-
-        self.frame_start += layout.stack_size();
-        value
+    pub fn exit_scope(&mut self) {
+        self.free_regs = self
+            .scopes
+            .pop()
+            .unwrap_or_else(|| panic!("cannot exit global scope"));
     }
 }
