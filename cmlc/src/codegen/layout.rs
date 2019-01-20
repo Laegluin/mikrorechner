@@ -1,6 +1,6 @@
 use crate::ast::*;
 use crate::codegen::{
-    CodegenError, FRAME_PTR_REG, LOAD_IMMEDIATE_MAX, STORE_IMMEDIATE_MAX, TMP_REG,
+    CodegenError, FRAME_PTR_REG, LOAD_IMMEDIATE_MAX, STORE_IMMEDIATE_MAX, TMP_OP_REG, TMP_REG,
 };
 use crate::typecheck::{Type, TypeDesc, TypeRef};
 use derive_more::{Add, AddAssign, Sub};
@@ -53,7 +53,7 @@ pub enum Reg {
 impl Reg {
     fn is_general_purpose(&self) -> bool {
         match *self {
-            Reg::AddrOffset | Reg::Null | FRAME_PTR_REG | TMP_REG => false,
+            Reg::AddrOffset | Reg::Null | FRAME_PTR_REG | TMP_REG | TMP_OP_REG => false,
             _ => true,
         }
     }
@@ -365,6 +365,11 @@ pub enum Value {
     Label(LabelValue),
     Reg(RegValue),
     Stack(StackValue),
+    /// A dynamically allocated value that lives at an address pointed to by the nested value.
+    /// Effectively, this acts like an lvalue: it is a pointer, but refers to the value inside,
+    /// not to the pointer itself. Thus, the layout used with this value needs to be the layout
+    /// of the pointed at value.
+    Dyn(Box<Value>),
 }
 
 impl Value {

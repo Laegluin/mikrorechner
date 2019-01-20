@@ -473,6 +473,11 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
             asm.push(Command::SetLabel(TMP_REG, src.label().clone()));
             asm.push(Command::Store(FRAME_PTR_REG, TMP_REG, dst.offset().0));
         }
+        (Value::Label(ref src), Value::Dyn(ref dst)) => {
+            copy(dst, &Value::reg(TMP_REG), &Layout::word(), asm);
+            asm.push(Command::SetLabel(TMP_OP_REG, src.label().clone()));
+            asm.push(Command::Store(TMP_REG, TMP_OP_REG, 0));
+        }
         (Value::Stack(ref src), Value::Reg(ref dst)) => {
             assert!(layout.is_uniform());
 
@@ -482,7 +487,7 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
             }
         }
         (Value::Stack(ref src), Value::Stack(ref dst)) => {
-            // need at least four bytes a copy
+            // need at least four bytes for a copy
             assert!(layout.stack_size() >= StackOffset(4));
 
             for offset in (0..layout.stack_size().0).step_by(4) {
@@ -501,6 +506,11 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
                 asm.push(Command::Store(FRAME_PTR_REG, TMP_REG, dst_offset.0));
             }
         }
+        (Value::Stack(ref src), Value::Dyn(ref dst)) => {
+            copy(dst, &Value::reg(TMP_REG), &Layout::word(), asm);
+            asm.push(Command::Load(TMP_OP_REG, FRAME_PTR_REG, src.offset().0));
+            asm.push(Command::Store(TMP_REG, TMP_OP_REG, 0));
+        }
         (Value::Reg(ref src), Value::Stack(ref dst)) => {
             assert!(layout.is_uniform());
 
@@ -512,6 +522,60 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
         (Value::Reg(ref src), Value::Reg(ref dst)) => {
             for (src, dst) in src.regs().iter().zip(dst.regs()) {
                 asm.push(Command::Copy(*src, *dst));
+            }
+        }
+        (Value::Reg(ref src), Value::Dyn(ref dst)) => {
+            copy(dst, &Value::reg(TMP_REG), &Layout::word(), asm);
+            asm.push(Command::Store(TMP_REG, src.reg(), 0));
+        }
+        (Value::Dyn(ref src), Value::Stack(ref dst)) => {
+            // very similar to stack -> stack, except that the offset is applied
+            // directly to the address of the dyn value
+            assert!(layout.stack_size() >= StackOffset(4));
+            copy(src, &Value::reg(TMP_OP_REG), &Layout::word(), asm);
+
+            for offset in (0..layout.stack_size().0).step_by(4) {
+                let offset = if offset <= (layout.stack_size().0 - 4) {
+                    StackOffset(offset)
+                } else {
+                    layout.stack_size() - StackOffset(4)
+                };
+
+                let src_offset = offset;
+                let dst_offset = dst.offset() + offset;
+
+                asm.push(Command::Load(TMP_REG, TMP_OP_REG, src_offset.0));
+                asm.push(Command::Store(FRAME_PTR_REG, TMP_REG, dst_offset.0));
+            }
+        }
+        (Value::Dyn(ref src), Value::Reg(ref dst)) => {
+            // very similar to stack -> reg, except that the offset is applied
+            // directly to the address of the dyn value
+            assert!(layout.is_uniform());
+            copy(src, &Value::reg(TMP_REG), &Layout::word(), asm);
+
+            for (offset, reg) in (0..layout.stack_size().0).step_by(4).zip(dst.regs()) {
+                asm.push(Command::Load(*reg, TMP_REG, offset));
+            }
+        }
+        (Value::Dyn(ref src), Value::Dyn(ref dst)) => {
+            // very similar to stack -> stack, except that both base addresses
+            // are loaded dynamically
+            // because of that, there is quite a bit of loading to make due with only
+            // two temporary registers
+            assert!(layout.stack_size() >= StackOffset(4));
+
+            for offset in (0..layout.stack_size().0).step_by(4) {
+                let offset = if offset <= (layout.stack_size().0 - 4) {
+                    offset
+                } else {
+                    layout.stack_size().0 - 4
+                };
+
+                copy(src, &Value::reg(TMP_OP_REG), &Layout::word(), asm);
+                asm.push(Command::Load(TMP_REG, TMP_OP_REG, offset));
+                copy(dst, &Value::reg(TMP_OP_REG), &Layout::word(), asm);
+                asm.push(Command::Store(TMP_OP_REG, TMP_REG, offset));
             }
         }
     }
