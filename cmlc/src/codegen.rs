@@ -206,6 +206,18 @@ impl FnContext<'_> {
 
         value
     }
+
+    fn enter_scope(&mut self) {
+        self.regs.enter_scope();
+        self.stack.enter_scope();
+        self.bindings.enter_scope();
+    }
+
+    fn exit_scope(&mut self) {
+        self.regs.exit_scope();
+        self.stack.exit_scope();
+        self.bindings.exit_scope();
+    }
 }
 
 fn gen_fn(
@@ -215,7 +227,11 @@ fn gen_fn(
     ast: &TypedAst,
     asm: &mut Asm,
 ) -> Result<(), Spanned<CodegenError>> {
+    let mut regs = RegAllocator::new();
     let mut stack = StackAllocator::new();
+    regs.enter_scope();
+    stack.enter_scope();
+    bindings.enter_scope();
 
     // reserve the space used by the return value
     let ret_layout = layouts
@@ -254,6 +270,7 @@ fn gen_fn(
     };
 
     gen_expr(&ret_value, &mut ctx, asm)?;
+    ctx.exit_scope();
 
     // restore saved registers for the caller
     for (clobber, save) in ctx.clobbered_regs {
