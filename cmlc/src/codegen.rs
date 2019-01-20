@@ -9,9 +9,9 @@
 //! When calling a function, a new stack frame must be initialized by the caller:
 //!
 //! - the frame pointer must be set to the new stack frame
-//! - the frame starts with memory reserved for the return value
-//! - followed by the return address
+//! - the frame starts with the return address
 //! - followed by the arguments in correct order
+//! - followed by memory reserved for the return value
 
 mod layout;
 
@@ -129,6 +129,8 @@ fn gen_rt_start(asm: &mut Asm, bindings: &ScopeMap<Ident, Value>) {
         _ => unreachable!(),
     };
 
+    let exit = LabelValue::new("program_exit").label().clone();
+
     asm.insert_all(
         0,
         &[
@@ -138,10 +140,11 @@ fn gen_rt_start(asm: &mut Asm, bindings: &ScopeMap<Ident, Value>) {
             // initialize the stack
             Command::Set(FRAME_PTR_REG, STACK_START_ADDR),
             // set the return address to the last instruction in rt_start (halt)
-            Command::Set(TMP_REG, 20),
+            Command::SetLabel(TMP_REG, exit.clone()),
             Command::Store(FRAME_PTR_REG, TMP_REG, 0),
             // call main
             Command::JmpLabel(entry_point),
+            Command::Label(exit),
             Command::Halt,
             Command::EmptyLine,
             Command::Comment(String::from(".text")),
@@ -228,13 +231,6 @@ fn gen_fn(
     stack.enter_scope();
     bindings.enter_scope();
 
-    // reserve the space used by the return value
-    let ret_layout = layouts
-        .get_or_gen(def.ret_ty.clone(), ast)
-        .map_err(|err| Spanned::new(err, def.name.span()))?;
-
-    let ret_value = Value::Stack(stack.alloc(&ret_layout));
-
     // reserve the space used by the return address
     let ret_addr = Value::Stack(stack.alloc(&Layout::word()));
 
@@ -252,6 +248,13 @@ fn gen_fn(
             bindings.insert(name.clone(), value);
         }
     }
+
+    // reserve the space used by the return value
+    let ret_layout = layouts
+        .get_or_gen(def.ret_ty.clone(), ast)
+        .map_err(|err| Spanned::new(err, def.name.span()))?;
+
+    let ret_value = Value::Stack(stack.alloc(&ret_layout));
 
     let mut ctx = FnContext {
         ret_addr: &ret_addr,
@@ -442,7 +445,14 @@ fn gen_expr(
                 copy(&Value::reg(result_reg), &result_value, &layout, asm);
             }
         }
-        
+        Expr::FnCall(ref call, ref ty) => {
+            let ret_layout = ctx.layout(ty.clone(), span)?;
+            let ret_value = ctx.alloc(&ret_layout);
+            let ret_addr_label = LabelValue::new("ret_addr");
+
+            ctx.stack.enter_scope();
+            let ret_addr_value = ctx.stack.alloc(&Layout::word());
+        }
         _ => unimplemented!(),
     }
 

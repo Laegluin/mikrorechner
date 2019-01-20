@@ -374,7 +374,7 @@ impl Value {
 
     /// Gets the first register of this value or `None`, if the value is not
     /// stored in a register.
-    /// 
+    ///
     /// ## Panics
     /// Panics if the value is zero-sized.
     pub fn try_get_reg(&self) -> Option<Reg> {
@@ -430,38 +430,44 @@ impl StackValue {
 }
 
 pub struct StackAllocator {
-    frame_start: StackOffset,
+    frame_offset: StackOffset,
     scopes: Vec<StackOffset>,
 }
 
 impl StackAllocator {
     pub fn new() -> StackAllocator {
         StackAllocator {
-            frame_start: StackOffset(0),
+            frame_offset: StackOffset(0),
             scopes: Vec::new(),
         }
     }
 
     pub fn alloc(&mut self, layout: &Layout) -> StackValue {
         let value = StackValue {
-            start: self.frame_start,
+            start: self.frame_offset,
         };
 
-        self.frame_start += layout.stack_size();
+        self.frame_offset += layout.stack_size();
 
         // make sure the value is still addressable by using offsets in load/store
-        assert!(self.frame_start.0 <= LOAD_IMMEDIATE_MAX);
-        assert!(self.frame_start.0 <= STORE_IMMEDIATE_MAX);
+        assert!(self.frame_offset.0 <= LOAD_IMMEDIATE_MAX);
+        assert!(self.frame_offset.0 <= STORE_IMMEDIATE_MAX);
 
         value
     }
 
+    /// Returns the frame offset for the allocator. This is the offset at which the
+    /// next allocated value would start.
+    pub fn frame_offset(&self) -> StackOffset {
+        self.frame_offset
+    }
+
     pub fn enter_scope(&mut self) {
-        self.scopes.push(self.frame_start);
+        self.scopes.push(self.frame_offset);
     }
 
     pub fn exit_scope(&mut self) {
-        self.frame_start = self
+        self.frame_offset = self
             .scopes
             .pop()
             .unwrap_or_else(|| panic!("cannot exit global scope"));
