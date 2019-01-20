@@ -367,6 +367,24 @@ pub enum Value {
     Stack(StackValue),
 }
 
+impl Value {
+    pub fn reg(reg: Reg) -> Value {
+        Value::Reg(RegValue { regs: vec![reg] })
+    }
+
+    /// Gets the first register of this value or `None`, if the value is not
+    /// stored in a register.
+    /// 
+    /// ## Panics
+    /// Panics if the value is zero-sized.
+    pub fn try_get_reg(&self) -> Option<Reg> {
+        match *self {
+            Value::Reg(ref value) => Some(value.reg()),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct LabelValue {
     label: Ident,
@@ -456,11 +474,8 @@ pub struct RegValue {
 }
 
 impl RegValue {
-    pub fn word(reg: Reg) -> RegValue {
-        RegValue { regs: vec![reg] }
-    }
-
     pub fn reg(&self) -> Reg {
+        assert!(!self.regs.is_empty(), "not a zero-sized value");
         self.regs[0]
     }
 

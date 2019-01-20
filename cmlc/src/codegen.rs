@@ -18,14 +18,16 @@ mod layout;
 use crate::ast::*;
 use crate::codegen::layout::*;
 use crate::scope_map::ScopeMap;
-use crate::span::Spanned;
-use crate::typecheck::TypeDesc;
+use crate::span::{Span, Spanned};
+use crate::typecheck::{TypeDesc, TypeRef};
+use byteorder::{ByteOrder, LittleEndian};
 use std::collections::HashMap;
 use std::rc::Rc;
 
 pub const ENTRY_POINT: &str = "main";
 
 const STACK_START_ADDR: u32 = 0x0000ffff;
+const SET_IMMEDIATE_MAX: u32 = 0b_1_1111_1111_1111_1111_1111;
 const LOAD_IMMEDIATE_MAX: u32 = 0b_111_1111_1111_1111;
 const STORE_IMMEDIATE_MAX: u32 = 0b_111_1111_1111_1111;
 
@@ -62,6 +64,12 @@ impl Asm {
         let mut rest = self.cmds.drain(idx..).collect();
         self.cmds.extend_from_slice(cmds);
         self.cmds.append(&mut rest);
+    }
+
+    fn add_const(&mut self, data: impl Into<Vec<u8>>) -> LabelValue {
+        let value = LabelValue::new("const");
+        self.ro_data.insert(value.label().clone(), data.into());
+        value
     }
 }
 
@@ -105,6 +113,7 @@ pub fn gen_asm(ast: TypedAst) -> Result<Asm, Spanned<CodegenError>> {
 
     gen_items(&ast.items, &mut bindings, &mut layouts, &ast, &mut asm)?;
     gen_rt_start(&mut asm, &bindings);
+    asm.push(Command::Comment(String::from(".ro_data")));
     Ok(asm)
 }
 
@@ -133,6 +142,7 @@ fn gen_rt_start(asm: &mut Asm, bindings: &ScopeMap<Ident, Value>) {
             // call main
             Command::JmpLabel(entry_point),
             Command::Halt,
+            Command::EmptyLine,
             Command::Comment(String::from(".text")),
         ],
     );
@@ -183,6 +193,12 @@ impl FnContext<'_> {
             .alloc(&layout)
             .map(Value::Reg)
             .unwrap_or_else(|| Value::Stack(self.stack.alloc(&layout)))
+    }
+
+    fn layout_at(&mut self, ty: TypeRef, at: Span) -> Result<Rc<Layout>, Spanned<CodegenError>> {
+        self.layouts
+            .get_or_gen(ty, self.ast)
+            .map_err(|err| Spanned::new(err, at))
     }
 
     fn enter_scope(&mut self) {
@@ -247,7 +263,7 @@ fn gen_fn(
     };
 
     asm.push(Command::Comment(def.signature()));
-    gen_expr(&ret_value, &mut ctx, asm)?;
+    gen_expr(def.body.as_ref(), &ret_value, &mut ctx, asm)?;
     ctx.exit_scope();
     asm.push(Command::EmptyLine);
 
@@ -255,11 +271,67 @@ fn gen_fn(
 }
 
 fn gen_expr(
+    expr: Spanned<&Expr>,
     result_value: &Value,
     ctx: &mut FnContext<'_>,
     asm: &mut Asm,
 ) -> Result<(), Spanned<CodegenError>> {
-    unimplemented!()
+    let Spanned { value: expr, span } = expr;
+    match *expr {
+        Expr::Lit(ref lit, ref ty) => {
+            let layout = ctx.layout_at(ty.clone(), span)?;
+
+            match *lit {
+                Lit::Bool(is_true) => {
+                    let value = if is_true { 1 } else { 0 };
+
+                    if let Some(reg) = result_value.try_get_reg() {
+                        asm.push(Command::Set(reg, value));
+                    } else {
+                        asm.push(Command::Set(TMP_REG, value));
+                        copy(&Value::reg(TMP_REG), result_value, &layout, asm);
+                    }
+                }
+                Lit::Int(value) if value <= SET_IMMEDIATE_MAX => {
+                    if let Some(reg) = result_value.try_get_reg() {
+                        asm.push(Command::Set(reg, value));
+                    } else {
+                        asm.push(Command::Set(TMP_REG, value));
+                        copy(&Value::reg(TMP_REG), result_value, &layout, asm);
+                    }
+                }
+                Lit::Int(value) => {
+                    let mut bytes = vec![0; 4];
+                    LittleEndian::write_u32(&mut bytes, value);
+                    let value = asm.add_const(bytes);
+
+                    if let Some(reg) = result_value.try_get_reg() {
+                        asm.push(Command::SetLabel(TMP_REG, value.label().clone()));
+                        asm.push(Command::Load(reg, TMP_REG, 0));
+                    } else {
+                        asm.push(Command::SetLabel(TMP_REG, value.label().clone()));
+                        asm.push(Command::Load(TMP_REG, TMP_REG, 0));
+                        copy(&Value::reg(TMP_REG), result_value, &layout, asm);
+                    }
+                }
+                Lit::Str(ref string) => {
+                    let value = asm.add_const(string.as_bytes());
+
+                    if let Some(reg) = result_value.try_get_reg() {
+                        asm.push(Command::SetLabel(TMP_REG, value.label().clone()));
+                        asm.push(Command::Load(reg, TMP_REG, 0));
+                    } else {
+                        asm.push(Command::SetLabel(TMP_REG, value.label().clone()));
+                        asm.push(Command::Load(TMP_REG, TMP_REG, 0));
+                        copy(&Value::reg(TMP_REG), result_value, &layout, asm);
+                    }
+                }
+            }
+        }
+        _ => unimplemented!(),
+    }
+
+    Ok(())
 }
 
 fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
