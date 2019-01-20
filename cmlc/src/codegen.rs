@@ -33,6 +33,7 @@ const STORE_IMMEDIATE_MAX: u32 = 0b_111_1111_1111_1111;
 
 const FRAME_PTR_REG: Reg = Reg::R31;
 const TMP_REG: Reg = Reg::R0;
+const TMP_OP_REG: Reg = Reg::R1;
 
 #[derive(Debug)]
 pub enum CodegenError {
@@ -195,7 +196,7 @@ impl FnContext<'_> {
             .unwrap_or_else(|| Value::Stack(self.stack.alloc(&layout)))
     }
 
-    fn layout_at(&mut self, ty: TypeRef, at: Span) -> Result<Rc<Layout>, Spanned<CodegenError>> {
+    fn layout(&mut self, ty: TypeRef, at: Span) -> Result<Rc<Layout>, Spanned<CodegenError>> {
         self.layouts
             .get_or_gen(ty, self.ast)
             .map_err(|err| Spanned::new(err, at))
@@ -277,9 +278,10 @@ fn gen_expr(
     asm: &mut Asm,
 ) -> Result<(), Spanned<CodegenError>> {
     let Spanned { value: expr, span } = expr;
+
     match *expr {
         Expr::Lit(ref lit, ref ty) => {
-            let layout = ctx.layout_at(ty.clone(), span)?;
+            let layout = ctx.layout(ty.clone(), span)?;
 
             match *lit {
                 Lit::Bool(is_true) => {
@@ -328,6 +330,119 @@ fn gen_expr(
                 }
             }
         }
+        Expr::Var(ref var, ref ty) => {
+            let layout = ctx.layout(ty.clone(), span)?;
+            let var = ctx.bindings.path_get(var).unwrap();
+            copy(var, result_value, &layout, asm);
+        }
+        Expr::UnOp(UnOp { op, ref operand }, ref ty) => {
+            let layout = ctx.layout(ty.clone(), span)?;
+
+            let operand_value = ctx.alloc(&layout);
+            gen_expr(operand.as_ref().map(Box::as_ref), &operand_value, ctx, asm)?;
+
+            let operand_reg = if let Some(reg) = operand_value.try_get_reg() {
+                reg
+            } else {
+                copy(&operand_value, &Value::reg(TMP_REG), &layout, asm);
+                TMP_REG
+            };
+
+            let (result_reg, result_needs_copy) = if let Some(reg) = result_value.try_get_reg() {
+                (reg, false)
+            } else {
+                (TMP_REG, true)
+            };
+
+            match op {
+                UnOpKind::Not => asm.push(Command::Not(result_reg, operand_reg)),
+                UnOpKind::Negate => asm.push(Command::Sub(result_reg, Reg::Null, operand_reg)),
+                // TODO: model dynamic memory references
+                UnOpKind::AddrOf | UnOpKind::AddrOfMut => unimplemented!(),
+                UnOpKind::Deref => unimplemented!(),
+            }
+
+            if result_needs_copy {
+                copy(&Value::reg(result_reg), &result_value, &layout, asm);
+            }
+        }
+        Expr::BinOp(
+            BinOp {
+                op,
+                ref lhs,
+                ref rhs,
+            },
+            ..
+        ) => {
+            let layout = Layout::word();
+
+            let (result_reg, result_needs_copy) = if let Some(reg) = result_value.try_get_reg() {
+                (reg, false)
+            } else {
+                (TMP_REG, true)
+            };
+
+            let lhs_value = Value::reg(TMP_REG);
+            gen_expr(lhs.as_ref().map(Box::as_ref), &lhs_value, ctx, asm)?;
+            let rhs_value = Value::reg(TMP_OP_REG);
+            gen_expr(rhs.as_ref().map(Box::as_ref), &rhs_value, ctx, asm)?;
+
+            match op {
+                BinOpKind::Or => asm.push(Command::Or(result_reg, TMP_REG, TMP_OP_REG)),
+                BinOpKind::And => asm.push(Command::And(result_reg, TMP_REG, TMP_OP_REG)),
+                BinOpKind::Eq => {
+                    asm.push(Command::CmpEq(TMP_REG, TMP_OP_REG));
+                    asm.push(Command::JmpRelIf(12));
+                    asm.push(Command::Set(result_reg, 0));
+                    asm.push(Command::JmpRel(8));
+                    asm.push(Command::Set(result_reg, 1));
+                }
+                BinOpKind::Ne => {
+                    asm.push(Command::CmpEq(TMP_REG, TMP_OP_REG));
+                    asm.push(Command::JmpRelIf(12));
+                    asm.push(Command::Set(result_reg, 1));
+                    asm.push(Command::JmpRel(8));
+                    asm.push(Command::Set(result_reg, 0));
+                }
+                BinOpKind::Lt => {
+                    asm.push(Command::CmpGe(TMP_REG, TMP_OP_REG));
+                    asm.push(Command::JmpRelIf(12));
+                    asm.push(Command::Set(result_reg, 1));
+                    asm.push(Command::JmpRel(8));
+                    asm.push(Command::Set(result_reg, 0));
+                }
+                BinOpKind::Le => {
+                    asm.push(Command::CmpGt(TMP_REG, TMP_OP_REG));
+                    asm.push(Command::JmpRelIf(12));
+                    asm.push(Command::Set(result_reg, 1));
+                    asm.push(Command::JmpRel(8));
+                    asm.push(Command::Set(result_reg, 0));
+                }
+                BinOpKind::Gt => {
+                    asm.push(Command::CmpGt(TMP_REG, TMP_OP_REG));
+                    asm.push(Command::JmpRelIf(12));
+                    asm.push(Command::Set(result_reg, 0));
+                    asm.push(Command::JmpRel(8));
+                    asm.push(Command::Set(result_reg, 1));
+                }
+                BinOpKind::Ge => {
+                    asm.push(Command::CmpGe(TMP_REG, TMP_OP_REG));
+                    asm.push(Command::JmpRelIf(12));
+                    asm.push(Command::Set(result_reg, 0));
+                    asm.push(Command::JmpRel(8));
+                    asm.push(Command::Set(result_reg, 1));
+                }
+                BinOpKind::Add => asm.push(Command::Add(result_reg, TMP_REG, TMP_OP_REG)),
+                BinOpKind::Sub => asm.push(Command::Sub(result_reg, TMP_REG, TMP_OP_REG)),
+                BinOpKind::Mul => asm.push(Command::Mul(result_reg, TMP_REG, TMP_OP_REG)),
+                BinOpKind::Div => asm.push(Command::Div(result_reg, TMP_REG, TMP_OP_REG)),
+            }
+
+            if result_needs_copy {
+                copy(&Value::reg(result_reg), &result_value, &layout, asm);
+            }
+        }
+        
         _ => unimplemented!(),
     }
 
