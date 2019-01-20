@@ -147,12 +147,20 @@ fn gen_items(
     ast: &TypedAst,
     asm: &mut Asm,
 ) -> Result<(), Spanned<CodegenError>> {
+    // bind the functions as values first
     for item in items {
-        let Spanned { value: item, .. } = item;
+        if let Item::FnDef(ref fn_def) = item.value {
+            bindings.path_insert(
+                fn_def.name.clone(),
+                Value::Label(LabelValue::new(fn_def.name.to_string())),
+            );
+        }
+    }
 
-        match item {
-            Item::FnDef(ref fn_def) => gen_fn(fn_def, bindings, layouts, ast, asm)?,
-            _ => continue,
+    // then generate the code for them
+    for item in items {
+        if let Item::FnDef(ref fn_def) = item.value {
+            gen_fn(fn_def, bindings, layouts, ast, asm)?;
         }
     }
 
