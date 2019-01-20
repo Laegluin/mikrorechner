@@ -25,7 +25,7 @@ use std::rc::Rc;
 
 pub const ENTRY_POINT: &str = "main";
 
-const STACK_START_ADDR: u32 = 0xffffffff;
+const STACK_START_ADDR: u32 = 0x0000ffff;
 const LOAD_IMMEDIATE_MAX: u32 = 0b_111_1111_1111_1111;
 const STORE_IMMEDIATE_MAX: u32 = 0b_111_1111_1111_1111;
 
