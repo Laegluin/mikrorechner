@@ -953,7 +953,11 @@ fn check_expr<'a>(
             *ty = block_ty;
             Ok(ty)
         }
-        Expr::ConstructRecord | Expr::ConstructVariant(_) => Ok(ret_ty),
+        Expr::ConstructRecord(ref mut ty) | Expr::ConstructVariants(_, ref mut ty) => {
+            // we know the type of a constructor is simply the return type of the constructor function
+            *ty = ret_ty.clone();
+            Ok(ret_ty)
+        }
     }
 }
 
@@ -1134,7 +1138,7 @@ fn bind_record_def(
         params: def_params,
         ret_ty_hint: Some(def.name.clone().map(TypeDecl::Name)),
         ret_ty: ty,
-        body: Spanned::new(Expr::ConstructRecord, def.name.span),
+        body: Spanned::new(Expr::construct_record(), def.name.span),
     })
 }
 
@@ -1187,7 +1191,7 @@ fn bind_variants_def(
                 params: param_defs,
                 ret_ty_hint: None,
                 ret_ty: current_ty.clone(),
-                body: Spanned::new(Expr::ConstructVariant(tag as u32), variant_def.name.span),
+                body: Spanned::new(Expr::construct_variants(tag as u32), variant_def.name.span),
             });
 
             // bind the type

@@ -377,6 +377,10 @@ impl Value {
         Value::Reg(RegValue { regs: vec![reg] })
     }
 
+    pub fn dynamic(ptr: Value) -> Value {
+        Value::Dyn(Box::new(ptr))
+    }
+
     /// Gets the first register of this value or `None`, if the value is not
     /// stored in a register.
     ///

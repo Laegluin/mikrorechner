@@ -147,8 +147,9 @@ fn verify_expr(
 
             canonicalize_type_ref(ty, type_env, types, span)?;
         }
-        // nothing to check here
-        Expr::ConstructRecord | Expr::ConstructVariant(_) => (),
+        Expr::ConstructRecord(ref mut ty) | Expr::ConstructVariants(_, ref mut ty) => {
+            canonicalize_type_ref(ty, type_env, types, span)?;
+        }
     }
 
     Ok(())

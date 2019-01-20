@@ -10,8 +10,8 @@
 //!
 //! - the frame pointer must be set to the new stack frame
 //! - the frame starts with the return address
+//! - followed by the address of where the return value will be constructed
 //! - followed by the arguments in correct order
-//! - followed by memory reserved for the return value
 
 mod layout;
 
@@ -234,6 +234,9 @@ fn gen_fn(
     // reserve the space used by the return address
     let ret_addr = Value::Stack(stack.alloc(&Layout::word()));
 
+    // bind the return value (out) pointer
+    let ret_value = Value::dynamic(Value::Stack(stack.alloc(&Layout::word())));
+
     // bind the arguments
     for param in &def.params {
         let layout = layouts
@@ -249,13 +252,6 @@ fn gen_fn(
         }
     }
 
-    // reserve the space used by the return value
-    let ret_layout = layouts
-        .get_or_gen(def.ret_ty.clone(), ast)
-        .map_err(|err| Spanned::new(err, def.name.span()))?;
-
-    let ret_value = Value::Stack(stack.alloc(&ret_layout));
-
     let mut ctx = FnContext {
         ret_addr: &ret_addr,
         ret_value: &ret_value,
@@ -266,11 +262,16 @@ fn gen_fn(
         ast,
     };
 
+    // generate body
     asm.push(Command::Comment(def.signature()));
     gen_expr(def.body.as_ref(), &ret_value, &mut ctx, asm)?;
-    ctx.exit_scope();
+
+    // return to caller (needed if there is no explicit return)
+    copy(&ret_addr, &Value::reg(TMP_REG), &Layout::word(), asm);
+    asm.push(Command::Jmp(TMP_REG));
     asm.push(Command::EmptyLine);
 
+    ctx.exit_scope();
     Ok(())
 }
 
@@ -447,11 +448,49 @@ fn gen_expr(
         }
         Expr::FnCall(ref call, ref ty) => {
             let ret_layout = ctx.layout(ty.clone(), span)?;
-            let ret_value = ctx.alloc(&ret_layout);
-            let ret_addr_label = LabelValue::new("ret_addr");
+            let ret_value = ctx.stack.alloc(&ret_layout);
+            let ret_addr = LabelValue::new("ret_addr");
+            let ret_addr_label = ret_addr.label().clone();
 
             ctx.stack.enter_scope();
-            let ret_addr_value = ctx.stack.alloc(&Layout::word());
+            // TODO: save registers
+
+            // write the return address
+            let ret_addr_value = Value::Stack(ctx.stack.alloc(&Layout::word()));
+            copy(
+                &Value::Label(ret_addr),
+                &ret_addr_value,
+                &Layout::word(),
+                asm,
+            );
+
+            // write the address for the return value
+            asm.push(Command::Set(TMP_REG, ret_value.offset().0));
+            asm.push(Command::Add(TMP_REG, FRAME_PTR_REG, TMP_REG));
+            let ret_value_addr = Value::Stack(ctx.stack.alloc(&Layout::word()));
+            copy(&Value::reg(TMP_REG), &ret_value_addr, &Layout::word(), asm);
+
+            // allocate stack memory for the args
+            for arg in &call.args {
+                let arg_expr = arg.value.value.as_ref();
+                let arg_layout = ctx.layout(arg_expr.value.ty().clone(), span)?;
+                let arg_value = Value::Stack(ctx.stack.alloc(&arg_layout));
+
+                // FIXME: generate expressions outside of this scope
+                gen_expr(arg_expr, &arg_value, ctx, asm)?;
+            }
+
+            ctx.stack.exit_scope();
+
+            // set the frame pointer, load the function address and then call the function
+            asm.push(Command::Set(TMP_REG, ctx.stack.frame_offset().0));
+            asm.push(Command::Add(FRAME_PTR_REG, FRAME_PTR_REG, TMP_REG));
+            let fn_ptr = ctx.bindings.path_get(&call.name.value).unwrap();
+            copy(fn_ptr, &Value::reg(TMP_REG), &Layout::word(), asm);
+            asm.push(Command::Jmp(TMP_REG));
+
+            // TODO: restore saved registers
+            asm.push(Command::Label(ret_addr_label));
         }
         _ => unimplemented!(),
     }

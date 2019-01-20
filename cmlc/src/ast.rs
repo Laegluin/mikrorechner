@@ -167,10 +167,10 @@ pub enum Expr {
     IfExpr(IfExpr, TypeRef),
     Block(Block, TypeRef),
     /// Placeholder expression representing the body of a record constructor function.
-    ConstructRecord,
+    ConstructRecord(TypeRef),
     /// Placeholder expression representing the body of a variant constructor function
     /// for a variant with the given tag.
-    ConstructVariant(u32),
+    ConstructVariants(u32, TypeRef),
 }
 
 impl Expr {
@@ -228,6 +228,35 @@ impl Expr {
 
     pub fn block(block: Block) -> Expr {
         Expr::Block(block, TypeRef::invalid())
+    }
+
+    pub fn construct_record() -> Expr {
+        Expr::ConstructRecord(TypeRef::invalid())
+    }
+
+    pub fn construct_variants(tag: u32) -> Expr {
+        Expr::ConstructVariants(tag, TypeRef::invalid())
+    }
+
+    pub fn ty(&self) -> &TypeRef {
+        match *self {
+            Expr::Lit(_, ref ty) => ty,
+            Expr::Var(_, ref ty) => ty,
+            Expr::UnOp(_, ref ty) => ty,
+            Expr::BinOp(_, ref ty) => ty,
+            Expr::FnCall(_, ref ty) => ty,
+            Expr::MemberAccess(_, ref ty) => ty,
+            Expr::ArrayCons(_, ref ty) => ty,
+            Expr::TupleCons(_, ref ty) => ty,
+            Expr::Assignment(_, ref ty) => ty,
+            Expr::LetBinding(_, ref ty) => ty,
+            Expr::AutoRef(_, ref ty) => ty,
+            Expr::Ret(_, ref ty) => ty,
+            Expr::IfExpr(_, ref ty) => ty,
+            Expr::Block(_, ref ty) => ty,
+            Expr::ConstructRecord(ref ty) => ty,
+            Expr::ConstructVariants(_, ref ty) => ty,
+        }
     }
 }
 
