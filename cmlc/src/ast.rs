@@ -1,7 +1,7 @@
-use crate::span::{Spanned, Span};
+use crate::span::{Span, Spanned};
 use crate::typecheck::{unify::TypeEnv, Type, TypeRef};
 use fnv::FnvHashMap;
-use std::fmt::{self, Display};
+use std::fmt::{self, Display, Write};
 use std::rc::Rc;
 
 #[derive(Debug)]
@@ -75,6 +75,39 @@ pub struct FnDef {
     pub ret_ty_hint: Option<Spanned<TypeDecl>>,
     pub ret_ty: TypeRef,
     pub body: Spanned<Expr>,
+}
+
+impl FnDef {
+    pub fn signature(&self) -> String {
+        let inner = || -> Result<_, fmt::Error> {
+            let mut buf = String::new();
+
+            write!(buf, "fn {}", self.name)?;
+
+            let mut param_list = Vec::with_capacity(self.params.len());
+
+            for param in &self.params {
+                let param = &param.value;
+
+                let discard = Ident::new("_");
+                let name = param.name.value.as_ref().unwrap_or(&discard);
+
+                // TODO: use Display
+                param_list.push(format!("{}: {:?}", name, param.ty));
+            }
+
+            if !param_list.is_empty() {
+                write!(buf, " ")?;
+            }
+
+            // TODO: use Display
+            write!(buf, "{} -> {:?}", param_list.join(", "), self.ret_ty)?;
+
+            Ok(buf)
+        };
+
+        inner().unwrap()
+    }
 }
 
 #[derive(Debug)]

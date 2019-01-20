@@ -96,8 +96,9 @@ pub enum Command {
     Store(Reg, Reg, u32),
     Noop,
     Halt,
-    Comment(String),
     Label(Ident),
+    Comment(String),
+    EmptyLine,
 }
 
 pub fn gen_asm(ast: TypedAst) -> Result<Asm, Spanned<CodegenError>> {
@@ -277,6 +278,7 @@ fn gen_fn(
         ast,
     };
 
+    asm.push(Command::Comment(def.signature()));
     gen_expr(&ret_value, &mut ctx, asm)?;
     ctx.exit_scope();
 
@@ -290,6 +292,7 @@ fn gen_fn(
         );
     }
 
+    asm.push(Command::EmptyLine);
     Ok(())
 }
 
