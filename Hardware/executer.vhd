@@ -33,7 +33,8 @@ entity executer is
         wb_control    : out      unsigned(1 downto 0);
         jump_to_out   : out      unsigned(bit_Width-1 downto 0);
         mem_off_out   : out      unsigned(bit_Width-1 downto 0);
-        opcode_out    : out      unsigned(opcode_Bits-1 downto 0)
+        opcode_out    : out      unsigned(opcode_Bits-1 downto 0);
+        alu_stim      : out      std_logic
     );
 
 end entity executer;
@@ -47,6 +48,8 @@ architecture behavior of executer is
     signal C_in_tmp       : unsigned(adr_Width-1 downto 0) := (others => '0');
     signal mem_off_in_tmp : unsigned(bit_Width-1 downto 0) := (others => '0');
     signal reg_imm_in_tmp : unsigned(bit_Width-1 downto 0) := (others => '0');
+
+    signal alu_clk        : std_logic := '0';
 
 
 begin
@@ -159,6 +162,12 @@ begin
             end if;
         end if;
 
+    end process;
+
+    process(pc_in)
+    begin
+        alu_stim <= alu_clk;
+        alu_clk <= not alu_clk;
     end process;
 
 end behavior;

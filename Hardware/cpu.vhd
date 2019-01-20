@@ -98,6 +98,12 @@ architecture behavior of cpu is
     signal mem_C_data       : unsigned(bit_Width-1 downto 0);
     signal mem_C_address    : unsigned(adr_Width-1 downto 0);
         
+    signal alu_stim1        : std_logic;
+    signal alu_stim2        : std_logic;
+    signal alu_stim3        : std_logic;
+    signal alu_stim4        : std_logic;
+    signal alu_stim5        : std_logic;
+
     begin
 
     --handle external input signals
@@ -224,7 +230,40 @@ architecture behavior of cpu is
             wb_control      => ex_wb_control,
             jump_to_out     => ex_jump_to,
             mem_off_out     => ex_MEM_offset,
-            opcode_out      => ex_ALU_opcode
+            opcode_out      => ex_ALU_opcode,
+            alu_stim        => alu_stim1
+        );
+
+    alu_delay1 : entity work.delay_reg1
+        port map
+        (
+            clk             => clk,
+            A               => alu_stim1,
+            B               => alu_stim2
+        );
+
+    alu_delay2 : entity work.delay_reg1
+        port map
+        (
+            clk             => clk,
+            A               => alu_stim2,
+            B               => alu_stim3
+        );
+
+    alu_delay3 : entity work.delay_reg1
+        port map
+        (
+            clk             => clk,
+            A               => alu_stim3,
+            B               => alu_stim4
+        );
+
+    alu_delay4 : entity work.delay_reg1
+        port map
+        (
+            clk             => clk,
+            A               => alu_stim4,
+            B               => alu_stim5
         );
 
     alu : entity work.alu
@@ -234,7 +273,8 @@ architecture behavior of cpu is
             B               => ex_B_data,
             opcode          => ex_ALU_opcode,
             ALU_Out         => ex_C_data,
-            ALU_Flag        => ALU_Flag
+            ALU_Flag        => ALU_Flag,
+            alu_stim        => alu_stim5
         );
 
     data_mem : entity work.data_memory
