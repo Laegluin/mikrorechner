@@ -503,6 +503,12 @@ impl RegAllocator {
         }
     }
 
+    pub fn allocated_regs(&self) -> impl '_ + Iterator<Item = Reg> {
+        Reg::iter()
+            .filter(Reg::is_general_purpose)
+            .filter(move |reg| !self.free_regs.contains(reg))
+    }
+
     pub fn enter_scope(&mut self) {
         self.scopes.push(self.free_regs.clone());
     }

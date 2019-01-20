@@ -4,16 +4,14 @@
 //!
 //! ## Calling convention
 //!
-//! All standard registers must be saved by the callee as necessary. The excludes
-//! registers for temporary values.
+//! All standard registers must be saved by the caller.
 //!
 //! When calling a function, a new stack frame must be initialized by the caller:
 //!
-//! - the frame pointer must be set to the new stack frame (the caller must save
-//!   its frame pointer if needed later)
+//! - the frame pointer must be set to the new stack frame
 //! - the frame starts with memory reserved for the return value
 //! - followed by the return address
-//! - followed by the ordered arguments
+//! - followed by the arguments in correct order
 
 mod layout;
 
@@ -22,7 +20,6 @@ use crate::codegen::layout::*;
 use crate::scope_map::ScopeMap;
 use crate::span::Spanned;
 use crate::typecheck::TypeDesc;
-use fnv::FnvHashMap;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -173,7 +170,6 @@ struct FnContext<'a> {
     ret_value: &'a Value,
     regs: RegAllocator,
     stack: StackAllocator,
-    clobbered_regs: FnvHashMap<Reg, StackValue>,
     bindings: &'a mut ScopeMap<Ident, Value>,
     layouts: &'a mut LayoutCache,
     ast: &'a TypedAst,
@@ -181,39 +177,12 @@ struct FnContext<'a> {
 
 impl FnContext<'_> {
     /// Allocates space for a value with the given `layout`. Allocates registers if possible and
-    /// falls back to stack memory if there are not enough free registers. If a register has not
-    /// been used before, it is saved to the stack for later recovery.
-    fn alloc(&mut self, layout: &Layout, asm: &mut Asm) -> Value {
-        let value = self
-            .regs
+    /// falls back to stack memory if there are not enough free registers.
+    fn alloc(&mut self, layout: &Layout) -> Value {
+        self.regs
             .alloc(&layout)
             .map(Value::Reg)
-            .unwrap_or_else(|| Value::Stack(self.stack.alloc(&layout)));
-
-        // save clobbers
-        if let Value::Reg(ref value) = &value {
-            for reg in value.regs() {
-                let stack = &mut self.stack;
-
-                self.clobbered_regs.entry(*reg).or_insert_with(|| {
-                    let save = Value::Stack(stack.alloc(&Layout::word()));
-
-                    copy(
-                        &Value::Reg(RegValue::word(*reg)),
-                        &save,
-                        &Layout::word(),
-                        asm,
-                    );
-
-                    match save {
-                        Value::Stack(value) => value,
-                        _ => unreachable!(),
-                    }
-                });
-            }
-        }
-
-        value
+            .unwrap_or_else(|| Value::Stack(self.stack.alloc(&layout)))
     }
 
     fn enter_scope(&mut self) {
@@ -272,7 +241,6 @@ fn gen_fn(
         ret_value: &ret_value,
         regs: RegAllocator::new(),
         stack,
-        clobbered_regs: FnvHashMap::default(),
         bindings,
         layouts,
         ast,
@@ -281,18 +249,8 @@ fn gen_fn(
     asm.push(Command::Comment(def.signature()));
     gen_expr(&ret_value, &mut ctx, asm)?;
     ctx.exit_scope();
-
-    // restore saved registers for the caller
-    for (clobber, save) in ctx.clobbered_regs {
-        copy(
-            &Value::Stack(save),
-            &Value::Reg(RegValue::word(clobber)),
-            &Layout::word(),
-            asm,
-        );
-    }
-
     asm.push(Command::EmptyLine);
+
     Ok(())
 }
 
