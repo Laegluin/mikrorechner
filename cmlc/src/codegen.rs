@@ -566,6 +566,21 @@ fn gen_expr(
 
             ctx.stack.exit_scope();
         }
+        Expr::MemberAccess(
+            MemberAccess {
+                ref value,
+                ref member,
+            },
+            ref ty,
+        ) => {
+            let base_layout = ctx.layout(value.value.ty().clone(), span)?;
+            let result_layout = ctx.layout(ty.clone(), span)?;
+
+            let base_value = ctx.alloc(&base_layout);
+            gen_expr(value.as_ref().map(Box::as_ref), &base_value, ctx, asm)?;
+            let field_value = base_value.unwrap_field(&member.value, &base_layout);
+            copy(&field_value, result_value, &result_layout, asm);
+        }
         _ => unimplemented!(),
     }
 

@@ -392,6 +392,14 @@ impl Value {
             _ => None,
         }
     }
+
+    pub fn unwrap_field<'a>(&self, field: impl Into<FieldIdent<'a>>, layout: &Layout) -> Value {
+        match *self {
+            Value::Reg(ref value) => Value::Reg(value.field(field, layout)),
+            Value::Stack(ref value) => Value::Stack(value.field(field, layout)),
+            _ => panic!("cannot access field for lvalue or label"),
+        }
+    }
 }
 
 #[derive(Debug)]
