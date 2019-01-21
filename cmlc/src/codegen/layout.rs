@@ -419,7 +419,7 @@ impl LabelValue {
         }
 
         LabelValue {
-            label: Ident::new(format!("label_{}_{}", id, desc.as_ref())),
+            label: Ident::new(format!("l{}_{}", id, desc.as_ref())),
         }
     }
 
