@@ -13,7 +13,7 @@
 //! - followed by the address of where the return value will be constructed
 //! - followed by the arguments in correct order
 
-mod layout;
+pub mod layout;
 
 use crate::ast::*;
 use crate::codegen::layout::*;
@@ -67,10 +67,20 @@ impl Asm {
         self.cmds.append(&mut rest);
     }
 
-    fn add_const(&mut self, data: impl Into<Vec<u8>>) -> LabelValue {
+    fn push_const(&mut self, data: impl Into<Vec<u8>>) -> LabelValue {
         let value = LabelValue::new("const");
         self.ro_data.insert(value.label().clone(), data.into());
         value
+    }
+
+    pub fn cmds(&self) -> &[Command] {
+        &self.cmds
+    }
+
+    pub fn ro_data(&self) -> impl Iterator<Item = (&Ident, &[u8])> {
+        self.ro_data
+            .iter()
+            .map(|(label, data)| (label, data.as_slice()))
     }
 }
 
@@ -93,10 +103,10 @@ pub enum Command {
     CmpEq(Reg, Reg),
     CmpGt(Reg, Reg),
     CmpGe(Reg, Reg),
-    JmpLabel(Ident),
     Jmp(Reg),
-    JmpRel(u32),
-    JmpIf(Ident),
+    JmpLabel(Ident),
+    JmpRel(i32),
+    JmpIfLabel(Ident),
     JmpRelIf(u32),
     Load(Reg, Reg, u32),
     Store(Reg, Reg, u32),
@@ -255,7 +265,7 @@ fn gen_fn(
     let mut ctx = FnContext {
         ret_addr: &ret_addr,
         ret_value: &ret_value,
-        regs: RegAllocator::new(),
+        regs,
         stack,
         bindings,
         layouts,
@@ -309,7 +319,7 @@ fn gen_expr(
                 Lit::Int(value) => {
                     let mut bytes = vec![0; 4];
                     LittleEndian::write_u32(&mut bytes, value);
-                    let value = asm.add_const(bytes);
+                    let value = asm.push_const(bytes);
 
                     if let Some(reg) = result_value.try_get_reg() {
                         asm.push(Command::SetLabel(TMP_REG, value.label().clone()));
@@ -321,7 +331,7 @@ fn gen_expr(
                     }
                 }
                 Lit::Str(ref string) => {
-                    let value = asm.add_const(string.as_bytes());
+                    let value = asm.push_const(string.as_bytes());
 
                     if let Some(reg) = result_value.try_get_reg() {
                         asm.push(Command::SetLabel(TMP_REG, value.label().clone()));

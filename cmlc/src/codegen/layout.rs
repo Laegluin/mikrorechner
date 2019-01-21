@@ -119,6 +119,7 @@ impl LayoutCache {
                 self.layouts.insert(ty.clone(), None);
 
                 // generate the actual layout and update the value
+                // FIXME: sometimes there's an invalid type ref
                 let layout = Rc::new(Layout::from_type(&ast.types[&ty], self, ast)?);
                 self.layouts
                     .get_mut(&ty)
