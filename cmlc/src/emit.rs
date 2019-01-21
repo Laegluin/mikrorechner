@@ -53,9 +53,9 @@ impl Display for Command {
 
         match *self {
             Add(dst, lhs, rhs) => write!(f, "{} = {} + {}", dst, lhs, rhs),
-            Sub(dst, lhs, rhs) => write!(f, "{} = {} + {}", dst, lhs, rhs),
-            Mul(dst, lhs, rhs) => write!(f, "{} = {} + {}", dst, lhs, rhs),
-            Div(dst, lhs, rhs) => write!(f, "{} = {} + {}", dst, lhs, rhs),
+            Sub(dst, lhs, rhs) => write!(f, "{} = {} - {}", dst, lhs, rhs),
+            Mul(dst, lhs, rhs) => write!(f, "{} = {} * {}", dst, lhs, rhs),
+            Div(dst, lhs, rhs) => write!(f, "{} = {} / {}", dst, lhs, rhs),
             And(dst, lhs, rhs) => write!(f, "{} = {} & {}", dst, lhs, rhs),
             Or(dst, lhs, rhs) => write!(f, "{} = {} | {}", dst, lhs, rhs),
             Not(dst, src) => write!(f, "{} = ~{}", dst, src,),
