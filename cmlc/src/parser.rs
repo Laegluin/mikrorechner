@@ -283,13 +283,13 @@ fn variant_def(tokens: &TokenStream<'_>) -> Result<VariantDef, Spanned<ParseErro
             return Err(Spanned::new(
                 ParseError::unexpected_token().expected("|").expected(";"),
                 tokens.last_token_span(),
-            ))
+            ));
         }
         None => {
             return Err(Spanned::new(
                 ParseError::eof().expected("|").expected(";"),
                 tokens.eof_span(),
-            ))
+            ));
         }
     }
 
@@ -326,13 +326,13 @@ fn fn_def(tokens: &TokenStream<'_>) -> Result<Item, Spanned<ParseError>> {
             return Err(Spanned::new(
                 ParseError::unexpected_token().expected("->").expected("="),
                 tokens.last_token_span(),
-            ))
+            ));
         }
         None => {
             return Err(Spanned::new(
                 ParseError::eof().expected("->").expected("="),
                 tokens.eof_span(),
-            ))
+            ));
         }
     };
 
@@ -945,7 +945,7 @@ fn array_cons(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
                 return Err(Spanned::new(
                     ParseError::eof().expected("]"),
                     tokens.eof_span(),
-                ))
+                ));
             }
         }
 
@@ -960,13 +960,13 @@ fn array_cons(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
                 return Err(Spanned::new(
                     ParseError::unexpected_token().expected("]").expected(","),
                     tokens.last_token_span(),
-                ))
+                ));
             }
             None => {
                 return Err(Spanned::new(
                     ParseError::eof().expected("]").expected(","),
                     tokens.eof_span(),
-                ))
+                ));
             }
         }
     }
@@ -987,7 +987,7 @@ fn parenthesized_or_tuple_cons(tokens: &TokenStream<'_>) -> Result<Expr, Spanned
                 return Err(Spanned::new(
                     ParseError::eof().expected(")"),
                     tokens.eof_span(),
-                ))
+                ));
             }
         }
 
@@ -1007,13 +1007,13 @@ fn parenthesized_or_tuple_cons(tokens: &TokenStream<'_>) -> Result<Expr, Spanned
                 return Err(Spanned::new(
                     ParseError::unexpected_token().expected(")").expected(","),
                     tokens.last_token_span(),
-                ))
+                ));
             }
             None => {
                 return Err(Spanned::new(
                     ParseError::eof().expected(")").expected(","),
                     tokens.eof_span(),
-                ))
+                ));
             }
         }
     }
@@ -1165,7 +1165,7 @@ fn tuple_pattern(tokens: &TokenStream<'_>) -> Result<Pattern, Spanned<ParseError
                 return Err(Spanned::new(
                     ParseError::eof().expected(")"),
                     tokens.eof_span(),
-                ))
+                ));
             }
         }
 
@@ -1180,13 +1180,13 @@ fn tuple_pattern(tokens: &TokenStream<'_>) -> Result<Pattern, Spanned<ParseError
                 return Err(Spanned::new(
                     ParseError::unexpected_token().expected(")").expected(","),
                     tokens.last_token_span(),
-                ))
+                ));
             }
             None => {
                 return Err(Spanned::new(
                     ParseError::eof().expected(")").expected(","),
                     tokens.eof_span(),
-                ))
+                ));
             }
         }
     }
@@ -1240,13 +1240,13 @@ fn array_type_decl(tokens: &TokenStream<'_>) -> Result<TypeDecl, Spanned<ParseEr
             return Err(Spanned::new(
                 ParseError::unexpected_token().expected("array length"),
                 tokens.last_token_span(),
-            ))
+            ));
         }
         None => {
             return Err(Spanned::new(
                 ParseError::eof().expected("array length"),
                 tokens.eof_span(),
-            ))
+            ));
         }
     };
 
@@ -1290,7 +1290,7 @@ fn tuple_type_decl(tokens: &TokenStream<'_>) -> Result<TypeDecl, Spanned<ParseEr
                 return Err(Spanned::new(
                     ParseError::eof().expected(")"),
                     tokens.eof_span(),
-                ))
+                ));
             }
         }
 
@@ -1305,13 +1305,13 @@ fn tuple_type_decl(tokens: &TokenStream<'_>) -> Result<TypeDecl, Spanned<ParseEr
                 return Err(Spanned::new(
                     ParseError::unexpected_token().expected(")").expected(","),
                     tokens.last_token_span(),
-                ))
+                ));
             }
             None => {
                 return Err(Spanned::new(
                     ParseError::eof().expected(")").expected(","),
                     tokens.eof_span(),
-                ))
+                ));
             }
         }
     }

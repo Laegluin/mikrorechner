@@ -758,7 +758,7 @@ fn check_expr<'a>(
                     return Err(Spanned::new(
                         TypeError::NonLValueInAssignment,
                         assignment.target.span,
-                    ))
+                    ));
                 }
             }
 

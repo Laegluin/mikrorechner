@@ -235,7 +235,7 @@ fn gen_fn(
     let ret_addr = Value::Stack(stack.alloc(&Layout::word()));
 
     // bind the return value (out) pointer
-    let ret_value = Value::dynamic(Value::Stack(stack.alloc(&Layout::word())));
+    let ret_value = Value::ptr(Value::Stack(stack.alloc(&Layout::word())));
 
     // bind the arguments
     for param in &def.params {
@@ -512,7 +512,7 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
             asm.push(Command::SetLabel(TMP_REG, src.label().clone()));
             asm.push(Command::Store(FRAME_PTR_REG, TMP_REG, dst.offset().0));
         }
-        (Value::Label(ref src), Value::Dyn(ref dst)) => {
+        (Value::Label(ref src), Value::Ptr(ref dst)) => {
             copy(dst, &Value::reg(TMP_REG), &Layout::word(), asm);
             asm.push(Command::SetLabel(TMP_OP_REG, src.label().clone()));
             asm.push(Command::Store(TMP_REG, TMP_OP_REG, 0));
@@ -545,7 +545,7 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
                 asm.push(Command::Store(FRAME_PTR_REG, TMP_REG, dst_offset.0));
             }
         }
-        (Value::Stack(ref src), Value::Dyn(ref dst)) => {
+        (Value::Stack(ref src), Value::Ptr(ref dst)) => {
             copy(dst, &Value::reg(TMP_REG), &Layout::word(), asm);
             asm.push(Command::Load(TMP_OP_REG, FRAME_PTR_REG, src.offset().0));
             asm.push(Command::Store(TMP_REG, TMP_OP_REG, 0));
@@ -563,13 +563,13 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
                 asm.push(Command::Copy(*src, *dst));
             }
         }
-        (Value::Reg(ref src), Value::Dyn(ref dst)) => {
+        (Value::Reg(ref src), Value::Ptr(ref dst)) => {
             copy(dst, &Value::reg(TMP_REG), &Layout::word(), asm);
             asm.push(Command::Store(TMP_REG, src.reg(), 0));
         }
-        (Value::Dyn(ref src), Value::Stack(ref dst)) => {
+        (Value::Ptr(ref src), Value::Stack(ref dst)) => {
             // very similar to stack -> stack, except that the offset is applied
-            // directly to the address of the dyn value
+            // directly to the address of the pointer
             assert!(layout.stack_size() >= StackOffset(4));
             copy(src, &Value::reg(TMP_OP_REG), &Layout::word(), asm);
 
@@ -587,9 +587,9 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
                 asm.push(Command::Store(FRAME_PTR_REG, TMP_REG, dst_offset.0));
             }
         }
-        (Value::Dyn(ref src), Value::Reg(ref dst)) => {
+        (Value::Ptr(ref src), Value::Reg(ref dst)) => {
             // very similar to stack -> reg, except that the offset is applied
-            // directly to the address of the dyn value
+            // directly to the address of the pointer
             assert!(layout.is_uniform());
             copy(src, &Value::reg(TMP_REG), &Layout::word(), asm);
 
@@ -597,9 +597,9 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
                 asm.push(Command::Load(*reg, TMP_REG, offset));
             }
         }
-        (Value::Dyn(ref src), Value::Dyn(ref dst)) => {
+        (Value::Ptr(ref src), Value::Ptr(ref dst)) => {
             // very similar to stack -> stack, except that both base addresses
-            // are loaded dynamically
+            // are the respective pointers
             // because of that, there is quite a bit of loading to make due with only
             // two temporary registers
             assert!(layout.stack_size() >= StackOffset(4));

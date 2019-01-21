@@ -369,7 +369,7 @@ pub enum Value {
     /// Effectively, this acts like an lvalue: it is a pointer, but refers to the value inside,
     /// not to the pointer itself. Thus, the layout used with this value needs to be the layout
     /// of the pointed at value.
-    Dyn(Box<Value>),
+    Ptr(Box<Value>),
 }
 
 impl Value {
@@ -377,8 +377,8 @@ impl Value {
         Value::Reg(RegValue { regs: vec![reg] })
     }
 
-    pub fn dynamic(ptr: Value) -> Value {
-        Value::Dyn(Box::new(ptr))
+    pub fn ptr(ptr: Value) -> Value {
+        Value::Ptr(Box::new(ptr))
     }
 
     /// Gets the first register of this value or `None`, if the value is not
