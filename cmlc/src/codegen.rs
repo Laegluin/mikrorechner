@@ -67,6 +67,12 @@ impl Asm {
         self.cmds.append(&mut rest);
     }
 
+    fn push_const_u32(&mut self, value: u32) -> LabelValue {
+        let mut bytes = vec![0; 4];
+        LittleEndian::write_u32(&mut bytes, value);
+        self.push_const(bytes)
+    }
+
     fn push_const(&mut self, data: impl Into<Vec<u8>>) -> LabelValue {
         self.ro_data
             .entry(data.into())
@@ -136,6 +142,7 @@ fn gen_rt_start(asm: &mut Asm, bindings: &ScopeMap<Ident, Value>) {
     let entry_point = bindings.get(&Ident::new(ENTRY_POINT)).unwrap();
     let entry_point = entry_point.unwrap_label().label().clone();
     let exit = LabelValue::new("program_exit").label().clone();
+    let stack_start = asm.push_const_u32(STACK_START_ADDR).label().clone();
 
     asm.insert_all(
         0,
@@ -144,7 +151,8 @@ fn gen_rt_start(asm: &mut Asm, bindings: &ScopeMap<Ident, Value>) {
             // set addr_offset to 0
             Command::Set(Reg::AddrOffset, 0),
             // initialize the stack
-            Command::Set(FRAME_PTR_REG, STACK_START_ADDR),
+            Command::SetLabel(TMP_REG, stack_start),
+            Command::Load(FRAME_PTR_REG, TMP_REG, 0),
             // set the return address to the last instruction in rt_start (halt)
             Command::SetLabel(TMP_REG, exit.clone()),
             Command::Store(FRAME_PTR_REG, TMP_REG, 0),
@@ -321,9 +329,7 @@ fn gen_expr(
                     }
                 }
                 Lit::Int(value) => {
-                    let mut bytes = vec![0; 4];
-                    LittleEndian::write_u32(&mut bytes, value);
-                    let value = asm.push_const(bytes);
+                    let value = asm.push_const_u32(value);
 
                     if let Some(reg) = result_value.try_get_reg() {
                         asm.push(Command::SetLabel(TMP_REG, value.label().clone()));
