@@ -340,34 +340,77 @@ fn gen_expr(
             copy(var, result_value, &layout, asm);
         }
         Expr::UnOp(UnOp { op, ref operand }, ref ty) => {
-            let layout = ctx.layout(ty.clone(), span)?;
-
-            let operand_value = ctx.alloc(&layout);
-            gen_expr(operand.as_ref().map(Box::as_ref), &operand_value, ctx, asm)?;
-
-            let operand_reg = if let Some(reg) = operand_value.try_get_reg() {
-                reg
-            } else {
-                copy(&operand_value, &Value::reg(TMP_REG), &layout, asm);
-                TMP_REG
-            };
-
-            let (result_reg, result_needs_copy) = if let Some(reg) = result_value.try_get_reg() {
-                (reg, false)
-            } else {
-                (TMP_REG, true)
-            };
-
             match op {
-                UnOpKind::Not => asm.push(Command::Not(result_reg, operand_reg)),
-                UnOpKind::Negate => asm.push(Command::Sub(result_reg, Reg::Null, operand_reg)),
-                // TODO: model dynamic memory references
-                UnOpKind::AddrOf | UnOpKind::AddrOfMut => unimplemented!(),
-                UnOpKind::Deref => unimplemented!(),
-            }
+                UnOpKind::Not => {
+                    let operand_value = Value::reg(TMP_REG);
+                    gen_expr(operand.as_ref().map(Box::as_ref), &operand_value, ctx, asm)?;
 
-            if result_needs_copy {
-                copy(&Value::reg(result_reg), &result_value, &layout, asm);
+                    let (result_reg, result_needs_copy) =
+                        if let Some(reg) = result_value.try_get_reg() {
+                            (reg, false)
+                        } else {
+                            (TMP_REG, true)
+                        };
+
+                    asm.push(Command::Not(result_reg, TMP_REG));
+
+                    if result_needs_copy {
+                        copy(&Value::reg(result_reg), &result_value, &Layout::word(), asm);
+                    }
+                }
+                UnOpKind::Negate => {
+                    let operand_value = Value::reg(TMP_REG);
+                    gen_expr(operand.as_ref().map(Box::as_ref), &operand_value, ctx, asm)?;
+
+                    let (result_reg, result_needs_copy) =
+                        if let Some(reg) = result_value.try_get_reg() {
+                            (reg, false)
+                        } else {
+                            (TMP_REG, true)
+                        };
+
+                    asm.push(Command::Sub(result_reg, Reg::Null, TMP_REG));
+
+                    if result_needs_copy {
+                        copy(&Value::reg(result_reg), &result_value, &Layout::word(), asm);
+                    }
+                }
+                UnOpKind::AddrOf | UnOpKind::AddrOfMut => {
+                    // allocate the value on the stack, so we can generate a pointer to it
+                    let operand_layout = ctx.layout(operand.value.ty().clone(), span)?;
+                    let operand_value = ctx.stack.alloc(&operand_layout);
+                    let operand_offset = operand_value.offset();
+
+                    gen_expr(
+                        operand.as_ref().map(Box::as_ref),
+                        &Value::Stack(operand_value),
+                        ctx,
+                        asm,
+                    )?;
+
+                    // set the pointer and copy it to the result value
+                    let (result_reg, result_needs_copy) =
+                        if let Some(reg) = result_value.try_get_reg() {
+                            (reg, false)
+                        } else {
+                            (TMP_REG, true)
+                        };
+
+                    asm.push(Command::Set(result_reg, operand_offset.0));
+
+                    if result_needs_copy {
+                        copy(&Value::reg(result_reg), &result_value, &Layout::word(), asm);
+                    }
+                }
+                UnOpKind::Deref => {
+                    let result_layout = ctx.layout(ty.clone(), span)?;
+
+                    // load the pointer and copy its content to the result value
+                    let operand_value = Value::reg(TMP_REG);
+                    gen_expr(operand.as_ref().map(Box::as_ref), &operand_value, ctx, asm)?;
+                    let ptr = Value::ptr(operand_value);
+                    copy(&ptr, result_value, &result_layout, asm);
+                }
             }
         }
         Expr::BinOp(
