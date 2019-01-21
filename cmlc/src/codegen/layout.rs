@@ -82,7 +82,7 @@ impl Mul<u32> for RegOffset {
 }
 
 #[derive(PartialEq, Eq)]
-enum FieldIdent<'a> {
+pub enum FieldIdent<'a> {
     Idx(usize),
     Name(&'a Ident),
 }
@@ -399,6 +399,13 @@ impl Value {
             Value::Reg(ref value) => Value::Reg(value.field(field, layout)),
             Value::Stack(ref value) => Value::Stack(value.field(field, layout)),
             _ => panic!("cannot access field for lvalue or label"),
+        }
+    }
+
+    pub fn unwrap_label(&self) -> &LabelValue {
+        match *self {
+            Value::Label(ref value) => value,
+            _ => panic!("called unwrap_label on a value that is not a label"),
         }
     }
 }

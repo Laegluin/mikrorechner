@@ -133,12 +133,7 @@ fn gen_rt_start(asm: &mut Asm, bindings: &ScopeMap<Ident, Value>) {
     // typechecking already made sure it exits and since it is in the global
     // scope, it must be a label
     let entry_point = bindings.get(&Ident::new(ENTRY_POINT)).unwrap();
-
-    let entry_point = match *entry_point {
-        Value::Label(ref value) => value.label().clone(),
-        _ => unreachable!(),
-    };
-
+    let entry_point = entry_point.unwrap_label().label().clone();
     let exit = LabelValue::new("program_exit").label().clone();
 
     asm.insert_all(
@@ -235,6 +230,13 @@ fn gen_fn(
     ast: &TypedAst,
     asm: &mut Asm,
 ) -> Result<(), Spanned<CodegenError>> {
+    let fn_label = bindings
+        .path_get(&def.name)
+        .unwrap()
+        .unwrap_label()
+        .label()
+        .clone();
+
     let mut regs = RegAllocator::new();
     let mut stack = StackAllocator::new();
     regs.enter_scope();
@@ -274,6 +276,7 @@ fn gen_fn(
 
     // generate body
     asm.push(Command::Comment(def.signature()));
+    asm.push(Command::Label(fn_label));
     gen_expr(def.body.as_ref(), &ret_value, &mut ctx, asm)?;
 
     // return to caller (needed if there is no explicit return)
