@@ -104,7 +104,7 @@ pub fn emit_asm(asm: &Asm) -> String {
     }
 
     for (label, data) in asm.ro_data() {
-        buf.push_str(&format!("0x{} {}", hex::encode(data), label,));
+        buf.push_str(&format!("0x{} _{}", hex::encode(data), label,));
     }
 
     buf
