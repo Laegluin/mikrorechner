@@ -44,7 +44,7 @@ pub enum CodegenError {
 #[derive(Debug)]
 pub struct Asm {
     cmds: Vec<Command>,
-    ro_data: HashMap<Ident, Vec<u8>>,
+    ro_data: HashMap<Vec<u8>, LabelValue>,
 }
 
 impl Asm {
@@ -68,9 +68,10 @@ impl Asm {
     }
 
     fn push_const(&mut self, data: impl Into<Vec<u8>>) -> LabelValue {
-        let value = LabelValue::new("const");
-        self.ro_data.insert(value.label().clone(), data.into());
-        value
+        self.ro_data
+            .entry(data.into())
+            .or_insert_with(|| LabelValue::new("const"))
+            .clone()
     }
 
     pub fn cmds(&self) -> &[Command] {
@@ -80,7 +81,7 @@ impl Asm {
     pub fn ro_data(&self) -> impl Iterator<Item = (&Ident, &[u8])> {
         self.ro_data
             .iter()
-            .map(|(label, data)| (label, data.as_slice()))
+            .map(|(data, label)| (label.label(), data.as_slice()))
     }
 }
 

@@ -410,7 +410,7 @@ impl Value {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LabelValue {
     label: Ident,
 }
