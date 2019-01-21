@@ -234,7 +234,7 @@ fn gen_fn(
     // reserve the space used by the return address
     let ret_addr = Value::Stack(stack.alloc(&Layout::word()));
 
-    // bind the return value (out) pointer
+    // bind the return value as dereferenced (out) pointer
     let ret_value = Value::ptr(Value::Stack(stack.alloc(&Layout::word())));
 
     // bind the arguments
@@ -452,8 +452,29 @@ fn gen_expr(
             let ret_addr = LabelValue::new("ret_addr");
             let ret_addr_label = ret_addr.label().clone();
 
+            // generate code for all the args
+            let mut arg_values = Vec::with_capacity(call.args.len());
+
+            for arg in &call.args {
+                let arg_expr = arg.value.value.as_ref();
+                let arg_layout = ctx.layout(arg_expr.value.ty().clone(), span)?;
+                let arg_value = Value::Stack(ctx.stack.alloc(&arg_layout));
+
+                gen_expr(arg_expr, &arg_value, ctx, asm)?;
+                arg_values.push((arg_value, arg_layout));
+            }
+
             ctx.stack.enter_scope();
-            // TODO: save registers
+
+            // save the registers; we can do this in the new scope, since
+            // we don't need them after restoring them again
+            for reg in ctx.regs.allocated_regs() {
+                let save = Value::Stack(ctx.stack.alloc(&Layout::word()));
+                copy(&Value::reg(reg), &save, &Layout::word(), asm);
+            }
+
+            // the new stack frame will start here
+            let new_frame_offset = ctx.stack.frame_offset();
 
             // write the return address
             let ret_addr_value = Value::Stack(ctx.stack.alloc(&Layout::word()));
@@ -470,27 +491,37 @@ fn gen_expr(
             let ret_value_addr = Value::Stack(ctx.stack.alloc(&Layout::word()));
             copy(&Value::reg(TMP_REG), &ret_value_addr, &Layout::word(), asm);
 
-            // allocate stack memory for the args
-            for arg in &call.args {
-                let arg_expr = arg.value.value.as_ref();
-                let arg_layout = ctx.layout(arg_expr.value.ty().clone(), span)?;
-                let arg_value = Value::Stack(ctx.stack.alloc(&arg_layout));
-
-                // FIXME: generate expressions outside of this scope
-                gen_expr(arg_expr, &arg_value, ctx, asm)?;
+            // copy the args to the new stack frame
+            for (arg_value, arg_layout) in arg_values {
+                let value = Value::Stack(ctx.stack.alloc(&arg_layout));
+                copy(&arg_value, &value, &arg_layout, asm);
             }
 
             ctx.stack.exit_scope();
 
             // set the frame pointer, load the function address and then call the function
-            asm.push(Command::Set(TMP_REG, ctx.stack.frame_offset().0));
+            asm.push(Command::Set(TMP_REG, new_frame_offset.0));
             asm.push(Command::Add(FRAME_PTR_REG, FRAME_PTR_REG, TMP_REG));
             let fn_ptr = ctx.bindings.path_get(&call.name.value).unwrap();
             copy(fn_ptr, &Value::reg(TMP_REG), &Layout::word(), asm);
             asm.push(Command::Jmp(TMP_REG));
 
-            // TODO: restore saved registers
+            // restore the frame pointer
             asm.push(Command::Label(ret_addr_label));
+            asm.push(Command::Set(TMP_REG, new_frame_offset.0));
+            asm.push(Command::Sub(FRAME_PTR_REG, FRAME_PTR_REG, TMP_REG));
+
+            // restore the saved registers using the temporary values saved to the stack
+            // just before the called functions's frame, then throw away the allocations
+            // to allow overwriting the no longer needed values
+            ctx.stack.enter_scope();
+
+            for reg in ctx.regs.allocated_regs() {
+                let save = Value::Stack(ctx.stack.alloc(&Layout::word()));
+                copy(&save, &Value::reg(reg), &Layout::word(), asm);
+            }
+
+            ctx.stack.exit_scope();
         }
         _ => unimplemented!(),
     }
