@@ -1118,7 +1118,7 @@ fn pattern(tokens: &TokenStream<'_>) -> Result<Spanned<Pattern>, Spanned<ParseEr
 
 fn discard_pattern(tokens: &TokenStream<'_>) -> Result<Pattern, Spanned<ParseError>> {
     token(tokens, Token::Underscore, "_")?;
-    Ok(Pattern::Discard)
+    Ok(Pattern::discard())
 }
 
 fn binding_pattern(tokens: &TokenStream<'_>) -> Result<Pattern, Spanned<ParseError>> {
@@ -1127,11 +1127,11 @@ fn binding_pattern(tokens: &TokenStream<'_>) -> Result<Pattern, Spanned<ParseErr
             tokens.next();
 
             ident(tokens)
-                .map(Pattern::MutBinding)
+                .map(Pattern::mut_binding)
                 .map_err(|spanned| spanned.map(|err| err.set_expected("binding pattern")))
         }
         Some(Token::Ident(_)) => ident(tokens)
-            .map(Pattern::Binding)
+            .map(Pattern::binding)
             .map_err(|spanned| spanned.map(|err| err.set_expected("binding pattern"))),
         Some(_) => Err(Spanned::new(
             ParseError::unexpected_token()
@@ -1149,16 +1149,15 @@ fn binding_pattern(tokens: &TokenStream<'_>) -> Result<Pattern, Spanned<ParseErr
 }
 
 fn tuple_pattern(tokens: &TokenStream<'_>) -> Result<Pattern, Spanned<ParseError>> {
-    let span_start = tokens.start_span();
-
     token(tokens, Token::OpenParen, "(")?;
+
     let mut patterns = Vec::new();
 
     loop {
         match tokens.peek() {
             Some(Token::CloseParen) => {
                 tokens.next();
-                return Ok(Pattern::Tuple(Spanned::new(patterns, span_start.end())));
+                return Ok(Pattern::tuple(patterns));
             }
             Some(_) => (),
             None => {
@@ -1169,11 +1168,11 @@ fn tuple_pattern(tokens: &TokenStream<'_>) -> Result<Pattern, Spanned<ParseError
             }
         }
 
-        patterns.push(pattern(tokens)?.value);
+        patterns.push(pattern(tokens)?);
 
         match tokens.next() {
             Some(Token::CloseParen) => {
-                return Ok(Pattern::Tuple(Spanned::new(patterns, span_start.end())));
+                return Ok(Pattern::tuple(patterns));
             }
             Some(Token::Comma) => continue,
             Some(_) => {

@@ -412,10 +412,28 @@ pub struct LetBinding {
 
 #[derive(Debug)]
 pub enum Pattern {
-    Discard,
-    Binding(Spanned<Ident>),
-    MutBinding(Spanned<Ident>),
-    Tuple(Spanned<Vec<Pattern>>),
+    Discard(TypeRef),
+    Binding(Spanned<Ident>, TypeRef),
+    MutBinding(Spanned<Ident>, TypeRef),
+    Tuple(Vec<Spanned<Pattern>>, TypeRef),
+}
+
+impl Pattern {
+    pub fn discard() -> Pattern {
+        Pattern::Discard(TypeRef::invalid())
+    }
+
+    pub fn binding(name: Spanned<Ident>) -> Pattern {
+        Pattern::Binding(name, TypeRef::invalid())
+    }
+
+    pub fn mut_binding(name: Spanned<Ident>) -> Pattern {
+        Pattern::MutBinding(name, TypeRef::invalid())
+    }
+
+    pub fn tuple(patterns: Vec<Spanned<Pattern>>) -> Pattern {
+        Pattern::Tuple(patterns, TypeRef::invalid())
+    }
 }
 
 #[derive(Debug)]

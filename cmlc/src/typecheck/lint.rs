@@ -108,7 +108,15 @@ fn verify_expr(
             verify_expr(value.as_mut().map(Box::as_mut), type_env, types)?;
             canonicalize_type_ref(ty, type_env, types, span)?;
         }
-        Expr::LetBinding(LetBinding { ref mut expr, .. }, ref mut ty) => {
+        Expr::LetBinding(
+            LetBinding {
+                ref mut expr,
+                ref mut pattern,
+                ..
+            },
+            ref mut ty,
+        ) => {
+            verify_pattern(pattern.as_mut(), type_env, types)?;
             verify_expr(expr.as_mut().map(Box::as_mut), type_env, types)?;
             canonicalize_type_ref(ty, type_env, types, span)?;
         }
@@ -149,6 +157,30 @@ fn verify_expr(
         }
         Expr::ConstructRecord(ref mut ty) | Expr::ConstructVariants(_, ref mut ty) => {
             canonicalize_type_ref(ty, type_env, types, span)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn verify_pattern(
+    pattern: Spanned<&mut Pattern>,
+    type_env: &TypeEnv,
+    types: &mut FnvHashMap<TypeRef, Type>,
+) -> Result<(), Spanned<TypeError>> {
+    match *pattern.value {
+        Pattern::Discard(ref mut ty) => {
+            canonicalize_type_ref(ty, type_env, types, pattern.span)?;
+        }
+        Pattern::Binding(_, ref mut ty) | Pattern::MutBinding(_, ref mut ty) => {
+            canonicalize_type_ref(ty, type_env, types, pattern.span)?;
+        }
+        Pattern::Tuple(ref mut patterns, ref mut ty) => {
+            canonicalize_type_ref(ty, type_env, types, pattern.span)?;
+
+            for pattern in patterns {
+                verify_pattern(pattern.as_mut(), type_env, types)?;
+            }
         }
     }
 

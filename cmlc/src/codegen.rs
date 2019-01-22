@@ -597,7 +597,81 @@ fn gen_expr(
             let field_value = base_value.unwrap_field(&member.value, &base_layout);
             copy(&field_value, result_value, &result_layout, asm);
         }
+        Expr::ArrayCons(ArrayCons { ref elems }, ref ty) => {
+            let arr_layout = ctx.layout(ty.clone(), span)?;
+            let arr_value = ctx.alloc(&arr_layout);
+
+            for (idx, elem) in elems.iter().enumerate() {
+                let elem_value = arr_value.unwrap_field(idx, &arr_layout);
+                gen_expr(elem.as_ref(), &elem_value, ctx, asm)?;
+            }
+        }
+        Expr::TupleCons(TupleCons { ref elems }, ref ty) => {
+            let tuple_layout = ctx.layout(ty.clone(), span)?;
+            let tuple_value = ctx.alloc(&tuple_layout);
+
+            for (idx, elem) in elems.iter().enumerate() {
+                let elem_value = tuple_value.unwrap_field(idx, &tuple_layout);
+                gen_expr(elem.as_ref(), &elem_value, ctx, asm)?;
+            }
+        }
+        Expr::Assignment(
+            Assignment {
+                ref target,
+                ref value,
+            },
+            ..
+        ) => {
+            // just copy the value to the target, ignore the result value
+            // (the result is always () which zero-sized anyway)
+            let target_layout = ctx.layout(target.value.ty().clone(), target.span)?;
+            let target_value = ctx.alloc(&target_layout);
+            let value_layout = ctx.layout(value.value.ty().clone(), value.span)?;
+            let value_value = ctx.alloc(&value_layout);
+
+            gen_expr(target.as_ref().map(Box::as_ref), &target_value, ctx, asm)?;
+            gen_expr(value.as_ref().map(Box::as_ref), &target_value, ctx, asm)?;
+            copy(&value_value, &target_value, &target_layout, asm);
+        }
+        Expr::LetBinding(
+            LetBinding {
+                ref pattern,
+                ref expr,
+                ..
+            },
+            ..
+        ) => {
+            let layout = ctx.layout(expr.value.ty().clone(), expr.span)?;
+            let value = ctx.alloc(&layout);
+            gen_expr(expr.as_ref().map(Box::as_ref), &value, ctx, asm)?;
+            bind_pattern(&pattern.value, value, &layout, ctx)?;
+
+            // ignore the result value since it is always ()
+        }
         _ => unimplemented!(),
+    }
+
+    Ok(())
+}
+
+fn bind_pattern(
+    pattern: &Pattern,
+    value: Value,
+    layout: &Layout,
+    ctx: &mut FnContext<'_>,
+) -> Result<(), Spanned<CodegenError>> {
+    match *pattern {
+        Pattern::Discard(_) => (),
+        Pattern::Binding(ref name, _) | Pattern::MutBinding(ref name, _) => {
+            ctx.bindings.insert(name.value.clone(), value);
+        }
+        Pattern::Tuple(ref patterns, ref ty) => {
+            for (idx, elem_pattern) in patterns.iter().enumerate() {
+                let elem_value = value.unwrap_field(idx, layout);
+                let elem_layout = ctx.layout(ty.clone(), elem_pattern.span)?;
+                bind_pattern(&elem_pattern.value, elem_value, &elem_layout, ctx)?;
+            }
+        }
     }
 
     Ok(())
