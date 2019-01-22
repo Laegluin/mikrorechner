@@ -293,6 +293,7 @@ fn gen_fn(
     Ok(())
 }
 
+// FIXME: pass the layout of result_value here, to allow passing a zero-sized layout for discarding values
 fn gen_expr(
     expr: Spanned<&Expr>,
     result_value: &Value,
@@ -581,6 +582,10 @@ fn gen_expr(
             }
 
             ctx.stack.exit_scope();
+
+            // copy the result to the target (we cannot build in place because the result
+            // might be discarded, but the called function does not know that)
+            copy(&Value::Stack(ret_value), result_value, &ret_layout, asm);
         }
         Expr::MemberAccess(
             MemberAccess {
@@ -599,19 +604,17 @@ fn gen_expr(
         }
         Expr::ArrayCons(ArrayCons { ref elems }, ref ty) => {
             let arr_layout = ctx.layout(ty.clone(), span)?;
-            let arr_value = ctx.alloc(&arr_layout);
 
             for (idx, elem) in elems.iter().enumerate() {
-                let elem_value = arr_value.unwrap_field(idx, &arr_layout);
+                let elem_value = result_value.unwrap_field(idx, &arr_layout);
                 gen_expr(elem.as_ref(), &elem_value, ctx, asm)?;
             }
         }
         Expr::TupleCons(TupleCons { ref elems }, ref ty) => {
             let tuple_layout = ctx.layout(ty.clone(), span)?;
-            let tuple_value = ctx.alloc(&tuple_layout);
 
             for (idx, elem) in elems.iter().enumerate() {
-                let elem_value = tuple_value.unwrap_field(idx, &tuple_layout);
+                let elem_value = result_value.unwrap_field(idx, &tuple_layout);
                 gen_expr(elem.as_ref(), &elem_value, ctx, asm)?;
             }
         }
@@ -622,8 +625,6 @@ fn gen_expr(
             },
             ..
         ) => {
-            // just copy the value to the target, ignore the result value
-            // (the result is always () which zero-sized anyway)
             let target_layout = ctx.layout(target.value.ty().clone(), target.span)?;
             let target_value = ctx.alloc(&target_layout);
             let value_layout = ctx.layout(value.value.ty().clone(), value.span)?;
@@ -632,6 +633,8 @@ fn gen_expr(
             gen_expr(target.as_ref().map(Box::as_ref), &target_value, ctx, asm)?;
             gen_expr(value.as_ref().map(Box::as_ref), &target_value, ctx, asm)?;
             copy(&value_value, &target_value, &target_layout, asm);
+
+            // ignore the result value since it is always ()
         }
         Expr::LetBinding(
             LetBinding {
@@ -647,6 +650,52 @@ fn gen_expr(
             bind_pattern(&pattern.value, value, &layout, ctx)?;
 
             // ignore the result value since it is always ()
+        }
+        Expr::AutoRef(ref expr, _) => {
+            // not implemented right now, so simply forward auto refs
+            gen_expr(Spanned::new(expr, span), result_value, ctx, asm)?;
+        }
+        Expr::IfExpr(
+            IfExpr {
+                ref cond,
+                ref then_block,
+                ref else_block,
+            },
+            ref ty,
+        ) => {
+            gen_expr(
+                cond.as_ref().map(Box::as_ref),
+                &Value::reg(TMP_REG),
+                ctx,
+                asm,
+            )?;
+
+            let else_label = LabelValue::new("else").label().clone();
+            asm.push(Command::CmpEq(TMP_REG, Reg::Null));
+            asm.push(Command::JmpIfLabel(else_label.clone()));
+
+            gen_expr(
+                then_block.as_ref().map(Box::as_ref),
+                &result_value,
+                ctx,
+                asm,
+            )?;
+
+            let end_if_label = LabelValue::new("end_if").label().clone();
+            asm.push(Command::JmpLabel(end_if_label.clone()));
+            asm.push(Command::Label(else_label));
+
+            if let Some(ref else_block) = *else_block {
+                gen_expr(
+                    else_block.as_ref().map(Box::as_ref),
+                    &result_value,
+                    ctx,
+                    asm,
+                )?;
+            }
+
+            asm.push(Command::Noop); // avoid two consecutive labels if there's no else block
+            asm.push(Command::Label(end_if_label));
         }
         _ => unimplemented!(),
     }
