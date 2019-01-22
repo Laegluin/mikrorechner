@@ -43,28 +43,26 @@ pub enum CodegenError {
 
 #[derive(Debug)]
 pub struct Asm {
-    cmds: Vec<Command>,
+    rt_start: Vec<Command>,
+    text: Vec<Command>,
     ro_data: HashMap<Vec<u8>, LabelValue>,
 }
 
 impl Asm {
     fn new() -> Asm {
         Asm {
-            cmds: Vec::new(),
+            rt_start: Vec::new(),
+            text: Vec::new(),
             ro_data: HashMap::new(),
         }
     }
 
-    fn push(&mut self, instr: Command) {
-        self.cmds.push(instr);
+    fn set_rt_start(&mut self, rt_start: Vec<Command>) {
+        self.rt_start = rt_start;
     }
 
-    fn insert_all(&mut self, idx: usize, cmds: &[Command]) {
-        assert!(idx < self.cmds.len());
-
-        let mut rest = self.cmds.drain(idx..).collect();
-        self.cmds.extend_from_slice(cmds);
-        self.cmds.append(&mut rest);
+    fn push(&mut self, instr: Command) {
+        self.text.push(instr);
     }
 
     fn push_const_u32(&mut self, value: u32) -> LabelValue {
@@ -80,8 +78,12 @@ impl Asm {
             .clone()
     }
 
-    pub fn cmds(&self) -> &[Command] {
-        &self.cmds
+    pub fn rt_start(&self) -> &[Command] {
+        &self.rt_start
+    }
+
+    pub fn text(&self) -> &[Command] {
+        &self.text
     }
 
     pub fn ro_data(&self) -> impl Iterator<Item = (&Ident, &[u8])> {
@@ -131,7 +133,7 @@ pub fn gen_asm(ast: TypedAst) -> Result<Asm, Spanned<CodegenError>> {
 
     gen_items(&ast.items, &mut bindings, &mut layouts, &ast, &mut asm)?;
     gen_rt_start(&mut asm, &bindings);
-    asm.push(Command::Comment(String::from(".ro_data")));
+
     Ok(asm)
 }
 
@@ -144,26 +146,20 @@ fn gen_rt_start(asm: &mut Asm, bindings: &ScopeMap<Ident, Value>) {
     let exit = LabelValue::new("program_exit").label().clone();
     let stack_start = asm.push_const_u32(STACK_START_ADDR).label().clone();
 
-    asm.insert_all(
-        0,
-        &[
-            Command::Comment(String::from(".rt_start")),
-            // set addr_offset to 0
-            Command::Set(Reg::AddrOffset, 0),
-            // initialize the stack
-            Command::SetLabel(TMP_REG, stack_start),
-            Command::Load(FRAME_PTR_REG, TMP_REG, 0),
-            // set the return address to the last instruction in rt_start (halt)
-            Command::SetLabel(TMP_REG, exit.clone()),
-            Command::Store(FRAME_PTR_REG, TMP_REG, 0),
-            // call main
-            Command::JmpLabel(entry_point),
-            Command::Label(exit),
-            Command::Halt,
-            Command::EmptyLine,
-            Command::Comment(String::from(".text")),
-        ],
-    );
+    asm.set_rt_start(vec![
+        // set addr_offset to 0
+        Command::Set(Reg::AddrOffset, 0),
+        // initialize the stack
+        Command::SetLabel(TMP_REG, stack_start),
+        Command::Load(FRAME_PTR_REG, TMP_REG, 0),
+        // set the return address to the last instruction in rt_start (halt)
+        Command::SetLabel(TMP_REG, exit.clone()),
+        Command::Store(FRAME_PTR_REG, TMP_REG, 0),
+        // call main
+        Command::JmpLabel(entry_point),
+        Command::Label(exit),
+        Command::Halt,
+    ]);
 }
 
 fn gen_items(

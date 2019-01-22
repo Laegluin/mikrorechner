@@ -90,9 +90,23 @@ impl Display for Command {
 pub fn emit_asm(asm: &Asm) -> String {
     let mut buf = String::new();
 
+    buf.push_str("### runtime start\n\n");
+    emit_section(asm.rt_start(), &mut buf);
+    buf.push_str("\n### text\n\n");
+    emit_section(asm.text(), &mut buf);
+    buf.push_str("\n### read-only data\n\n");
+
+    for (label, data) in asm.ro_data() {
+        buf.push_str(&format!("0x{} _{}\n", hex::encode(data), label,));
+    }
+
+    buf
+}
+
+fn emit_section(cmds: &[Command], buf: &mut String) {
     let mut label = None;
 
-    for cmd in asm.cmds() {
+    for cmd in cmds {
         if let Command::Label(_) = cmd {
             label = Some(cmd);
         } else {
@@ -102,10 +116,4 @@ pub fn emit_asm(asm: &Asm) -> String {
             }
         }
     }
-
-    for (label, data) in asm.ro_data() {
-        buf.push_str(&format!("0x{} _{}", hex::encode(data), label,));
-    }
-
-    buf
 }
