@@ -655,13 +655,23 @@ fn gen_expr(
             // not implemented right now, so simply forward auto refs
             gen_expr(Spanned::new(expr, span), result_value, ctx, asm)?;
         }
+        Expr::Ret(ref expr, _) => {
+            // store the result in the return value slot, if there's one
+            if let Some(ref expr) = expr {
+                gen_expr(expr.as_ref().map(Box::as_ref), result_value, ctx, asm)?;
+            }
+
+            // jump to caller
+            copy(&ctx.ret_addr, &Value::reg(TMP_REG), &Layout::word(), asm);
+            asm.push(Command::Jmp(TMP_REG));
+        }
         Expr::IfExpr(
             IfExpr {
                 ref cond,
                 ref then_block,
                 ref else_block,
             },
-            ref ty,
+            _,
         ) => {
             gen_expr(
                 cond.as_ref().map(Box::as_ref),
