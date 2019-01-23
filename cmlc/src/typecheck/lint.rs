@@ -212,8 +212,9 @@ fn canonicalize_type_ref(
     span: Span,
 ) -> Result<(), Spanned<TypeError>> {
     let (canonical_ref, ty) = type_env.find_type(ty_ref);
+    let mut ty = ty.clone();
 
-    match *ty {
+    match &mut ty {
         Type::Var | Type::PartialRecord(_) | Type::Ptr(_) => Err(Spanned::new(
             TypeError::CannotInfer(canonical_ref.desc()),
             span,
@@ -229,11 +230,46 @@ fn canonicalize_type_ref(
             *ty_ref = canonical_ref;
             Ok(())
         }
-        _ => {
-            types
-                .entry(canonical_ref.clone())
-                .or_insert_with(|| ty.clone());
+        Type::Never | Type::Bool | Type::I32 | Type::U32 | Type::Str => {
+            types.entry(canonical_ref.clone()).or_insert(ty);
+            *ty_ref = canonical_ref;
+            Ok(())
+        }
+        Type::ConstPtr(ref mut inner_ty)
+        | Type::MutPtr(ref mut inner_ty)
+        | Type::Array(ref mut inner_ty, _) => {
+            canonicalize_type_ref(inner_ty, type_env, types, span)?;
 
+            types.entry(canonical_ref.clone()).or_insert(ty);
+            *ty_ref = canonical_ref;
+            Ok(())
+        }
+        Type::Tuple(ref mut inner_tys) => {
+            for inner_ty in inner_tys {
+                canonicalize_type_ref(inner_ty, type_env, types, span)?;
+            }
+
+            types.entry(canonical_ref.clone()).or_insert(ty);
+            *ty_ref = canonical_ref;
+            Ok(())
+        }
+        Type::Function(ref mut func) => {
+            for param_ty in &mut func.params {
+                canonicalize_type_ref(param_ty, type_env, types, span)?;
+            }
+
+            canonicalize_type_ref(&mut func.ret, type_env, types, span)?;
+
+            types.entry(canonical_ref.clone()).or_insert(ty);
+            *ty_ref = canonical_ref;
+            Ok(())
+        }
+        Type::Record(ref mut record) => {
+            for field in &mut record.fields {
+                canonicalize_type_ref(&mut field.ty, type_env, types, span)?;
+            }
+
+            types.entry(canonical_ref.clone()).or_insert(ty);
             *ty_ref = canonical_ref;
             Ok(())
         }
