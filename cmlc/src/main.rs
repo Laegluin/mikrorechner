@@ -12,6 +12,7 @@ use crate::span::Spanned;
 use codespan::{CodeMap, FileMap, FileName};
 use codespan_reporting::termcolor::{ColorChoice, StandardStream};
 use codespan_reporting::{self, Diagnostic, Label, LabelStyle, Severity};
+use std::fmt::{self, Display};
 use std::fs;
 use std::io;
 use std::path::PathBuf;
@@ -24,6 +25,19 @@ enum Error {
     Parse(parser::ParseError),
     Type(typecheck::TypeError),
     Codegen(codegen::CodegenError),
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use Error::*;
+
+        match *self {
+            Lex(ref why) => write!(f, "{}", why),
+            Parse(ref why) => write!(f, "{}", why),
+            Type(ref why) => write!(f, "{}", why),
+            Codegen(ref why) => write!(f, "{}", why),
+        }
+    }
 }
 
 #[derive(StructOpt)]
@@ -71,15 +85,14 @@ fn compile(file_map: &FileMap) -> Result<(), Spanned<Error>> {
     Ok(())
 }
 
-// TODO: use Display
 fn print_error<E>(error: Spanned<E>, code_map: &CodeMap) -> Result<(), io::Error>
 where
-    E: std::fmt::Debug,
+    E: std::fmt::Display,
 {
     let diag = Diagnostic {
         severity: Severity::Error,
         code: None,
-        message: format!("{:?}", error.value),
+        message: format!("{}", error.value),
         labels: vec![Label {
             span: error.span,
             message: None,

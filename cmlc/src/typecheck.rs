@@ -2,6 +2,7 @@ pub mod lint;
 pub mod unify;
 
 use crate::ast::*;
+use crate::codegen::ENTRY_POINT;
 use crate::scope_map::ScopeMap;
 use crate::span::{Span, Spanned};
 use crate::support;
@@ -27,6 +28,57 @@ pub enum TypeError {
     NonLValueInAssignment,
     CannotInfer(Rc<TypeDesc>),
     EntryPointTypeMismatch(Rc<TypeDesc>),
+}
+
+impl Display for TypeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use TypeError::*;
+
+        match *self {
+            HoleInTypeDef => write!(f, "wildcard types are not allowed in type definitions"),
+            UndefinedType(ref path) => write!(f, "undefined type `{}`", path),
+            UndefinedVariable(ref path) => write!(f, "undefined variable `{}`", path),
+            DuplicatParamName(ref name) => write!(f, "duplicate parameter `{}`", name),
+            DuplicatFieldName(ref name) => write!(f, "duplicate field `{}`", name),
+            UnknownFieldName(ref name) => write!(f, "record does not have field `{}`", name),
+            VarNotMut(ref mutability) => {
+                write!(f, "variable is not mutable ")?;
+
+                match mutability {
+                    Mutability::Const => unreachable!(),
+                    Mutability::Assignment => write!(f, "(required for assignment)"),
+                    Mutability::AddrOfMut => write!(f, "(required for mutable address of)"),
+                    Mutability::DerefMut => write!(f, "(required for mutable deref)"),
+                    Mutability::FieldAccess(_) => write!(f, "(required for mutable field access)"),
+                }
+            }
+            UnknownArgName(ref name) => write!(
+                f,
+                "function binding does not have named parameter `{}`",
+                name
+            ),
+            ArityMismatch(expected, actual) => write!(
+                f,
+                "incorrect argument count (expected {}, found {})",
+                expected, actual
+            ),
+            Mismatch(ref expected, ref actual) => write!(
+                f,
+                "type mismatch: expected `{}`, found `{}`",
+                expected, actual
+            ),
+            NonLValueInAssignment => write!(
+                f,
+                "left hand side of assignment must be a variable or a deref expression"
+            ),
+            CannotInfer(ref ty) => write!(f, "cannot infer type for `{}`", ty),
+            EntryPointTypeMismatch(ref ty) => write!(
+                f,
+                "{} must be of type `*fn -> ()`, found `{}`",
+                ENTRY_POINT, ty
+            ),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

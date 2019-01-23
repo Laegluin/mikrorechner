@@ -4,6 +4,7 @@ use crate::span::{Span, Spanned};
 use crate::typecheck::unify::TypeEnv;
 use crate::typecheck::{Type, TypeError, TypeRef};
 use fnv::FnvHashMap;
+use std::rc::Rc;
 
 pub fn verify_types(mut ast: Ast) -> Result<TypedAst, Spanned<TypeError>> {
     let mut types = FnvHashMap::default();
@@ -12,22 +13,21 @@ pub fn verify_types(mut ast: Ast) -> Result<TypedAst, Spanned<TypeError>> {
         let Spanned { value: item, .. } = item;
 
         match *item {
-            Item::FnDef(FnDef {
-                ref mut params,
-                ref mut ret_ty,
-                ref mut body,
-                ref name,
-                ..
-            }) => {
-                for Spanned { value: param, span } in params.iter_mut() {
+            Item::FnDef(ref mut def) => {
+                for Spanned { value: param, span } in def.params.iter_mut() {
                     canonicalize_type_ref(&mut param.ty, &mut ast.type_env, &mut types, *span)?;
                 }
 
-                canonicalize_type_ref(ret_ty, &mut ast.type_env, &mut types, body.span)?;
-                verify_expr(body.as_mut(), &mut ast.type_env, &mut types)?;
+                canonicalize_type_ref(
+                    &mut def.ret_ty,
+                    &mut ast.type_env,
+                    &mut types,
+                    def.body.span,
+                )?;
+                verify_expr(def.body.as_mut(), &mut ast.type_env, &mut types)?;
 
-                if *name.name() == ENTRY_POINT {
-                    verify_entry_point(params, ret_ty, &ast.type_env, name.span())?;
+                if *def.name.name() == ENTRY_POINT {
+                    verify_entry_point(def, &ast.type_env)?;
                 }
             }
             _ => (),
@@ -187,18 +187,13 @@ fn verify_pattern(
     Ok(())
 }
 
-fn verify_entry_point(
-    params: &[Spanned<ParamDef>],
-    ret_ty_ref: &TypeRef,
-    type_env: &TypeEnv,
-    span: Span,
-) -> Result<(), Spanned<TypeError>> {
-    let ret_ty = type_env.find_type(&ret_ty_ref).1;
+fn verify_entry_point(def: &FnDef, type_env: &TypeEnv) -> Result<(), Spanned<TypeError>> {
+    let ret_ty = type_env.find_type(&def.ret_ty).1;
 
-    if !params.is_empty() || !ret_ty.is_unit() {
+    if !def.params.is_empty() || !ret_ty.is_unit() {
         Err(Spanned::new(
-            TypeError::EntryPointTypeMismatch(ret_ty_ref.desc()),
-            span,
+            TypeError::EntryPointTypeMismatch(Rc::new(def.desc())),
+            def.name.span(),
         ))
     } else {
         Ok(())

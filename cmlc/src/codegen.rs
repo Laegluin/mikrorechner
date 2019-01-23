@@ -4,7 +4,9 @@
 //!
 //! ## Calling convention
 //!
-//! All standard registers must be saved by the caller.
+//! All standard registers must be saved by the caller. The callee may clobber
+//! any register except for the frame pointer, which must be restored to the
+//! its previous value.
 //!
 //! When calling a function, a new stack frame must be initialized by the caller:
 //!
@@ -22,6 +24,7 @@ use crate::span::{Span, Spanned};
 use crate::typecheck::{TypeDesc, TypeRef};
 use byteorder::{ByteOrder, LittleEndian};
 use std::collections::HashMap;
+use std::fmt::{self, Display};
 use std::rc::Rc;
 
 pub const ENTRY_POINT: &str = "main";
@@ -39,6 +42,21 @@ const TMP_OP_REG: Reg = Reg::R1;
 pub enum CodegenError {
     UnsizedType(Rc<TypeDesc>),
     InfiniteSize(Rc<TypeDesc>),
+}
+
+impl Display for CodegenError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use CodegenError::*;
+
+        match *self {
+            UnsizedType(ref ty) => write!(
+                f,
+                "cannot refer to unsized type `{}` without pointer indirection",
+                ty
+            ),
+            InfiniteSize(ref ty) => write!(f, "type `{}` has an infinite size", ty),
+        }
+    }
 }
 
 #[derive(Debug)]

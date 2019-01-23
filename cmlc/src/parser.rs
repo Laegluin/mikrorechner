@@ -3,6 +3,7 @@ use crate::lexer::{Keyword, Token};
 use crate::span::{Index, Offset, Span, Spanned};
 use crate::typecheck::TypeRef;
 use std::cell::Cell;
+use std::fmt::{self, Display};
 
 #[derive(Debug, Default)]
 pub struct ParseError {
@@ -37,6 +38,34 @@ impl ParseError {
         self.expected.clear();
         self.expected.push(expected.into());
         self
+    }
+}
+
+impl Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        assert!(!self.expected.is_empty());
+
+        if let Some(ref msg) = &self.msg {
+            write!(f, "{}, ", msg)?;
+        }
+
+        if self.expected.len() == 1 {
+            write!(f, "expected {}", self.expected[0])
+        } else {
+            let head = &self.expected[..self.expected.len() - 2];
+            let head_str = head.join(", ");
+
+            if !head.is_empty() {
+                write!(f, "expected {}, ", head_str)?;
+            }
+
+            write!(
+                f,
+                "{} or {}",
+                self.expected[self.expected.len() - 2],
+                self.expected[self.expected.len() - 1]
+            )
+        }
     }
 }
 

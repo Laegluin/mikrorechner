@@ -1,5 +1,5 @@
 use crate::span::{Span, Spanned};
-use crate::typecheck::{unify::TypeEnv, Type, TypeRef};
+use crate::typecheck::{unify::TypeEnv, Type, TypeDesc, TypeRef};
 use fnv::FnvHashMap;
 use std::fmt::{self, Display, Write};
 use std::rc::Rc;
@@ -65,6 +65,16 @@ pub struct FnDef {
 }
 
 impl FnDef {
+    pub fn desc(&self) -> TypeDesc {
+        let params_desc = self
+            .params
+            .iter()
+            .map(|param| param.value.ty.desc())
+            .collect();
+
+        TypeDesc::ConstPtr(Rc::new(TypeDesc::Function(params_desc, self.ret_ty.desc())))
+    }
+
     pub fn signature(&self) -> String {
         let inner = || -> Result<_, fmt::Error> {
             if self.params.is_empty() {

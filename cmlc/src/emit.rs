@@ -92,7 +92,7 @@ pub fn emit_asm(asm: &Asm) -> String {
     emit_section(asm.rt_start(), &mut buf);
     buf.push_str("\n### text\n\n");
     emit_section(asm.text(), &mut buf);
-    buf.push_str("\n### read-only data\n\n");
+    buf.push_str("### read-only data\n\n");
 
     for (label, data) in asm.ro_data() {
         buf.push_str(&format!("0x{} _{}\n", hex::encode(data), label,));

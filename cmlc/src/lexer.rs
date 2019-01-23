@@ -1,5 +1,6 @@
 use crate::ast::{Ident, Lit};
 use crate::span::{Index, Offset, Span, Spanned};
+use std::fmt::{self, Display};
 use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -140,9 +141,21 @@ impl<'s> From<&'s str> for StrStream<'s> {
 
 #[derive(Debug)]
 pub enum LexError {
-    UnknownToken,
+    UnexpectedToken,
     OverflowingIntLiteral,
     MissingStringEndDelimiter,
+}
+
+impl Display for LexError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use LexError::*;
+
+        match *self {
+            UnexpectedToken => write!(f, "unexpected token"),
+            OverflowingIntLiteral => write!(f, "overflowing integer literal"),
+            MissingStringEndDelimiter => write!(f, "missing terminating `\"` for string literal"),
+        }
+    }
 }
 
 pub fn lex<'a>(stream: impl Into<StrStream<'a>>) -> Result<Vec<Spanned<Token>>, Spanned<LexError>> {
@@ -309,7 +322,7 @@ pub fn lex<'a>(stream: impl Into<StrStream<'a>>) -> Result<Vec<Spanned<Token>>, 
                     tokens.push(Spanned::new(Token::Amp, stream.span()))
                 }
             }
-            _ => return Err(Spanned::new(LexError::UnknownToken, stream.span())),
+            _ => return Err(Spanned::new(LexError::UnexpectedToken, stream.span())),
         }
     }
 }
