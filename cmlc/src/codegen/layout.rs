@@ -383,13 +383,10 @@ impl Value {
     }
 
     /// Gets the first register of this value or `None`, if the value is not
-    /// stored in a register.
-    ///
-    /// ## Panics
-    /// Panics if the value is zero-sized.
+    /// stored in a register or is zero-sized.
     pub fn try_get_reg(&self) -> Option<Reg> {
         match *self {
-            Value::Reg(ref value) => Some(value.reg()),
+            Value::Reg(ref value) => value.try_reg(),
             _ => None,
         }
     }
@@ -508,6 +505,10 @@ impl RegValue {
     pub fn reg(&self) -> Reg {
         assert!(!self.regs.is_empty(), "not a zero-sized value");
         self.regs[0]
+    }
+
+    fn try_reg(&self) -> Option<Reg> {
+        self.regs.get(0).cloned()
     }
 
     pub fn regs(&self) -> &[Reg] {

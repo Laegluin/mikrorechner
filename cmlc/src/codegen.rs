@@ -192,6 +192,7 @@ fn gen_items(
 struct FnContext<'a> {
     ret_addr: &'a Value,
     ret_value: &'a Value,
+    ret_layout: &'a Layout,
     regs: RegAllocator,
     stack: StackAllocator,
     bindings: &'a mut ScopeMap<Ident, Value>,
@@ -252,6 +253,10 @@ fn gen_fn(
     let ret_addr = Value::Stack(stack.alloc(&Layout::word()));
 
     // bind the return value as dereferenced (out) pointer
+    let ret_layout = layouts
+        .get_or_gen(def.ret_ty.clone(), ast)
+        .map_err(|err| Spanned::new(err, def.name.span()))?;
+
     let ret_value = Value::ptr(Value::Stack(stack.alloc(&Layout::word())));
 
     // bind the arguments
@@ -272,6 +277,7 @@ fn gen_fn(
     let mut ctx = FnContext {
         ret_addr: &ret_addr,
         ret_value: &ret_value,
+        ret_layout: &ret_layout,
         regs,
         stack,
         bindings,
@@ -282,7 +288,7 @@ fn gen_fn(
     // generate body
     asm.push(Command::Comment(def.signature()));
     asm.push(Command::Label(fn_label));
-    gen_expr(def.body.as_ref(), &ret_value, &mut ctx, asm)?;
+    gen_expr(def.body.as_ref(), &ret_value, &ret_layout, &mut ctx, asm)?;
 
     // return to caller (needed if there is no explicit return)
     copy(&ret_addr, &Value::reg(TMP_REG), &Layout::word(), asm);
@@ -293,74 +299,75 @@ fn gen_fn(
     Ok(())
 }
 
-// FIXME: pass the layout of result_value here, to allow passing a zero-sized layout for discarding values
 fn gen_expr(
     expr: Spanned<&Expr>,
     result_value: &Value,
+    result_layout: &Layout,
     ctx: &mut FnContext<'_>,
     asm: &mut Asm,
 ) -> Result<(), Spanned<CodegenError>> {
     let Spanned { value: expr, span } = expr;
 
     match *expr {
-        Expr::Lit(ref lit, ref ty) => {
-            let layout = ctx.layout(ty.clone(), span)?;
+        Expr::Lit(ref lit, _) => match *lit {
+            Lit::Bool(is_true) => {
+                let value = if is_true { 1 } else { 0 };
 
-            match *lit {
-                Lit::Bool(is_true) => {
-                    let value = if is_true { 1 } else { 0 };
-
-                    if let Some(reg) = result_value.try_get_reg() {
-                        asm.push(Command::Set(reg, value));
-                    } else {
-                        asm.push(Command::Set(TMP_REG, value));
-                        copy(&Value::reg(TMP_REG), result_value, &layout, asm);
-                    }
-                }
-                Lit::Int(value) if value <= SET_IMMEDIATE_MAX => {
-                    if let Some(reg) = result_value.try_get_reg() {
-                        asm.push(Command::Set(reg, value));
-                    } else {
-                        asm.push(Command::Set(TMP_REG, value));
-                        copy(&Value::reg(TMP_REG), result_value, &layout, asm);
-                    }
-                }
-                Lit::Int(value) => {
-                    let value = asm.push_const_u32(value);
-
-                    if let Some(reg) = result_value.try_get_reg() {
-                        asm.push(Command::SetLabel(TMP_REG, value.label().clone()));
-                        asm.push(Command::Load(reg, TMP_REG, 0));
-                    } else {
-                        asm.push(Command::SetLabel(TMP_REG, value.label().clone()));
-                        asm.push(Command::Load(TMP_REG, TMP_REG, 0));
-                        copy(&Value::reg(TMP_REG), result_value, &layout, asm);
-                    }
-                }
-                Lit::Str(ref string) => {
-                    let value = asm.push_const(string.as_bytes());
-
-                    if let Some(reg) = result_value.try_get_reg() {
-                        asm.push(Command::SetLabel(TMP_REG, value.label().clone()));
-                        asm.push(Command::Load(reg, TMP_REG, 0));
-                    } else {
-                        asm.push(Command::SetLabel(TMP_REG, value.label().clone()));
-                        asm.push(Command::Load(TMP_REG, TMP_REG, 0));
-                        copy(&Value::reg(TMP_REG), result_value, &layout, asm);
-                    }
+                if let Some(reg) = result_value.try_get_reg() {
+                    asm.push(Command::Set(reg, value));
+                } else {
+                    asm.push(Command::Set(TMP_REG, value));
+                    copy(&Value::reg(TMP_REG), result_value, &result_layout, asm);
                 }
             }
-        }
-        Expr::Var(ref var, ref ty) => {
-            let layout = ctx.layout(ty.clone(), span)?;
+            Lit::Int(value) if value <= SET_IMMEDIATE_MAX => {
+                if let Some(reg) = result_value.try_get_reg() {
+                    asm.push(Command::Set(reg, value));
+                } else {
+                    asm.push(Command::Set(TMP_REG, value));
+                    copy(&Value::reg(TMP_REG), result_value, &result_layout, asm);
+                }
+            }
+            Lit::Int(value) => {
+                let value = asm.push_const_u32(value);
+
+                if let Some(reg) = result_value.try_get_reg() {
+                    asm.push(Command::SetLabel(TMP_REG, value.label().clone()));
+                    asm.push(Command::Load(reg, TMP_REG, 0));
+                } else {
+                    asm.push(Command::SetLabel(TMP_REG, value.label().clone()));
+                    asm.push(Command::Load(TMP_REG, TMP_REG, 0));
+                    copy(&Value::reg(TMP_REG), result_value, &result_layout, asm);
+                }
+            }
+            Lit::Str(ref string) => {
+                let value = asm.push_const(string.as_bytes());
+
+                if let Some(reg) = result_value.try_get_reg() {
+                    asm.push(Command::SetLabel(TMP_REG, value.label().clone()));
+                    asm.push(Command::Load(reg, TMP_REG, 0));
+                } else {
+                    asm.push(Command::SetLabel(TMP_REG, value.label().clone()));
+                    asm.push(Command::Load(TMP_REG, TMP_REG, 0));
+                    copy(&Value::reg(TMP_REG), result_value, &result_layout, asm);
+                }
+            }
+        },
+        Expr::Var(ref var, _) => {
             let var = ctx.bindings.path_get(var).unwrap();
-            copy(var, result_value, &layout, asm);
+            copy(var, result_value, &result_layout, asm);
         }
-        Expr::UnOp(UnOp { op, ref operand }, ref ty) => {
+        Expr::UnOp(UnOp { op, ref operand }, _) => {
             match op {
                 UnOpKind::Not => {
                     let operand_value = Value::reg(TMP_REG);
-                    gen_expr(operand.as_ref().map(Box::as_ref), &operand_value, ctx, asm)?;
+                    gen_expr(
+                        operand.as_ref().map(Box::as_ref),
+                        &operand_value,
+                        &Layout::word(),
+                        ctx,
+                        asm,
+                    )?;
 
                     let (result_reg, result_needs_copy) =
                         if let Some(reg) = result_value.try_get_reg() {
@@ -377,7 +384,13 @@ fn gen_expr(
                 }
                 UnOpKind::Negate => {
                     let operand_value = Value::reg(TMP_REG);
-                    gen_expr(operand.as_ref().map(Box::as_ref), &operand_value, ctx, asm)?;
+                    gen_expr(
+                        operand.as_ref().map(Box::as_ref),
+                        &operand_value,
+                        &Layout::word(),
+                        ctx,
+                        asm,
+                    )?;
 
                     let (result_reg, result_needs_copy) =
                         if let Some(reg) = result_value.try_get_reg() {
@@ -401,6 +414,7 @@ fn gen_expr(
                     gen_expr(
                         operand.as_ref().map(Box::as_ref),
                         &Value::Stack(operand_value),
+                        &operand_layout,
                         ctx,
                         asm,
                     )?;
@@ -413,18 +427,24 @@ fn gen_expr(
                             (TMP_REG, true)
                         };
 
-                    asm.push(Command::Set(result_reg, operand_offset.0));
+                    asm.push(Command::Set(TMP_REG, operand_offset.0));
+                    asm.push(Command::Add(result_reg, FRAME_PTR_REG, TMP_REG));
 
                     if result_needs_copy {
                         copy(&Value::reg(result_reg), &result_value, &Layout::word(), asm);
                     }
                 }
                 UnOpKind::Deref => {
-                    let result_layout = ctx.layout(ty.clone(), span)?;
-
                     // load the pointer and copy its content to the result value
                     let operand_value = Value::reg(TMP_REG);
-                    gen_expr(operand.as_ref().map(Box::as_ref), &operand_value, ctx, asm)?;
+                    gen_expr(
+                        operand.as_ref().map(Box::as_ref),
+                        &operand_value,
+                        &Layout::word(),
+                        ctx,
+                        asm,
+                    )?;
+
                     let ptr = Value::ptr(operand_value);
                     copy(&ptr, result_value, &result_layout, asm);
                 }
@@ -446,10 +466,21 @@ fn gen_expr(
                 (TMP_REG, true)
             };
 
-            let lhs_value = Value::reg(TMP_REG);
-            gen_expr(lhs.as_ref().map(Box::as_ref), &lhs_value, ctx, asm)?;
-            let rhs_value = Value::reg(TMP_OP_REG);
-            gen_expr(rhs.as_ref().map(Box::as_ref), &rhs_value, ctx, asm)?;
+            gen_expr(
+                lhs.as_ref().map(Box::as_ref),
+                &Value::reg(TMP_REG),
+                &Layout::word(),
+                ctx,
+                asm,
+            )?;
+
+            gen_expr(
+                rhs.as_ref().map(Box::as_ref),
+                &Value::reg(TMP_OP_REG),
+                &Layout::word(),
+                ctx,
+                asm,
+            )?;
 
             match op {
                 BinOpKind::Or => asm.push(Command::Or(result_reg, TMP_REG, TMP_OP_REG)),
@@ -520,7 +551,7 @@ fn gen_expr(
                 let arg_layout = ctx.layout(arg_expr.value.ty().clone(), span)?;
                 let arg_value = Value::Stack(ctx.stack.alloc(&arg_layout));
 
-                gen_expr(arg_expr, &arg_value, ctx, asm)?;
+                gen_expr(arg_expr, &arg_value, &arg_layout, ctx, asm)?;
                 arg_values.push((arg_value, arg_layout));
             }
 
@@ -598,7 +629,14 @@ fn gen_expr(
             let result_layout = ctx.layout(ty.clone(), span)?;
 
             let base_value = ctx.alloc(&base_layout);
-            gen_expr(value.as_ref().map(Box::as_ref), &base_value, ctx, asm)?;
+            gen_expr(
+                value.as_ref().map(Box::as_ref),
+                &base_value,
+                &base_layout,
+                ctx,
+                asm,
+            )?;
+
             let field_value = base_value.unwrap_field(&member.value, &base_layout);
             copy(&field_value, result_value, &result_layout, asm);
         }
@@ -606,16 +644,18 @@ fn gen_expr(
             let arr_layout = ctx.layout(ty.clone(), span)?;
 
             for (idx, elem) in elems.iter().enumerate() {
+                let elem_layout = ctx.layout(elem.value.ty().clone(), elem.span)?;
                 let elem_value = result_value.unwrap_field(idx, &arr_layout);
-                gen_expr(elem.as_ref(), &elem_value, ctx, asm)?;
+                gen_expr(elem.as_ref(), &elem_value, &elem_layout, ctx, asm)?;
             }
         }
         Expr::TupleCons(TupleCons { ref elems }, ref ty) => {
             let tuple_layout = ctx.layout(ty.clone(), span)?;
 
             for (idx, elem) in elems.iter().enumerate() {
+                let elem_layout = ctx.layout(elem.value.ty().clone(), elem.span)?;
                 let elem_value = result_value.unwrap_field(idx, &tuple_layout);
-                gen_expr(elem.as_ref(), &elem_value, ctx, asm)?;
+                gen_expr(elem.as_ref(), &elem_value, &elem_layout, ctx, asm)?;
             }
         }
         Expr::Assignment(
@@ -630,8 +670,21 @@ fn gen_expr(
             let value_layout = ctx.layout(value.value.ty().clone(), value.span)?;
             let value_value = ctx.alloc(&value_layout);
 
-            gen_expr(target.as_ref().map(Box::as_ref), &target_value, ctx, asm)?;
-            gen_expr(value.as_ref().map(Box::as_ref), &target_value, ctx, asm)?;
+            gen_expr(
+                target.as_ref().map(Box::as_ref),
+                &target_value,
+                &target_layout,
+                ctx,
+                asm,
+            )?;
+
+            gen_expr(
+                value.as_ref().map(Box::as_ref),
+                &value_value,
+                &value_layout,
+                ctx,
+                asm,
+            )?;
             copy(&value_value, &target_value, &target_layout, asm);
 
             // ignore the result value since it is always ()
@@ -646,19 +699,31 @@ fn gen_expr(
         ) => {
             let layout = ctx.layout(expr.value.ty().clone(), expr.span)?;
             let value = ctx.alloc(&layout);
-            gen_expr(expr.as_ref().map(Box::as_ref), &value, ctx, asm)?;
+            gen_expr(expr.as_ref().map(Box::as_ref), &value, &layout, ctx, asm)?;
             bind_pattern(&pattern.value, value, &layout, ctx)?;
 
             // ignore the result value since it is always ()
         }
         Expr::AutoRef(ref expr, _) => {
             // not implemented right now, so simply forward auto refs
-            gen_expr(Spanned::new(expr, span), result_value, ctx, asm)?;
+            gen_expr(
+                Spanned::new(expr, span),
+                result_value,
+                result_layout,
+                ctx,
+                asm,
+            )?;
         }
         Expr::Ret(ref expr, _) => {
             // store the result in the return value slot, if there's one
             if let Some(ref expr) = expr {
-                gen_expr(expr.as_ref().map(Box::as_ref), result_value, ctx, asm)?;
+                gen_expr(
+                    expr.as_ref().map(Box::as_ref),
+                    &ctx.ret_value,
+                    &ctx.ret_layout,
+                    ctx,
+                    asm,
+                )?;
             }
 
             // jump to caller
@@ -676,6 +741,7 @@ fn gen_expr(
             gen_expr(
                 cond.as_ref().map(Box::as_ref),
                 &Value::reg(TMP_REG),
+                &Layout::word(),
                 ctx,
                 asm,
             )?;
@@ -686,7 +752,8 @@ fn gen_expr(
 
             gen_expr(
                 then_block.as_ref().map(Box::as_ref),
-                &result_value,
+                result_value,
+                result_layout,
                 ctx,
                 asm,
             )?;
@@ -698,7 +765,8 @@ fn gen_expr(
             if let Some(ref else_block) = *else_block {
                 gen_expr(
                     else_block.as_ref().map(Box::as_ref),
-                    &result_value,
+                    result_value,
+                    result_layout,
                     ctx,
                     asm,
                 )?;
