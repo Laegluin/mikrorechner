@@ -41,6 +41,8 @@ signal Jump_offset_ext1 : unsigned(bit_Width - jump_offset_Bits -1 downto 0) := 
 
 signal mem_offset_ext   : unsigned(bit_Width - mem_offset_Bits -1 downto 0)  := (others => '0');
 
+signal tmp_pc           : unsigned(bit_Width-1 downto 0) := (others => '0');
+
 begin
     process(clk,enable)
     begin
@@ -51,7 +53,7 @@ begin
         -- reset
         if reset = '1' then
             -- reset out ports
-            pc_out         <= (others => '0');
+            tmp_pc         <= (others => '0');
             opcode         <= (others => '1');
             A              <= (others => '0');
             B              <= (others => '0');
@@ -69,7 +71,7 @@ begin
             if enable = '1' then
 
             -- init output
-            pc_out <= pc_in;
+            tmp_pc <= pc_in;
 
             -- parse Befehl
             opcode      <= instruction(bit_Width-1 downto bit_Width-opcode_Bits);
@@ -109,5 +111,7 @@ begin
         end if;
 
     end process;
+
+    pc_out <= tmp_pc;
 
 end behavior;

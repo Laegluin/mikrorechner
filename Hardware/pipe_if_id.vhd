@@ -20,14 +20,7 @@ entity pipe_if_id is
         -- inputs from instruction fetch stage
         instr_in      : in  unsigned(bit_Width-1 downto 0);
         pc_in         : in  unsigned(bit_Width-1 downto 0);
-        -- inputs from register bank ?
---        reg_wr_en_in  :
---        reg_off_en_in :
---        reg_wr_adr    :
---        reg_wr_data   :
---        reg_A_adr     :
---        reg_B_adr     :
---        reg_C_adr     :
+        -- inputs from register bank unneeded?
 
         -- outputs to decoder stage
         instr_out    : out unsigned(bit_Width-1 downto 0);

@@ -49,7 +49,7 @@ architecture behavior of executer is
     signal mem_off_in_tmp : unsigned(bit_Width-1 downto 0) := (others => '0');
     signal reg_imm_in_tmp : unsigned(bit_Width-1 downto 0) := (others => '0');
 
-    signal alu_clk        : std_logic := '0';
+    signal tmp_alu_stim   : std_logic := '0';
 
 
 begin
@@ -166,8 +166,8 @@ begin
 
     process(pc_in)
     begin
-        alu_stim <= alu_clk;
-        alu_clk <= not alu_clk;
+        alu_stim <= tmp_alu_stim;
+        tmp_alu_stim <= not tmp_alu_stim;
     end process;
 
 end behavior;
