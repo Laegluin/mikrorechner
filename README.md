@@ -194,19 +194,19 @@ halt: 0110 1*** **** **** **** **** **** ****
 ```text
 <R> ::= R1 | R2 | ... | R31 | null | offset
 <I> ::= -<X> | ... | <X>
-<X> ::= gültiger Immediatewert für entsprechenden Befehl
+<X> ::= valid value in respect of the domain of command
 ```
 ### Kommentare
 ```text
-Zeilenkommentare fangen mit # an.
+Line comments are initiated with #.
 ```
 
 ### Labels
 ```text
-<Befehl> _<Labelname> #<Kommentar>      Einführen von Labels
-jump to <Labelname>
-jump_if to <Labelname>
-<R> = <Labelname>        Die Adresse des Befehls oder Wertes an der das Label steht in einem Register speichern
+<command> _<label> #<comment>      Initiation of labels
+jump to <label>
+jump_if to <label>
+<R> = <label>        Store the adress of command or data in register
 ```
 
 ### Arithmetic
