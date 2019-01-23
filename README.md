@@ -203,6 +203,7 @@ Line comments are initiated with #.
 
 ### Labels
 ```text
+Labels can only consist of A-Z,a-z and _
 <command> _<label> #<comment>      Initiation of labels
 jump to <label>
 jump_if to <label>
