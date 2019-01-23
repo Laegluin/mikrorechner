@@ -6,6 +6,7 @@ use crate::scope_map::ScopeMap;
 use crate::span::{Span, Spanned};
 use crate::support;
 use crate::typecheck::unify::TypeEnv;
+use std::fmt::{self, Display};
 use std::hash::{Hash, Hasher};
 use std::mem;
 use std::rc::Rc;
@@ -70,6 +71,12 @@ impl Hash for TypeRef {
     }
 }
 
+impl Display for TypeRef {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.1.fmt(f)
+    }
+}
+
 #[derive(Debug)]
 pub enum TypeDesc {
     Hole,
@@ -110,6 +117,66 @@ impl TypeDesc {
                     .collect(),
             ),
             Type::Record(ref record) => TypeDesc::Name(record.name.clone()),
+        }
+    }
+}
+
+impl Display for TypeDesc {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            TypeDesc::Hole => write!(f, "_"),
+            TypeDesc::Name(ref ident) => write!(f, "{}", ident),
+            TypeDesc::ConstPtr(ref inner) => write!(f, "*{}", inner),
+            TypeDesc::MutPtr(ref inner) => write!(f, "*mut {}", inner),
+            TypeDesc::Array(ref inner, len) => write!(f, "[{}; {}]", inner, len),
+            TypeDesc::Tuple(ref elems) => {
+                write!(f, "(")?;
+
+                let elems_str = elems
+                    .iter()
+                    .map(|desc| desc.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                write!(f, "{}", elems_str)?;
+
+                if elems.len() == 1 {
+                    write!(f, ",")?;
+                }
+
+                write!(f, ")")
+            }
+            TypeDesc::Function(ref params, ref ret) => {
+                if params.is_empty() {
+                    return write!(f, "fn -> {}", ret);
+                }
+
+                write!(f, "fn ")?;
+
+                let params_str = params
+                    .iter()
+                    .map(|desc| desc.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                write!(f, "{} -> {}", params_str, ret)
+            }
+            TypeDesc::PartialRecord(ref fields) => {
+                if fields.is_empty() {
+                    return write!(f, "{{ .. }}");
+                }
+
+                write!(f, "{{ ")?;
+
+                let fields_str = fields
+                    .iter()
+                    .map(|(name, desc)| format!("{}: {}", name, desc))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                write!(f, "{}", fields_str)?;
+                write!(f, ", .. }}")
+            }
         }
     }
 }

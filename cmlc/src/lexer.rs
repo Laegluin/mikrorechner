@@ -2,7 +2,6 @@ use crate::ast::{Ident, Lit};
 use crate::span::{Index, Offset, Span, Spanned};
 use std::rc::Rc;
 
-// TODO: not equal (!=)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Token {
     Ident(Ident),
@@ -146,7 +145,6 @@ pub enum LexError {
     MissingStringEndDelimiter,
 }
 
-// FIXME: off by one error for spans
 pub fn lex<'a>(stream: impl Into<StrStream<'a>>) -> Result<Vec<Spanned<Token>>, Spanned<LexError>> {
     let mut stream = stream.into();
     let mut char_buf = String::new();

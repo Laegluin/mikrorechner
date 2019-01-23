@@ -67,28 +67,31 @@ pub struct FnDef {
 impl FnDef {
     pub fn signature(&self) -> String {
         let inner = || -> Result<_, fmt::Error> {
+            if self.params.is_empty() {
+                return Ok(format!("fn {} -> {}", self.name, self.ret_ty));
+            }
+
             let mut buf = String::new();
+            write!(buf, "fn {} ", self.name)?;
 
-            write!(buf, "fn {}", self.name)?;
+            let param_str = self
+                .params
+                .iter()
+                .map(|param| {
+                    let param = &param.value;
+                    let name = param
+                        .name
+                        .value
+                        .as_ref()
+                        .map(Ident::to_string)
+                        .unwrap_or_else(|| String::from("_"));
 
-            let mut param_list = Vec::with_capacity(self.params.len());
+                    format!("{}: {}", name, param.ty)
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
 
-            for param in &self.params {
-                let param = &param.value;
-
-                let discard = Ident::new("_");
-                let name = param.name.value.as_ref().unwrap_or(&discard);
-
-                // TODO: use Display
-                param_list.push(format!("{}: {:?}", name, param.ty));
-            }
-
-            if !param_list.is_empty() {
-                write!(buf, " ")?;
-            }
-
-            // TODO: use Display
-            write!(buf, "{} -> {:?}", param_list.join(", "), self.ret_ty)?;
+            write!(buf, "{} -> {}", param_str, self.ret_ty)?;
 
             Ok(buf)
         };
