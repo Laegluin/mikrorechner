@@ -775,6 +775,25 @@ fn gen_expr(
             asm.push(Command::Noop); // avoid two consecutive labels if there's no else block
             asm.push(Command::Label(end_if_label));
         }
+        Expr::Block(Block { ref exprs, .. }, _) => {
+            ctx.enter_scope();
+
+            for expr in exprs.iter().rev().skip(1).rev() {
+                gen_expr(
+                    expr.as_ref(),
+                    &Value::zero_sized(),
+                    &Layout::zero_sized(),
+                    ctx,
+                    asm,
+                )?;
+            }
+
+            if let Some(expr) = exprs.last() {
+                gen_expr(expr.as_ref(), &result_value, &result_layout, ctx, asm)?;
+            }
+
+            ctx.exit_scope();
+        }
         _ => unimplemented!(),
     }
 

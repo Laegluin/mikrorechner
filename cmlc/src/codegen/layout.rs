@@ -144,7 +144,7 @@ pub struct Layout {
 }
 
 impl Layout {
-    fn zero_sized() -> Layout {
+    pub fn zero_sized() -> Layout {
         Layout {
             reg_size: RegOffset(0),
             reg_field_layout: Vec::new(),
@@ -380,6 +380,10 @@ impl Value {
 
     pub fn ptr(ptr: Value) -> Value {
         Value::Ptr(Box::new(ptr))
+    }
+
+    pub fn zero_sized() -> Value {
+        Value::Reg(RegValue { regs: Vec::new() })
     }
 
     /// Gets the first register of this value or `None`, if the value is not
