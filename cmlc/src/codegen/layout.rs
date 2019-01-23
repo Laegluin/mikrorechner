@@ -220,37 +220,6 @@ impl Layout {
         }
     }
 
-    fn variants(variant_layouts: Vec<Layout>) -> Layout {
-        // reserve one word for the tag, for the rest use as much space as the
-        // largest variant requires
-        let reg_data_start = RegOffset(1);
-        let reg_field_layout = vec![(None, RegOffset(0)), (None, reg_data_start)];
-
-        let reg_size = reg_data_start
-            + variant_layouts
-                .iter()
-                .map(|layout| layout.reg_size())
-                .max()
-                .unwrap_or(RegOffset(0));
-
-        let stack_data_start = StackOffset(4);
-        let stack_field_layout = vec![(None, StackOffset(0)), (None, stack_data_start)];
-
-        let stack_size = stack_data_start
-            + variant_layouts
-                .iter()
-                .map(|layout| layout.stack_size())
-                .max()
-                .unwrap_or(StackOffset(0));
-
-        Layout {
-            reg_size,
-            reg_field_layout,
-            stack_size,
-            stack_field_layout,
-        }
-    }
-
     fn from_type(
         ty: &Type,
         layouts: &mut LayoutCache,
@@ -287,26 +256,6 @@ impl Layout {
                     .collect::<Result<Vec<_>, _>>()?;
 
                 Layout::composite(layouts)
-            }
-            Type::Variants(ref variants) => {
-                let layouts = variants
-                    .variants
-                    .iter()
-                    .map(|variant| {
-                        let data_layouts = variant
-                            .params
-                            .iter()
-                            .map(|ty| {
-                                let layout = layouts.get_or_gen(ty.clone(), ast)?;
-                                Ok((None, layout))
-                            })
-                            .collect::<Result<Vec<_>, _>>()?;
-
-                        Ok(Layout::composite(data_layouts))
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-
-                Layout::variants(layouts)
             }
             Type::Str | Type::Function(_) => {
                 return Err(CodegenError::UnsizedType(Rc::new(TypeDesc::from_type(ty))));

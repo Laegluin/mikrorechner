@@ -35,7 +35,6 @@ pub enum Item {
 pub enum TypeDef {
     Alias(Spanned<AliasDef>),
     RecordDef(Spanned<RecordDef>),
-    VariantsDef(Spanned<VariantsDef>),
 }
 
 #[derive(Debug)]
@@ -54,18 +53,6 @@ pub struct RecordDef {
 pub struct FieldDef {
     pub name: Spanned<Ident>,
     pub ty: Spanned<TypeDecl>,
-}
-
-#[derive(Debug)]
-pub struct VariantsDef {
-    pub name: Spanned<Ident>,
-    pub variants: Vec<Spanned<VariantDef>>,
-}
-
-#[derive(Debug)]
-pub struct VariantDef {
-    pub name: Spanned<Ident>,
-    pub param_tys: Vec<Spanned<TypeDecl>>,
 }
 
 #[derive(Debug)]
@@ -168,9 +155,6 @@ pub enum Expr {
     Block(Block, TypeRef),
     /// Placeholder expression representing the body of a record constructor function.
     ConstructRecord(TypeRef),
-    /// Placeholder expression representing the body of a variant constructor function
-    /// for a variant with the given tag.
-    ConstructVariants(u32, TypeRef),
 }
 
 impl Expr {
@@ -234,10 +218,6 @@ impl Expr {
         Expr::ConstructRecord(TypeRef::invalid())
     }
 
-    pub fn construct_variants(tag: u32) -> Expr {
-        Expr::ConstructVariants(tag, TypeRef::invalid())
-    }
-
     pub fn ty(&self) -> &TypeRef {
         match *self {
             Expr::Lit(_, ref ty) => ty,
@@ -255,7 +235,6 @@ impl Expr {
             Expr::IfExpr(_, ref ty) => ty,
             Expr::Block(_, ref ty) => ty,
             Expr::ConstructRecord(ref ty) => ty,
-            Expr::ConstructVariants(_, ref ty) => ty,
         }
     }
 }

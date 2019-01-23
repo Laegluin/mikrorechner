@@ -110,7 +110,6 @@ impl TypeDesc {
                     .collect(),
             ),
             Type::Record(ref record) => TypeDesc::Name(record.name.clone()),
-            Type::Variants(ref variants) => TypeDesc::Name(variants.name.clone()),
         }
     }
 }
@@ -137,7 +136,6 @@ pub enum Type {
     /// A record with zero or more fields. All instances of this type will be removed during typechecking.
     PartialRecord(Vec<Field>),
     Record(Record),
-    Variants(Variants),
 }
 
 impl Type {
@@ -278,10 +276,6 @@ fn check_items(
             | Item::TypeDef(TypeDef::RecordDef(Spanned {
                 value: RecordDef { ref name, .. },
                 ..
-            }))
-            | Item::TypeDef(TypeDef::VariantsDef(Spanned {
-                value: VariantsDef { ref name, .. },
-                ..
             })) => {
                 type_bindings.insert(name.value.clone(), type_env.insert(Type::Var));
             }
@@ -338,18 +332,6 @@ fn check_items(
             })) => {
                 let cons = bind_record_def(def, type_env, type_bindings, value_bindings)?;
                 constructors.push(Spanned::new(Item::FnDef(cons), span));
-            }
-            Item::TypeDef(TypeDef::VariantsDef(Spanned {
-                value: ref def,
-                span,
-            })) => {
-                let conses = bind_variants_def(def, type_env, type_bindings, value_bindings)?;
-
-                constructors.extend(
-                    conses
-                        .into_iter()
-                        .map(|cons| Spanned::new(Item::FnDef(cons), span)),
-                );
             }
             Item::FnDef(_) => (),
         }
@@ -953,7 +935,7 @@ fn check_expr<'a>(
             *ty = block_ty;
             Ok(ty)
         }
-        Expr::ConstructRecord(ref mut ty) | Expr::ConstructVariants(_, ref mut ty) => {
+        Expr::ConstructRecord(ref mut ty) => {
             // we know the type of a constructor is simply the return type of the constructor function
             *ty = ret_ty.clone();
             Ok(ret_ty)
@@ -1141,88 +1123,6 @@ fn bind_record_def(
         ret_ty: ty,
         body: Spanned::new(Expr::construct_record(), def.name.span),
     })
-}
-
-fn bind_variants_def(
-    def: &VariantsDef,
-    type_env: &mut TypeEnv,
-    type_bindings: &ScopeMap<Ident, TypeRef>,
-    value_bindings: &mut ScopeMap<Ident, Binding>,
-) -> Result<Vec<FnDef>, Spanned<TypeError>> {
-    // the type binding must already have been created by `check_items`
-    let current_ty = type_bindings.get(&def.name.value).unwrap();
-
-    let mut variants = Vec::with_capacity(def.variants.len());
-    let mut constructors = Vec::with_capacity(def.variants.len());
-
-    for (tag, variant_def) in def.variants.iter().enumerate() {
-        let variant_def = &variant_def.value;
-
-        let mut params = Vec::with_capacity(variant_def.param_tys.len());
-        let mut param_defs = Vec::with_capacity(variant_def.param_tys.len());
-
-        for param_ty in &variant_def.param_tys {
-            let ty = type_from_decl(param_ty.as_ref(), true, type_env, type_bindings)?;
-            params.push(ty.clone());
-
-            param_defs.push(Spanned::new(
-                ParamDef {
-                    name: Spanned::new(None, param_ty.span),
-                    ty_hint: None,
-                    ty: ty.clone(),
-                },
-                param_ty.span,
-            ));
-        }
-
-        variants.push(Variant {
-            name: variant_def.name.value.clone(),
-            params: params.clone(),
-        });
-
-        // if the params are empty, the variant is a constant value, otherwise
-        // it's as constructor function
-        let variant_cons_ty = if params.is_empty() {
-            current_ty.clone()
-        } else {
-            // generate the definition
-            constructors.push(FnDef {
-                // FIXME: paths for correct binding
-                name: ItemPath::from(vec![def.name.clone(), variant_def.name.clone()]),
-                params: param_defs,
-                ret_ty_hint: None,
-                ret_ty: current_ty.clone(),
-                body: Spanned::new(Expr::construct_variants(tag as u32), variant_def.name.span),
-            });
-
-            // bind the type
-            let cons = Function {
-                params,
-                ret: current_ty.clone(),
-            };
-
-            let cons_fn = type_env.insert(Type::Function(cons));
-            type_env.insert(Type::ConstPtr(cons_fn))
-        };
-
-        // bind the variant constructor scoped under the type name
-        value_bindings.path_insert(
-            vec![def.name.value.clone(), variant_def.name.value.clone()],
-            Binding::new(variant_cons_ty),
-        );
-    }
-
-    let variants = Variants {
-        id: TypeId::new(),
-        name: def.name.value.clone(),
-        variants,
-    };
-
-    // type must be a variable right now, since we are creating the actual type
-    let ty = type_env.insert(Type::Variants(variants));
-    type_env.unify(&current_ty, &ty).unwrap();
-
-    Ok(constructors)
 }
 
 fn type_from_decl(

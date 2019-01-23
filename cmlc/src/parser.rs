@@ -176,16 +176,6 @@ fn type_def(tokens: &TokenStream<'_>) -> Result<Item, Spanned<ParseError>> {
                 record_def, span,
             ))))
         }
-        Some(Token::Pipe) => {
-            let span_start = tokens.start_span();
-            let variants_def = variants_def(name, tokens)?;
-            let span = span_start.end();
-
-            Ok(Item::TypeDef(TypeDef::VariantsDef(Spanned::new(
-                variants_def,
-                span,
-            ))))
-        }
         Some(_) => {
             let span_start = tokens.start_span();
             let alias = type_decl(tokens)?;
@@ -238,62 +228,6 @@ fn field_def(tokens: &TokenStream<'_>) -> Result<FieldDef, Spanned<ParseError>> 
     let ty = type_decl(tokens)?;
 
     Ok(FieldDef { name, ty })
-}
-
-fn variants_def(
-    name: Spanned<Ident>,
-    tokens: &TokenStream<'_>,
-) -> Result<VariantsDef, Spanned<ParseError>> {
-    token(tokens, Token::Pipe, "|")?;
-    let mut variants = Vec::new();
-
-    while tokens.peek() != Some(Token::Semicolon) {
-        let span_start = tokens.start_span();
-        let variant = variant_def(tokens)?;
-        let span = span_start.end();
-        variants.push(Spanned::new(variant, span));
-    }
-
-    token(tokens, Token::Semicolon, ";")?;
-    Ok(VariantsDef { name, variants })
-}
-
-fn variant_def(tokens: &TokenStream<'_>) -> Result<VariantDef, Spanned<ParseError>> {
-    let name = ident(tokens)?;
-    let mut param_tys = Vec::new();
-
-    while tokens.peek() != Some(Token::Pipe) && tokens.peek() != Some(Token::Semicolon) {
-        param_tys.push(type_decl(tokens)?);
-
-        match tokens.peek() {
-            Some(Token::Comma) => {
-                tokens.next();
-            }
-            _ => break,
-        }
-    }
-
-    match tokens.peek() {
-        Some(Token::Pipe) => {
-            tokens.next();
-        }
-        // don't consume the semicolon so `variants_def` the definition is done
-        Some(Token::Semicolon) => (),
-        Some(_) => {
-            return Err(Spanned::new(
-                ParseError::unexpected_token().expected("|").expected(";"),
-                tokens.last_token_span(),
-            ));
-        }
-        None => {
-            return Err(Spanned::new(
-                ParseError::eof().expected("|").expected(";"),
-                tokens.eof_span(),
-            ));
-        }
-    }
-
-    Ok(VariantDef { name, param_tys })
 }
 
 fn fn_def(tokens: &TokenStream<'_>) -> Result<Item, Spanned<ParseError>> {

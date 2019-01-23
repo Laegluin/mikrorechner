@@ -304,16 +304,6 @@ impl TypeEnv {
                     ))
                 }
             }
-            (Type::Variants(expected_variants), Type::Variants(actual_variants)) => {
-                if expected_variants == actual_variants {
-                    Ok(Type::Variants(expected_variants))
-                } else {
-                    Err(TypeError::Mismatch(
-                        Rc::new(TypeDesc::from_type(&Type::Variants(expected_variants))),
-                        Rc::new(TypeDesc::from_type(&Type::Variants(actual_variants))),
-                    ))
-                }
-            }
             // catch all for all types that definitely cannot be unified
             (expected, actual) => Err(TypeError::Mismatch(
                 Rc::new(TypeDesc::from_type(&expected)),

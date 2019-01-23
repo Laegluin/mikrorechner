@@ -1,15 +1,3 @@
-type Variant =
-    | One
-    | Two i32
-    | Three i32, i32
-    | User User;
-
-fn variant -> Variant = {
-    let a = Variant::Three: 1, 2;
-    let b = Variant::One;
-    b
-}
-
 type User = {
     id: i32,
     name: *str,

@@ -94,6 +94,7 @@ impl Asm {
 }
 
 #[derive(Debug, Clone)]
+#[allow(unused)]
 pub enum Command {
     Add(Reg, Reg, Reg),
     Sub(Reg, Reg, Reg),
@@ -799,22 +800,6 @@ fn gen_expr(
             let layout = ctx.layout(ty.clone(), span)?;
             let value = Value::Stack(StackAllocator::new().alloc(&layout));
             copy(&value, ctx.ret_value, &layout, asm);
-        }
-        Expr::ConstructVariants(tag, ref ty) => {
-            let layout = ctx.layout(ty.clone(), span)?;
-            let data = Value::Stack(StackAllocator::new().alloc(&layout));
-
-            asm.push(Command::Set(TMP_REG, tag));
-
-            copy(
-                &Value::reg(TMP_REG),
-                &ctx.ret_value.unwrap_field(0, &layout),
-                &Layout::word(),
-                asm,
-            );
-
-            // FIXME: use correct layout for data
-            copy(&data, &ctx.ret_value.unwrap_field(1, &layout), &layout, asm);
         }
     }
 
