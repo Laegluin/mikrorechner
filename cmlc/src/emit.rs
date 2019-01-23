@@ -65,7 +65,6 @@ impl Display for Command {
             SignedShiftR(dst, lhs, rhs) => write!(f, "{} = {} >>_s {} times", dst, lhs, rhs),
             Copy(dst, src) => write!(f, "copy {} to {}", src, dst,),
             Set(dst, imm) => write!(f, "{} = {}", dst, imm,),
-            // TODO: syntax?
             SetLabel(dst, ref label) => write!(f, "{} = {}", dst, label,),
             CmpEq(lhs, rhs) => write!(f, "compare {} = {}", lhs, rhs,),
             CmpGt(lhs, rhs) => write!(f, "compare {} > {}", lhs, rhs,),
@@ -76,8 +75,7 @@ impl Display for Command {
             JmpIfLabel(ref label) => write!(f, "jump_if to {}", label,),
             JmpRelIf(offset) => write!(f, "jump_rel_if to {}", offset,),
             Load(dst, src_addr, offset) => write!(f, "load {} + {} to {}", src_addr, offset, dst),
-            // TODO: syntax looks wrong?
-            Store(dst_addr, src, offset) => write!(f, "store {} + {} to {}", src, offset, dst_addr),
+            Store(dst_addr, src, offset) => write!(f, "store {} to {} + {}", src, dst_addr, offset),
             Noop => write!(f, "noop"),
             Halt => write!(f, "halt"),
             Label(ref label) => write!(f, "_{}", label),
