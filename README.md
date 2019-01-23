@@ -203,11 +203,10 @@ Zeilenkommentare fangen mit # an.
 
 ### Labels
 ```text
-Einführen von Labels: _<Labelname> hinter den Befehl (vor den Kommentar natürlich).
-Dann kann man mit
+<Befehl> _<Labelname> #<Kommentar>      Einführen von Labels
 jump to <Labelname>
 jump_if to <Labelname>
-zu den Labels springen.
+<R> = <Labelname>        Die Adresse des Befehls oder Wertes an der das Label steht in einem Register speichern
 ```
 
 ### Arithmetic
@@ -259,11 +258,17 @@ jump_rel_if to <I>
 
 ```text
 load <R> + <I> to <R>
-load <R> - <I> to <R>
 store <R> + <I> to <R>
-store <R> - <I> to <R>
 ```
+### Data
 
+```text
+Datastrings can be interpreted as Hex-, Binary or Decimal Numbers. 
+The necessary number of Bytes for storage is adapted accordingly.
+Hex-Strings: 0x<value>
+Bin-Strings: 0b<value>
+Decimal: <value>
+```
 ### Miscellaneous
 
 ```text
