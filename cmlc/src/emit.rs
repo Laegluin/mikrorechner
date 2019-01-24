@@ -33,6 +33,7 @@ pub enum Command {
     Noop,
     Halt,
     Label(Label),
+    Data(Vec<u8>),
     Comment(String),
     EmptyLine,
 }
@@ -205,32 +206,18 @@ impl Display for Command {
             Noop => write!(f, "noop"),
             Halt => write!(f, "halt"),
             Label(ref label) => write!(f, "_{}", label),
+            Data(ref data) => write!(f, "0x{}", hex::encode(data)),
             Comment(ref comment) => write!(f, "# {}", comment),
             EmptyLine => write!(f, ""),
         }
     }
 }
 
-pub fn emit_asm(asm: &Asm) -> String {
+pub fn emit_asm(asm: Asm) -> String {
     let mut buf = String::new();
-
-    buf.push_str("### runtime start\n\n");
-    emit_section(asm.rt_start(), &mut buf);
-    buf.push_str("\n### text\n\n");
-    emit_section(asm.text(), &mut buf);
-    buf.push_str("### read-only data\n\n");
-
-    for (label, data) in asm.ro_data() {
-        buf.push_str(&format!("0x{} _{}\n", hex::encode(data), label,));
-    }
-
-    buf
-}
-
-fn emit_section(cmds: &[Command], buf: &mut String) {
     let mut label = None;
 
-    for cmd in cmds {
+    for cmd in asm.commands() {
         if let Command::Label(_) = cmd {
             label = Some(cmd);
         } else {
@@ -240,4 +227,6 @@ fn emit_section(cmds: &[Command], buf: &mut String) {
             }
         }
     }
+
+    buf
 }

@@ -79,7 +79,7 @@ fn compile(file_map: &FileMap) -> Result<(), Spanned<Error>> {
     let ast = parser::parse(&tokens).map_err(|spanned| spanned.map(Error::Parse))?;
     let typed_ast = typecheck::typecheck(ast).map_err(|spanned| spanned.map(Error::Type))?;
     let asm = codegen::gen_asm(typed_ast).map_err(|spanned| spanned.map(Error::Codegen))?;
-    let asm_src = emit::emit_asm(&asm);
+    let asm_src = emit::emit_asm(asm);
     println!("{}", asm_src);
 
     Ok(())

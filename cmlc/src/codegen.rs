@@ -20,15 +20,14 @@ pub mod layout;
 use crate::ast::*;
 use crate::codegen::layout::*;
 use crate::emit::Command;
-use crate::scope_map::ScopeMap;
 use crate::emit::Reg;
+use crate::scope_map::ScopeMap;
 use crate::span::{Span, Spanned};
 use crate::typecheck::{TypeDesc, TypeRef};
 use byteorder::{ByteOrder, LittleEndian};
 use std::collections::HashMap;
 use std::fmt::{self, Display};
 use std::rc::Rc;
-use crate::emit::Label;
 
 pub const ENTRY_POINT: &str = "main";
 
@@ -64,16 +63,38 @@ impl Display for CodegenError {
 
 #[derive(Debug)]
 pub struct Asm {
+    rt_start_header: Vec<Command>,
     rt_start: Vec<Command>,
+    text_header: Vec<Command>,
     text: Vec<Command>,
+    ro_data_header: Vec<Command>,
     ro_data: HashMap<Vec<u8>, LabelValue>,
 }
 
 impl Asm {
     fn new() -> Asm {
         Asm {
+            rt_start_header: vec![
+                Command::Comment(String::from("--------------------")),
+                Command::Comment(String::from("runtime start")),
+                Command::Comment(String::from("--------------------")),
+                Command::EmptyLine,
+            ],
             rt_start: Vec::new(),
+            text_header: vec![
+                Command::EmptyLine,
+                Command::Comment(String::from("--------------------")),
+                Command::Comment(String::from("text")),
+                Command::Comment(String::from("--------------------")),
+                Command::EmptyLine,
+            ],
             text: Vec::new(),
+            ro_data_header: vec![
+                Command::Comment(String::from("--------------------")),
+                Command::Comment(String::from("read-only data")),
+                Command::Comment(String::from("--------------------")),
+                Command::EmptyLine,
+            ],
             ro_data: HashMap::new(),
         }
     }
@@ -99,18 +120,16 @@ impl Asm {
             .clone()
     }
 
-    pub fn rt_start(&self) -> &[Command] {
-        &self.rt_start
-    }
-
-    pub fn text(&self) -> &[Command] {
-        &self.text
-    }
-
-    pub fn ro_data(&self) -> impl Iterator<Item = (&Label, &[u8])> {
-        self.ro_data
-            .iter()
-            .map(|(data, label)| (label.label(), data.as_slice()))
+    pub fn commands(self) -> impl Iterator<Item = Command> {
+        self.rt_start_header
+            .into_iter()
+            .chain(self.rt_start.into_iter())
+            .chain(self.text_header.into_iter())
+            .chain(self.text.into_iter())
+            .chain(self.ro_data_header.into_iter())
+            .chain(self.ro_data.into_iter().flat_map(|(data, label)| {
+                vec![Command::Label(label.label().clone()), Command::Data(data)]
+            }))
     }
 }
 

@@ -2,6 +2,7 @@ use crate::ast::*;
 use crate::codegen::{
     CodegenError, FRAME_PTR_REG, LOAD_IMMEDIATE_MAX, STORE_IMMEDIATE_MAX, TMP_OP_REG, TMP_REG,
 };
+use crate::emit::{Label, Reg};
 use crate::typecheck::{Type, TypeDesc, TypeRef};
 use derive_more::{Add, AddAssign, Sub};
 use fnv::FnvHashMap;
@@ -9,7 +10,6 @@ use std::iter;
 use std::ops::Mul;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use crate::emit::{Reg, Label};
 use strum::IntoEnumIterator;
 
 impl Reg {
