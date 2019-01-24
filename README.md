@@ -1,5 +1,7 @@
 # Tmp
 
+[![Build Status](https://travis-ci.com/Laegluin/mikrorechner.svg?branch=master)](https://travis-ci.com/Laegluin/mikrorechner)
+
 ## Registers
 
 - `r0` - `r31` (`000000-011111`): general purpose registers
