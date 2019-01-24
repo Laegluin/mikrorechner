@@ -19,13 +19,16 @@ pub mod layout;
 
 use crate::ast::*;
 use crate::codegen::layout::*;
+use crate::emit::Command;
 use crate::scope_map::ScopeMap;
+use crate::emit::Reg;
 use crate::span::{Span, Spanned};
 use crate::typecheck::{TypeDesc, TypeRef};
 use byteorder::{ByteOrder, LittleEndian};
 use std::collections::HashMap;
 use std::fmt::{self, Display};
 use std::rc::Rc;
+use crate::emit::Label;
 
 pub const ENTRY_POINT: &str = "main";
 
@@ -104,45 +107,11 @@ impl Asm {
         &self.text
     }
 
-    pub fn ro_data(&self) -> impl Iterator<Item = (&Ident, &[u8])> {
+    pub fn ro_data(&self) -> impl Iterator<Item = (&Label, &[u8])> {
         self.ro_data
             .iter()
             .map(|(data, label)| (label.label(), data.as_slice()))
     }
-}
-
-#[derive(Debug, Clone)]
-#[allow(unused)]
-pub enum Command {
-    Add(Reg, Reg, Reg),
-    Sub(Reg, Reg, Reg),
-    Mul(Reg, Reg, Reg),
-    Div(Reg, Reg, Reg),
-    And(Reg, Reg, Reg),
-    Or(Reg, Reg, Reg),
-    Not(Reg, Reg),
-    Xor(Reg, Reg, Reg),
-    ShiftL(Reg, Reg, Reg),
-    ShiftR(Reg, Reg, Reg),
-    SignedShiftR(Reg, Reg, Reg),
-    Copy(Reg, Reg),
-    Set(Reg, u32),
-    SetLabel(Reg, Ident),
-    CmpEq(Reg, Reg),
-    CmpGt(Reg, Reg),
-    CmpGe(Reg, Reg),
-    Jmp(Reg),
-    JmpLabel(Ident),
-    JmpRel(i32),
-    JmpIfLabel(Ident),
-    JmpRelIf(u32),
-    Load(Reg, Reg, u32),
-    Store(Reg, Reg, u32),
-    Noop,
-    Halt,
-    Label(Ident),
-    Comment(String),
-    EmptyLine,
 }
 
 pub fn gen_asm(ast: TypedAst) -> Result<Asm, Spanned<CodegenError>> {

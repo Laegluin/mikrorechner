@@ -9,46 +9,8 @@ use std::iter;
 use std::ops::Mul;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use crate::emit::{Reg, Label};
 use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
-
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, EnumIter)]
-pub enum Reg {
-    R0,
-    R1,
-    R2,
-    R3,
-    R4,
-    R5,
-    R6,
-    R7,
-    R8,
-    R9,
-    R10,
-    R11,
-    R12,
-    R13,
-    R14,
-    R15,
-    R16,
-    R17,
-    R18,
-    R19,
-    R20,
-    R21,
-    R22,
-    R23,
-    R24,
-    R25,
-    R26,
-    R27,
-    R28,
-    R29,
-    R30,
-    R31,
-    AddrOffset,
-    Null,
-}
 
 impl Reg {
     fn is_general_purpose(&self) -> bool {
@@ -361,7 +323,7 @@ impl Value {
 
 #[derive(Debug, Clone)]
 pub struct LabelValue {
-    label: Ident,
+    label: Label,
 }
 
 impl LabelValue {
@@ -375,11 +337,11 @@ impl LabelValue {
         }
 
         LabelValue {
-            label: Ident::new(format!("l{}_{}", id, desc.as_ref())),
+            label: Label::new(format!("l{}_{}", id, desc.as_ref())),
         }
     }
 
-    pub fn label(&self) -> &Ident {
+    pub fn label(&self) -> &Label {
         &self.label
     }
 }
