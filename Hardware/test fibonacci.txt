@@ -49,6 +49,9 @@ jump_if halt
 01001 000 0000 0000 0000 0000 0001 1000
 rel_offset = 24 / 000 0000 0000 0000 0000 0001 1000
 
+m. 5 noops pro operation:
+rel_offset = 144 / 000 0000 0000 0000 0000 1001 0000
+
 add r31 r1 r2
 
 copy r1 r2
@@ -64,6 +67,9 @@ jump to compare
 00111 111 1111 1111 1111 1111 1110 1000
 offset = -24 / 111 1111 1111 1111 1111 1110 1000
 
+m. 5 noops pro operation:
+offset = -144 / 111 1111 1111 1111 1111 0111 0000
+ffffff70
 halt
 
 

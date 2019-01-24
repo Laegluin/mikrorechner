@@ -10,19 +10,18 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 use work.universal_constants.all;
 
-entity cpu is
+entity piped_cpu is
 
 port
 (
-    clk, sclk, reset    : in std_logic;
+    clk, reset    : in std_logic;
     enable, halt        : in std_logic
---    pc_out, alu_result  : out   unsigned(bit_Width-1 downto 0)
 );
 
-end entity cpu;
+end entity piped_cpu;
 
 
-architecture behavior of cpu is
+architecture behavior of piped_cpu is
 -- signale hier
     -- Namen von Blockdiagramm (+ Zielkomponente)
     -- external inputs
@@ -52,6 +51,10 @@ architecture behavior of cpu is
     -- mux to if/id reg
 
     signal PC_value_ifid : unsigned(bit_Width-1 downto 0);
+
+	-- mux to pc
+
+	signal PC_enable : std_logic;
 
     -- instruction memory to if/id reg
 
@@ -110,12 +113,13 @@ architecture behavior of cpu is
     signal jump_to_exmem : unsigned(bit_Width-1 downto 0);
     signal reg_imm_exmem : unsigned(bit_Width-1 downto 0);
     signal mem_offset_exmem : unsigned(bit_Width-1 downto 0);
-    signal mem_rw_en_exmem : unsigned(bit_Width-1 downto 0);
+    signal mem_rw_en_exmem : unsigned(1 downto 0);
     signal C_address_exmem : unsigned(adr_Width-1 downto 0);
 
     -- executer to alu
 
     signal ALU_opcode : unsigned(opcode_Bits-1 downto 0);
+	signal ALU_stim : std_logic; -- dummy
 
     -- alu to executer
 
@@ -133,7 +137,7 @@ architecture behavior of cpu is
     signal jump_to_mem : unsigned(bit_Width-1 downto 0);
     signal reg_imm_mem : unsigned(bit_Width-1 downto 0);
     signal mem_offset_mem : unsigned(bit_Width-1 downto 0);
-    signal mem_rw_en_mem : unsigned(bit_Width-1 downto 0);
+    signal mem_rw_en_mem : unsigned(1 downto 0);
     signal C_address_mem : unsigned(adr_Width-1 downto 0);
     signal store_address_mem : unsigned(bit_Width-1 downto 0);
     signal C_data_mem : unsigned(bit_Width-1 downto 0);
@@ -165,6 +169,12 @@ architecture behavior of cpu is
     signal write_address_reg : unsigned(adr_Width-1 downto 0);
     signal write_back_data : unsigned(bit_Width-1 downto 0);
     signal reg_write_en : std_logic;
+
+	-- test
+	signal store_address_exmem2 : unsigned(bit_Width-1 downto 0);
+	signal A_data_alu2 : unsigned(bit_Width-1 downto 0);
+	signal B_data_alu2 : unsigned(bit_Width-1 downto 0);
+	signal wb_control_wb2 : unsigned(1 downto 0);
         
     begin
 
@@ -198,15 +208,15 @@ architecture behavior of cpu is
     pc : entity work.pc
         port map
         (
-            clk             => sclk,
+            clk             => clk,
             enable          => PC_enable,
-            write_en        => if_PC_write_enable,
+            write_en        => PC_write_enable_pc,
             reset           => pc_reset,
-            jump_to         => jump_to,
+            jump_to         => jump_to_pc,
             pc_value        => PC_value_mux
         );
 
-	pc_value_mux : entity work.mux32OUT
+	pc_val_mux : entity work.mux32OUT
 		port map
 		(
 			A	=>	PC_value_mem,
@@ -263,6 +273,7 @@ architecture behavior of cpu is
             reset           => pipeline_reset,
             pc_in           => PC_value_idex,
             opcode_in       => opcode_idex,
+			C_address_in	=> C_address_reg, --maybe refactor this, breaks convention
             reg_imm_in      => reg_imm_idex,
             jump_off_in     => jump_offset_idex,
             mem_off_in      => mem_offset_idex,
@@ -271,6 +282,7 @@ architecture behavior of cpu is
             mem_address_in  => store_address_idex,
             pc_out          => PC_value_ex,
             opcode_out      => opcode_ex,
+			C_address_out	=> C_address_ex,
             reg_imm_out     => reg_imm_ex,
             jump_off_out    => jump_offset_ex,
             mem_off_out     => mem_offset_ex,
@@ -286,8 +298,8 @@ architecture behavior of cpu is
             rst                 => REG_reset,
             reg_write_en        => reg_write_en,
             reg_offset_en       => reg_offset_en,
-            reg_write_addr      => write_back_data,
-            reg_write_data      => write_address_reg,
+            reg_write_addr      => write_address_reg,
+            reg_write_data      => write_back_data,
             reg_read_addr_A     => A_address_reg,
             reg_read_data_A     => A_data_idex,
             reg_read_addr_B     => B_address_reg,
@@ -317,17 +329,32 @@ architecture behavior of cpu is
             wb_control      => wb_control_exmem,
             jump_to_out     => jump_to_exmem,
             mem_off_out     => mem_offset_exmem,
-            opcode_out      => ALU_opcode
+            opcode_out      => ALU_opcode,
+			alu_stim		=> ALU_stim
         );
 
-    alu : entity work.alu
+	alu_delay_reg : entity work.alu_delay_reg
+		port map
+		(
+			clk				=> clk,
+			rst				=> pipeline_reset,
+			A_in			=> A_data_alu,
+			B_in			=> B_data_alu,
+			C_in			=> store_address_exmem,
+			A_out			=> A_data_alu2,
+			B_out			=> B_data_alu2,
+			C_out			=> store_address_exmem2			
+		);
+
+    alu : entity work.piped_alu
         port map
         (
-            A               => A_data_alu,
-            B               => B_data_alu,
+            A               => A_data_alu2,
+            B               => B_data_alu2,
             opcode          => ALU_opcode,
             ALU_Out         => C_data_exmem,
-            ALU_Flag        => ALU_flag
+            ALU_Flag        => ALU_flag,
+			alu_stim		=> clk
         );
 
     ex_mem_mem : entity work.pipe_ex_mem
@@ -344,10 +371,10 @@ architecture behavior of cpu is
             jump_to_in      => jump_to_exmem,
             mem_off_in      => mem_offset_exmem,
             C_data_in       => C_data_exmem,
-            mem_address_in  => store_address_exmem,
+            mem_address_in  => store_address_exmem2,
             pc_en_out       => PC_enable_mem,
             pc_wr_en_out    => PC_write_enable_mem,
-            mem_rw_en_out   => mem_rw_en_mem, -- refactor so they dont pass through mem but go straight to mem/wb reg
+            mem_rw_en_out   => mem_rw_en_mem, -- refactor so they dont pass through mem but go straight to mem/wb reg?
             wb_control_out  => wb_control_mem,
             C_address_out   => C_address_mem,
             reg_imm_out     => reg_imm_mem,
@@ -367,7 +394,7 @@ architecture behavior of cpu is
             mem_out             => mem_out_memwb,
             mem_offset          => mem_offset_mem,
 
-            pc_enable_in        => PC_enable_mem,  -- refactor so they dont pass through mem but go straight to mem/wb reg
+            pc_enable_in        => PC_enable_mem,  -- refactor so they dont pass through mem but go straight to mem/wb reg?
             pc_write_enable_in  => PC_write_enable_mem,
             C_in                => C_data_mem,
             wb_control_in       => wb_control_mem,
@@ -378,7 +405,7 @@ architecture behavior of cpu is
             wb_control_out      => wb_control_memwb,
             C_out               => C_data_memwb,
             pc_write_enable_out => PC_write_enable_pc,
-            pc_enable_out       => PC_enable_mux, --change back to if_PC_enable
+            pc_enable_out       => PC_enable_mux, 
             c_address_in        => C_address_mem,
             c_address_out       => C_address_memwb
         );
@@ -394,18 +421,27 @@ architecture behavior of cpu is
             reg_imm_in          => reg_imm_memwb,
             C_address_in        => C_address_memwb,
             wb_control_out      => wb_control_wb,
-            C_data_out          => C_data_memwb,
+            C_data_out          => C_data_wb,
             mem_out             => mem_out_wb,
             reg_imm_out         => reg_imm_wb,
             C_address_out       => C_address_wb
         );
+
+	wbcontroldelay : entity work.delay_reg2
+		port map
+		(
+			clk             => clk,
+            rst             => pipeline_reset,
+            A      			=> wb_control_wb,
+			B				=> wb_control_wb2
+		);
 
     writeback : entity work.reg_write_back
         port map
         (
             clk             => clk,
             rst             => wb_reset,
-            wb_control      => wb_control_wb,
+            wb_control      => wb_control_wb2,
             ALU_Out         => C_data_wb,
             mem_out         => mem_out_wb,
             reg_imm         => reg_imm_wb,

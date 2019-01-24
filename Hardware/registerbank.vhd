@@ -33,7 +33,7 @@ signal data_b : unsigned(bit_Width-1 downto 0);
 signal data_c : unsigned(bit_Width-1 downto 0);
 
 begin
-    process(clk, rst, reg_read_addr_A, reg_read_addr_B, reg_offset_en)
+    process(clk, rst)
 	variable offset_register : unsigned(bit_Width-1 downto 0) := to_unsigned(0, bit_Width); --not sure if this is smart...
     begin
         if(rst='1') then
