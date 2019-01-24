@@ -27,6 +27,7 @@ pub enum TypeError {
     Mismatch(Rc<TypeDesc>, Rc<TypeDesc>),
     NonLValueInAssignment,
     CannotInfer(Rc<TypeDesc>),
+    TypeIsNotCastable(Rc<TypeDesc>),
     EntryPointTypeMismatch(Rc<TypeDesc>),
 }
 
@@ -72,6 +73,7 @@ impl Display for TypeError {
                 "left hand side of assignment must be a variable or a deref expression"
             ),
             CannotInfer(ref ty) => write!(f, "cannot infer type for `{}`", ty),
+            TypeIsNotCastable(ref ty) => write!(f, "cannot cast type `{}`", ty),
             EntryPointTypeMismatch(ref ty) => write!(
                 f,
                 "{} must be of type `*fn -> ()`, found `{}`",
@@ -643,6 +645,29 @@ fn check_expr<'a>(
             *ty = expected_expr_ty;
             Ok(ty)
         }
+        Expr::Cast(
+            Cast {
+                ref mut expr,
+                ref to_ty,
+            },
+            ref mut ty,
+        ) => {
+            let expr_ty = check_expr(
+                expr.as_mut().map(Box::as_mut),
+                ret_ty,
+                Mutability::Const,
+                type_env,
+                type_bindings,
+                value_bindings,
+            )?;
+
+            ensure_is_castable(expr_ty, type_env).map_err(|err| Spanned::new(err, expr.span))?;
+            let cast_ty = type_from_decl(to_ty.as_ref(), false, type_env, type_bindings)?;
+            ensure_is_castable(&cast_ty, type_env).map_err(|err| Spanned::new(err, to_ty.span))?;
+
+            *ty = cast_ty;
+            Ok(ty)
+        }
         Expr::BinOp(
             BinOp {
                 op,
@@ -1059,6 +1084,17 @@ fn check_expr<'a>(
             *ty = ret_ty.clone();
             Ok(ret_ty)
         }
+    }
+}
+
+fn ensure_is_castable(ty: &TypeRef, type_env: &TypeEnv) -> Result<(), TypeError> {
+    let (ty_ref, ty) = type_env.find_type(ty);
+
+    match *ty {
+        Type::Int | Type::I32 | Type::U32 | Type::Ptr(_) | Type::ConstPtr(_) | Type::MutPtr(_) => {
+            Ok(())
+        }
+        _ => Err(TypeError::TypeIsNotCastable(ty_ref.desc())),
     }
 }
 

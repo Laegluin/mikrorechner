@@ -155,3 +155,12 @@ fn inferred_return = {
 fn inferred_everything arg1, arg2 = {
     arg1 - arg2
 }
+
+fn casts = {
+    let int: i32 = 1;
+    let mut uint: u32 = int as u32;
+    let null = 0 as *u32;
+
+    let mut addr = &mut uint;
+    addr = 16 as *mut _;
+}

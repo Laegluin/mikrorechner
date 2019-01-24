@@ -155,6 +155,7 @@ pub enum Expr {
     Lit(Lit, TypeRef),
     Var(ItemPath, TypeRef),
     UnOp(UnOp, TypeRef),
+    Cast(Cast, TypeRef),
     BinOp(BinOp, TypeRef),
     FnCall(FnCall, TypeRef),
     MemberAccess(MemberAccess, TypeRef),
@@ -181,6 +182,10 @@ impl Expr {
 
     pub fn un_op(un_op: UnOp) -> Expr {
         Expr::UnOp(un_op, TypeRef::invalid())
+    }
+
+    pub fn cast(cast: Cast) -> Expr {
+        Expr::Cast(cast, TypeRef::invalid())
     }
 
     pub fn bin_op(bin_op: BinOp) -> Expr {
@@ -236,6 +241,7 @@ impl Expr {
             Expr::Lit(_, ref ty) => ty,
             Expr::Var(_, ref ty) => ty,
             Expr::UnOp(_, ref ty) => ty,
+            Expr::Cast(_, ref ty) => ty,
             Expr::BinOp(_, ref ty) => ty,
             Expr::FnCall(_, ref ty) => ty,
             Expr::MemberAccess(_, ref ty) => ty,
@@ -295,6 +301,12 @@ pub enum UnOpKind {
     AddrOf,
     AddrOfMut,
     Deref,
+}
+
+#[derive(Debug)]
+pub struct Cast {
+    pub expr: Spanned<Box<Expr>>,
+    pub to_ty: Spanned<TypeDecl>,
 }
 
 #[derive(Debug)]

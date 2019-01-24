@@ -469,6 +469,16 @@ fn gen_expr(
                 }
             }
         }
+        Expr::Cast(Cast { ref expr, .. }, _) => {
+            // cast simply reinterpret the value, so no code must be generated
+            gen_expr(
+                expr.as_ref().map(Box::as_ref),
+                result_value,
+                result_layout,
+                ctx,
+                asm,
+            )?;
+        }
         Expr::BinOp(
             BinOp {
                 op,

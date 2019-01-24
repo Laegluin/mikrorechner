@@ -60,6 +60,10 @@ fn verify_expr(
             verify_expr(operand.as_mut().map(Box::as_mut), type_env, types)?;
             canonicalize_type_ref(ty, type_env, types, span)?;
         }
+        Expr::Cast(Cast { ref mut expr, .. }, ref mut ty) => {
+            verify_expr(expr.as_mut().map(Box::as_mut), type_env, types)?;
+            canonicalize_type_ref(ty, type_env, types, span)?;
+        }
         Expr::BinOp(
             BinOp {
                 ref mut lhs,

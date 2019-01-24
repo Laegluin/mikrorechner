@@ -554,7 +554,7 @@ fn multiplicative(
     parse_method_calls: bool,
 ) -> Result<Spanned<Expr>, Spanned<ParseError>> {
     let span_start = tokens.start_span();
-    let mut lhs = unary(tokens, parse_method_calls)?;
+    let mut lhs = cast(tokens, parse_method_calls)?;
 
     while tokens.peek() == Some(Token::Star) || tokens.peek() == Some(Token::Slash) {
         let op = match tokens.next() {
@@ -563,7 +563,7 @@ fn multiplicative(
             _ => unreachable!(),
         };
 
-        let rhs = unary(tokens, parse_method_calls)?.map(Box::new);
+        let rhs = cast(tokens, parse_method_calls)?.map(Box::new);
 
         lhs = Spanned::new(
             Expr::bin_op(BinOp {
@@ -576,6 +576,29 @@ fn multiplicative(
     }
 
     Ok(lhs)
+}
+
+fn cast(
+    tokens: &TokenStream<'_>,
+    parse_method_calls: bool,
+) -> Result<Spanned<Expr>, Spanned<ParseError>> {
+    let span_start = tokens.start_span();
+    let mut operand = unary(tokens, parse_method_calls)?;
+
+    while tokens.peek() == Some(Token::Keyword(Keyword::As)) {
+        tokens.next();
+        let to_ty = type_decl(tokens)?;
+
+        operand = Spanned::new(
+            Expr::cast(Cast {
+                expr: operand.map(Box::new),
+                to_ty,
+            }),
+            span_start.end(),
+        );
+    }
+
+    Ok(operand)
 }
 
 fn unary(

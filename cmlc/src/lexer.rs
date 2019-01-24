@@ -48,6 +48,7 @@ pub enum Keyword {
     Mut,
     If,
     Else,
+    As,
 }
 
 pub struct StrStream<'s> {
@@ -348,6 +349,7 @@ fn reserved_idents(string: &str) -> Option<Token> {
         "mut" => Some(Token::Keyword(Keyword::Mut)),
         "if" => Some(Token::Keyword(Keyword::If)),
         "else" => Some(Token::Keyword(Keyword::Else)),
+        "as" => Some(Token::Keyword(Keyword::As)),
         _ => None,
     }
 }
