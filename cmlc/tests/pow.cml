@@ -1,0 +1,14 @@
+fn main = {
+    let ten_to_the_two = 10 pow: 2;
+    pow: 2, exponent = 10;
+}
+
+fn pow n, exponent = {
+    if n == 0 {
+        1
+    } else if n == 1 {
+        n
+    } else {
+        n * (n pow: exponent - 1)
+    }
+}

@@ -1,0 +1,11 @@
+fn faculty n = {
+    if n <= 1 {
+        1
+    } else {
+        n * faculty: n - 1
+    }
+}
+
+fn main = {
+    faculty: 10;
+}
