@@ -19,8 +19,7 @@ pub mod layout;
 
 use crate::ast::*;
 use crate::codegen::layout::*;
-use crate::emit::Command;
-use crate::emit::Reg;
+use crate::emit::{Command, Reg, SET_IMMEDIATE_MAX};
 use crate::scope_map::ScopeMap;
 use crate::span::{Span, Spanned};
 use crate::typecheck::{TypeDesc, TypeRef};
@@ -32,10 +31,6 @@ use std::rc::Rc;
 pub const ENTRY_POINT: &str = "main";
 
 const STACK_START_ADDR: u32 = 0x80000000;
-const SET_IMMEDIATE_MAX: u32 = 0b_1_1111_1111_1111_1111_1111;
-const LOAD_IMMEDIATE_MAX: u32 = 0b_111_1111_1111_1111;
-const STORE_IMMEDIATE_MAX: u32 = 0b_111_1111_1111_1111;
-
 const FRAME_PTR_REG: Reg = Reg::R31;
 const TMP_REG: Reg = Reg::R0;
 const TMP_OP_REG: Reg = Reg::R1;
@@ -68,7 +63,7 @@ pub struct Asm {
     text_header: Vec<Command>,
     text: Vec<Command>,
     ro_data_header: Vec<Command>,
-    ro_data: HashMap<Vec<u8>, LabelValue>,
+    ro_data: HashMap<Rc<[u8]>, LabelValue>,
 }
 
 impl Asm {
@@ -113,22 +108,26 @@ impl Asm {
         self.push_const(bytes)
     }
 
-    fn push_const(&mut self, data: impl Into<Vec<u8>>) -> LabelValue {
+    fn push_const(&mut self, data: impl Into<Rc<[u8]>>) -> LabelValue {
         self.ro_data
             .entry(data.into())
             .or_insert_with(|| LabelValue::new("const"))
             .clone()
     }
 
-    pub fn commands(self) -> impl Iterator<Item = Command> {
+    pub fn commands(&self) -> impl '_ + Iterator<Item = Command> {
         self.rt_start_header
-            .into_iter()
-            .chain(self.rt_start.into_iter())
-            .chain(self.text_header.into_iter())
-            .chain(self.text.into_iter())
-            .chain(self.ro_data_header.into_iter())
-            .chain(self.ro_data.into_iter().flat_map(|(data, label)| {
-                vec![Command::Label(label.label().clone()), Command::Data(data)]
+            .iter()
+            .chain(self.rt_start.iter())
+            .chain(self.text_header.iter())
+            .chain(self.text.iter())
+            .chain(self.ro_data_header.iter())
+            .cloned()
+            .chain(self.ro_data.iter().flat_map(|(data, label)| {
+                vec![
+                    Command::Label(label.label().clone()),
+                    Command::Data(Rc::clone(&data)),
+                ]
             }))
     }
 }
@@ -163,7 +162,7 @@ fn gen_rt_start(asm: &mut Asm, bindings: &ScopeMap<Ident, Value>) {
         Command::SetLabel(TMP_REG, exit.clone()),
         Command::Store(FRAME_PTR_REG, TMP_REG, 0),
         // call main
-        Command::JmpLabel(entry_point),
+        Command::JmpRelLabel(entry_point),
         Command::Label(exit),
         Command::Halt,
     ]);
@@ -765,7 +764,7 @@ fn gen_expr(
 
             let else_label = LabelValue::new("else").label().clone();
             asm.push(Command::CmpEq(TMP_REG, Reg::Null));
-            asm.push(Command::JmpIfLabel(else_label.clone()));
+            asm.push(Command::JmpRelIfLabel(else_label.clone()));
 
             gen_expr(
                 then_block.as_ref().map(Box::as_ref),
@@ -776,7 +775,7 @@ fn gen_expr(
             )?;
 
             let end_if_label = LabelValue::new("end_if").label().clone();
-            asm.push(Command::JmpLabel(end_if_label.clone()));
+            asm.push(Command::JmpRelLabel(end_if_label.clone()));
             asm.push(Command::Label(else_label));
 
             if let Some(ref else_block) = *else_block {

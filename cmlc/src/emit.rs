@@ -1,7 +1,56 @@
 use crate::codegen::Asm;
+use byteorder::{ByteOrder, LittleEndian};
+use std::collections::HashMap;
 use std::fmt::{self, Display};
 use std::rc::Rc;
 use strum_macros::EnumIter;
+
+pub const JMP_REL_IMMEDIATE_MAX: u32 = 0b_111_1111_1111_1111_1111_1111_1111;
+pub const JMP_REL_IF_IMMEDIATE_MAX: u32 = 0b_111_1111_1111_1111_1111_1111_1111;
+pub const SET_IMMEDIATE_MAX: u32 = 0b_1_1111_1111_1111_1111_1111;
+pub const LOAD_IMMEDIATE_MAX: u32 = 0b_111_1111_1111_1111;
+pub const STORE_IMMEDIATE_MAX: u32 = 0b_111_1111_1111_1111;
+
+pub fn emit_asm(asm: Asm) -> String {
+    let mut buf = String::new();
+    let mut label = None;
+
+    for cmd in asm.commands() {
+        if cmd.is_label() {
+            label = Some(cmd);
+        } else {
+            match label.take() {
+                Some(label) => buf.push_str(&format!("{} {}\n", cmd, label)),
+                None => buf.push_str(&format!("{}\n", cmd.to_string())),
+            }
+        }
+    }
+
+    buf
+}
+
+pub fn emit_object(asm: Asm) -> Vec<u8> {
+    let mut labels = HashMap::new();
+    let mut idx = 0;
+
+    for cmd in asm.commands() {
+        if let Command::Label(ref label) = &cmd {
+            labels.insert(label.clone(), idx);
+        }
+
+        idx += cmd.len();
+    }
+
+    let mut img = Vec::new();
+    let mut idx = 0;
+
+    for cmd in asm.commands() {
+        cmd.write_img(&mut img, idx, &labels);
+        idx += cmd.len();
+    }
+
+    img
+}
 
 #[derive(Debug, Clone)]
 #[allow(unused)]
@@ -24,21 +73,247 @@ pub enum Command {
     CmpGt(Reg, Reg),
     CmpGe(Reg, Reg),
     Jmp(Reg),
-    JmpLabel(Label),
+    JmpRelLabel(Label),
     JmpRel(i32),
-    JmpIfLabel(Label),
-    JmpRelIf(u32),
+    JmpRelIfLabel(Label),
+    JmpRelIf(i32),
     Load(Reg, Reg, u32),
     Store(Reg, Reg, u32),
     Noop,
     Halt,
     Label(Label),
-    Data(Vec<u8>),
+    Data(Rc<[u8]>),
     Comment(String),
     EmptyLine,
 }
 
-#[derive(Debug, Clone)]
+impl Command {
+    fn is_label(&self) -> bool {
+        match *self {
+            Command::Label(_) => true,
+            _ => false,
+        }
+    }
+
+    fn len(&self) -> u32 {
+        use self::Command::*;
+
+        match *self {
+            Label(_) | Comment(_) | EmptyLine => 0,
+            Data(ref data) => data.len() as u32,
+            _ => 4,
+        }
+    }
+
+    fn write_img(&self, img: &mut Vec<u8>, idx: u32, labels: &HashMap<Label, u32>) {
+        use self::Command::*;
+
+        let mut bytes = vec![0; 4];
+
+        match *self {
+            Add(dst, lhs, rhs) => {
+                let instr = Instruction::op(Op::Add).dst(dst).arg1(lhs).arg2(rhs).get();
+                LittleEndian::write_u32(&mut bytes, instr);
+            }
+            Sub(dst, lhs, rhs) => {
+                let instr = Instruction::op(Op::Sub).dst(dst).arg1(lhs).arg2(rhs).get();
+                LittleEndian::write_u32(&mut bytes, instr);
+            }
+            Mul(dst, lhs, rhs) => {
+                let instr = Instruction::op(Op::Mul).dst(dst).arg1(lhs).arg2(rhs).get();
+                LittleEndian::write_u32(&mut bytes, instr);
+            }
+            Div(dst, lhs, rhs) => {
+                let instr = Instruction::op(Op::Div).dst(dst).arg1(lhs).arg2(rhs).get();
+                LittleEndian::write_u32(&mut bytes, instr);
+            }
+            And(dst, lhs, rhs) => {
+                let instr = Instruction::op(Op::And).dst(dst).arg1(lhs).arg2(rhs).get();
+                LittleEndian::write_u32(&mut bytes, instr);
+            }
+            Or(dst, lhs, rhs) => {
+                let instr = Instruction::op(Op::Or).dst(dst).arg1(lhs).arg2(rhs).get();
+                LittleEndian::write_u32(&mut bytes, instr);
+            }
+            Not(dst, src) => {
+                let instr = Instruction::op(Op::Add).dst(dst).arg1(src).get();
+                LittleEndian::write_u32(&mut bytes, instr);
+            }
+            Xor(dst, lhs, rhs) => {
+                let instr = Instruction::op(Op::Xor).dst(dst).arg1(lhs).arg2(rhs).get();
+                LittleEndian::write_u32(&mut bytes, instr);
+            }
+            ShiftL(dst, lhs, rhs) => {
+                let instr = Instruction::op(Op::ShiftL)
+                    .dst(dst)
+                    .arg1(lhs)
+                    .arg2(rhs)
+                    .get();
+
+                LittleEndian::write_u32(&mut bytes, instr);
+            }
+            ShiftR(dst, lhs, rhs) => {
+                let instr = Instruction::op(Op::ShiftR)
+                    .dst(dst)
+                    .arg1(lhs)
+                    .arg2(rhs)
+                    .get();
+
+                LittleEndian::write_u32(&mut bytes, instr);
+            }
+            SignedShiftR(dst, lhs, rhs) => {
+                let instr = Instruction::op(Op::SignedShiftR)
+                    .dst(dst)
+                    .arg1(lhs)
+                    .arg2(rhs)
+                    .get();
+
+                LittleEndian::write_u32(&mut bytes, instr);
+            }
+            Copy(dst, src) => {
+                let instr = Instruction::op(Op::Copy).dst(dst).arg1(src).get();
+                LittleEndian::write_u32(&mut bytes, instr);
+            }
+            Set(dst, imm) => {
+                let instr = Instruction::op(Op::Set)
+                    .dst(dst)
+                    .immediate(imm, SET_IMMEDIATE_MAX.count_ones())
+                    .get();
+                LittleEndian::write_u32(&mut bytes, instr);
+            }
+            SetLabel(dst, ref label) => {
+                let instr = Instruction::op(Op::Set)
+                    .dst(dst)
+                    .immediate(labels[label], 21)
+                    .get();
+                LittleEndian::write_u32(&mut bytes, instr);
+            }
+            CmpEq(lhs, rhs) => {
+                let instr = Instruction::op(Op::CmpEq).arg1(lhs).arg2(rhs).get();
+                LittleEndian::write_u32(&mut bytes, instr);
+            }
+            CmpGt(lhs, rhs) => {
+                let instr = Instruction::op(Op::CmpGt).arg1(lhs).arg2(rhs).get();
+                LittleEndian::write_u32(&mut bytes, instr);
+            }
+            CmpGe(lhs, rhs) => {
+                let instr = Instruction::op(Op::CmpGe).arg1(lhs).arg2(rhs).get();
+                LittleEndian::write_u32(&mut bytes, instr);
+            }
+            Jmp(addr) => {
+                let instr = Instruction::op(Op::Jmp).dst(addr).get();
+                LittleEndian::write_u32(&mut bytes, instr);
+            }
+            JmpRelLabel(ref label) => {
+                let offset = labels[label] as i32 - idx as i32;
+
+                let instr = Instruction::op(Op::JmpRel)
+                    .signed_immediate(offset, JMP_REL_IMMEDIATE_MAX.count_ones())
+                    .get();
+
+                LittleEndian::write_u32(&mut bytes, instr);
+            }
+            JmpRel(offset) => {
+                let instr = Instruction::op(Op::JmpRel)
+                    .signed_immediate(offset, JMP_REL_IMMEDIATE_MAX.count_ones())
+                    .get();
+
+                LittleEndian::write_u32(&mut bytes, instr);
+            }
+            JmpRelIfLabel(ref label) => {
+                let offset = labels[label] as i32 - idx as i32;
+
+                let instr = Instruction::op(Op::JmpRelIf)
+                    .signed_immediate(offset, JMP_REL_IF_IMMEDIATE_MAX.count_ones())
+                    .get();
+
+                LittleEndian::write_u32(&mut bytes, instr);
+            }
+            JmpRelIf(offset) => {
+                let instr = Instruction::op(Op::JmpRelIf)
+                    .signed_immediate(offset, JMP_REL_IF_IMMEDIATE_MAX.count_ones())
+                    .get();
+                LittleEndian::write_u32(&mut bytes, instr);
+            }
+            Load(dst, src_addr, offset) => {
+                let instr = Instruction::op(Op::Load)
+                    .dst(dst)
+                    .arg1(src_addr)
+                    .immediate(offset, LOAD_IMMEDIATE_MAX.count_ones())
+                    .get();
+
+                LittleEndian::write_u32(&mut bytes, instr);
+            }
+            Store(dst_addr, src, offset) => {
+                let instr = Instruction::op(Op::Load)
+                    .dst(dst_addr)
+                    .arg1(src)
+                    .immediate(offset, STORE_IMMEDIATE_MAX.count_ones())
+                    .get();
+
+                LittleEndian::write_u32(&mut bytes, instr);
+            }
+            Noop => {
+                let instr = Instruction::op(Op::Noop).get();
+                LittleEndian::write_u32(&mut bytes, instr);
+            }
+            Halt => {
+                let instr = Instruction::op(Op::Halt).get();
+                LittleEndian::write_u32(&mut bytes, instr);
+            }
+            Label(_) => (),
+            Data(ref data) => {
+                bytes.clear();
+                bytes.extend_from_slice(data);
+            }
+            Comment(_) => (),
+            EmptyLine => (),
+        }
+
+        img.append(&mut bytes);
+    }
+}
+
+impl Display for Command {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use self::Command::*;
+
+        match *self {
+            Add(dst, lhs, rhs) => write!(f, "{} = {} + {}", dst, lhs, rhs),
+            Sub(dst, lhs, rhs) => write!(f, "{} = {} - {}", dst, lhs, rhs),
+            Mul(dst, lhs, rhs) => write!(f, "{} = {} * {}", dst, lhs, rhs),
+            Div(dst, lhs, rhs) => write!(f, "{} = {} / {}", dst, lhs, rhs),
+            And(dst, lhs, rhs) => write!(f, "{} = {} & {}", dst, lhs, rhs),
+            Or(dst, lhs, rhs) => write!(f, "{} = {} | {}", dst, lhs, rhs),
+            Not(dst, src) => write!(f, "{} = ~{}", dst, src,),
+            Xor(dst, lhs, rhs) => write!(f, "{} = {} ^ {}", dst, lhs, rhs),
+            ShiftL(dst, lhs, rhs) => write!(f, "{} = {} << {} times", dst, lhs, rhs),
+            ShiftR(dst, lhs, rhs) => write!(f, "{} = {} >> {} times", dst, lhs, rhs),
+            SignedShiftR(dst, lhs, rhs) => write!(f, "{} = {} >>_s {} times", dst, lhs, rhs),
+            Copy(dst, src) => write!(f, "copy {} to {}", src, dst,),
+            Set(dst, imm) => write!(f, "{} = {}", dst, imm,),
+            SetLabel(dst, ref label) => write!(f, "{} = {}", dst, label,),
+            CmpEq(lhs, rhs) => write!(f, "compare {} = {}", lhs, rhs,),
+            CmpGt(lhs, rhs) => write!(f, "compare {} > {}", lhs, rhs,),
+            CmpGe(lhs, rhs) => write!(f, "compare {} >= {}", lhs, rhs,),
+            Jmp(addr) => write!(f, "jump to {}", addr,),
+            JmpRelLabel(ref label) => write!(f, "jump_rel to {}", label,),
+            JmpRel(offset) => write!(f, "jump_rel to {}", offset,),
+            JmpRelIfLabel(ref label) => write!(f, "jump_rel_if to {}", label,),
+            JmpRelIf(offset) => write!(f, "jump_rel_if to {}", offset,),
+            Load(dst, src_addr, offset) => write!(f, "load {} + {} to {}", src_addr, offset, dst),
+            Store(dst_addr, src, offset) => write!(f, "store {} to {} + {}", src, dst_addr, offset),
+            Noop => write!(f, "noop"),
+            Halt => write!(f, "halt"),
+            Label(ref label) => write!(f, "_{}", label),
+            Data(ref data) => write!(f, "0x{}", hex::encode(data)),
+            Comment(ref comment) => write!(f, "# {}", comment),
+            EmptyLine => write!(f, ""),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Label(Rc<str>);
 
 impl Label {
@@ -147,6 +422,7 @@ impl Display for Reg {
 #[derive(Debug, PartialEq, Eq)]
 #[repr(u8)]
 #[rustfmt::skip]
+#[allow(unused)]
 enum Op {
     Add             = 0b_00000,
     Sub             = 0b_10111,
@@ -170,63 +446,75 @@ enum Op {
     JmpRelIf        = 0b_01001,
     Load            = 0b_01010,
     Store           = 0b_01011,
-    NoOp            = 0b_01100,
+    Noop            = 0b_01100,
     Halt            = 0b_01101,
 }
 
-impl Display for Command {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use self::Command::*;
+struct Instruction(u32);
 
-        match *self {
-            Add(dst, lhs, rhs) => write!(f, "{} = {} + {}", dst, lhs, rhs),
-            Sub(dst, lhs, rhs) => write!(f, "{} = {} - {}", dst, lhs, rhs),
-            Mul(dst, lhs, rhs) => write!(f, "{} = {} * {}", dst, lhs, rhs),
-            Div(dst, lhs, rhs) => write!(f, "{} = {} / {}", dst, lhs, rhs),
-            And(dst, lhs, rhs) => write!(f, "{} = {} & {}", dst, lhs, rhs),
-            Or(dst, lhs, rhs) => write!(f, "{} = {} | {}", dst, lhs, rhs),
-            Not(dst, src) => write!(f, "{} = ~{}", dst, src,),
-            Xor(dst, lhs, rhs) => write!(f, "{} = {} ^ {}", dst, lhs, rhs),
-            ShiftL(dst, lhs, rhs) => write!(f, "{} = {} << {} times", dst, lhs, rhs),
-            ShiftR(dst, lhs, rhs) => write!(f, "{} = {} >> {} times", dst, lhs, rhs),
-            SignedShiftR(dst, lhs, rhs) => write!(f, "{} = {} >>_s {} times", dst, lhs, rhs),
-            Copy(dst, src) => write!(f, "copy {} to {}", src, dst,),
-            Set(dst, imm) => write!(f, "{} = {}", dst, imm,),
-            SetLabel(dst, ref label) => write!(f, "{} = {}", dst, label,),
-            CmpEq(lhs, rhs) => write!(f, "compare {} = {}", lhs, rhs,),
-            CmpGt(lhs, rhs) => write!(f, "compare {} > {}", lhs, rhs,),
-            CmpGe(lhs, rhs) => write!(f, "compare {} >= {}", lhs, rhs,),
-            Jmp(addr) => write!(f, "jump to {}", addr,),
-            JmpLabel(ref label) => write!(f, "jump to {}", label,),
-            JmpRel(offset) => write!(f, "jump_rel to {}", offset,),
-            JmpIfLabel(ref label) => write!(f, "jump_if to {}", label,),
-            JmpRelIf(offset) => write!(f, "jump_rel_if to {}", offset,),
-            Load(dst, src_addr, offset) => write!(f, "load {} + {} to {}", src_addr, offset, dst),
-            Store(dst_addr, src, offset) => write!(f, "store {} to {} + {}", src, dst_addr, offset),
-            Noop => write!(f, "noop"),
-            Halt => write!(f, "halt"),
-            Label(ref label) => write!(f, "_{}", label),
-            Data(ref data) => write!(f, "0x{}", hex::encode(data)),
-            Comment(ref comment) => write!(f, "# {}", comment),
-            EmptyLine => write!(f, ""),
-        }
+impl Instruction {
+    fn op(op: Op) -> Instruction {
+        Instruction(set_op_code(0, op))
+    }
+
+    fn dst(self, reg: Reg) -> Instruction {
+        Instruction(set_reg(self.0, reg, RegPos::Dst))
+    }
+
+    fn arg1(self, reg: Reg) -> Instruction {
+        Instruction(set_reg(self.0, reg, RegPos::Arg1))
+    }
+
+    fn arg2(self, reg: Reg) -> Instruction {
+        Instruction(set_reg(self.0, reg, RegPos::Arg2))
+    }
+
+    fn immediate(self, imm: u32, num_bits: u32) -> Instruction {
+        Instruction(set_immediate(self.0, imm, num_bits))
+    }
+
+    fn signed_immediate(self, imm: i32, num_bits: u32) -> Instruction {
+        Instruction(set_signed_immediate(self.0, imm, num_bits))
+    }
+
+    fn get(self) -> u32 {
+        self.0
     }
 }
 
-pub fn emit_asm(asm: Asm) -> String {
-    let mut buf = String::new();
-    let mut label = None;
+// some of these constants should probably be shared with the simulator
+fn set_op_code(instr: u32, op: Op) -> u32 {
+    let op = op as u32;
+    instr | (op << 27)
+}
 
-    for cmd in asm.commands() {
-        if let Command::Label(_) = cmd {
-            label = Some(cmd);
-        } else {
-            match label.take() {
-                Some(label) => buf.push_str(&format!("{} {}\n", cmd, label)),
-                None => buf.push_str(&format!("{}\n", cmd.to_string())),
-            }
-        }
-    }
+enum RegPos {
+    Dst,
+    Arg1,
+    Arg2,
+}
 
-    buf
+fn set_reg(instr: u32, reg: Reg, pos: RegPos) -> u32 {
+    let shift_by = match pos {
+        RegPos::Dst => 21,
+        RegPos::Arg1 => 15,
+        RegPos::Arg2 => 9,
+    };
+
+    instr | ((reg as u32) << shift_by)
+}
+
+fn set_immediate(instr: u32, imm: u32, num_bits: u32) -> u32 {
+    assert!(num_bits <= 32);
+    let imm_max = u32::max_value() >> (32 - num_bits);
+    assert!(imm <= imm_max);
+    instr | imm
+}
+
+fn set_signed_immediate(instr: u32, imm: i32, num_bits: u32) -> u32 {
+    assert!(num_bits <= 32);
+    let imm_max = u32::max_value() >> (32 - num_bits);
+    let imm = (imm as u32) & imm_max;
+
+    instr | imm
 }

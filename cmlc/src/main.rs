@@ -40,17 +40,25 @@ impl Display for Error {
     }
 }
 
+/// Compiles cml programs
 #[derive(StructOpt)]
 struct Args {
     /// The source file to compile
     #[structopt(parse(from_os_str))]
     src: PathBuf,
+
+    /// A file the compiler will use for the output
+    #[structopt(short = "o", long = "--output", parse(from_os_str))]
+    output: PathBuf,
+
+    /// Only emit assembler code, do not compile to an image
+    #[structopt(long = "--emit-asm")]
+    emit_asm: bool,
 }
 
 fn main() {
     match run() {
-        Ok(true) => process::exit(0),
-        Ok(false) => process::exit(1),
+        Ok(code) => process::exit(code),
         Err(why) => {
             eprintln!("{}", why);
             process::exit(-1);
@@ -58,31 +66,36 @@ fn main() {
     }
 }
 
-fn run() -> Result<bool, io::Error> {
+fn run() -> Result<i32, io::Error> {
     let args = Args::from_args();
 
     let mut code_map = CodeMap::new();
     let src = fs::read_to_string(&args.src)?;
     let file_map = code_map.add_filemap(FileName::Real(args.src), src);
 
-    match compile(&file_map) {
-        Ok(_) => Ok(true),
+    match compile(&file_map, args.emit_asm) {
+        Ok(output) => {
+            fs::write(args.output, output)?;
+            Ok(0)
+        }
         Err(why) => {
             print_error(why, &code_map)?;
-            Ok(false)
+            Ok(1)
         }
     }
 }
 
-fn compile(file_map: &FileMap) -> Result<(), Spanned<Error>> {
+fn compile(file_map: &FileMap, emit_asm: bool) -> Result<Vec<u8>, Spanned<Error>> {
     let tokens = lexer::lex(file_map.src()).map_err(|spanned| spanned.map(Error::Lex))?;
     let ast = parser::parse(&tokens).map_err(|spanned| spanned.map(Error::Parse))?;
     let typed_ast = typecheck::typecheck(ast).map_err(|spanned| spanned.map(Error::Type))?;
     let asm = codegen::gen_asm(typed_ast).map_err(|spanned| spanned.map(Error::Codegen))?;
-    let asm_src = emit::emit_asm(asm);
-    println!("{}", asm_src);
 
-    Ok(())
+    if emit_asm {
+        Ok(emit::emit_asm(asm).into_bytes())
+    } else {
+        Ok(emit::emit_object(asm))
+    }
 }
 
 fn print_error<E>(error: Spanned<E>, code_map: &CodeMap) -> Result<(), io::Error>

@@ -1,8 +1,6 @@
 use crate::ast::*;
-use crate::codegen::{
-    CodegenError, FRAME_PTR_REG, LOAD_IMMEDIATE_MAX, STORE_IMMEDIATE_MAX, TMP_OP_REG, TMP_REG,
-};
-use crate::emit::{Label, Reg};
+use crate::codegen::{CodegenError, FRAME_PTR_REG, TMP_OP_REG, TMP_REG};
+use crate::emit::{Label, Reg, LOAD_IMMEDIATE_MAX, STORE_IMMEDIATE_MAX};
 use crate::typecheck::{Type, TypeDesc, TypeRef};
 use derive_more::{Add, AddAssign, Sub};
 use fnv::FnvHashMap;
