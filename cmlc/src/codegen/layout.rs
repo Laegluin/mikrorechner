@@ -365,14 +365,12 @@ impl StackValue {
 
 pub struct StackAllocator {
     frame_offset: StackOffset,
-    scopes: Vec<StackOffset>,
 }
 
 impl StackAllocator {
     pub fn new() -> StackAllocator {
         StackAllocator {
             frame_offset: StackOffset(0),
-            scopes: Vec::new(),
         }
     }
 
@@ -394,17 +392,6 @@ impl StackAllocator {
     /// next allocated value would start.
     pub fn frame_offset(&self) -> StackOffset {
         self.frame_offset
-    }
-
-    pub fn enter_scope(&mut self) {
-        self.scopes.push(self.frame_offset);
-    }
-
-    pub fn exit_scope(&mut self) {
-        self.frame_offset = self
-            .scopes
-            .pop()
-            .unwrap_or_else(|| panic!("cannot exit global scope"));
     }
 }
 
@@ -438,14 +425,12 @@ impl RegValue {
 
 pub struct RegAllocator {
     free_regs: Vec<Reg>,
-    scopes: Vec<Vec<Reg>>,
 }
 
 impl RegAllocator {
     pub fn new() -> RegAllocator {
         RegAllocator {
             free_regs: Reg::iter().filter(Reg::is_general_purpose).collect(),
-            scopes: Vec::new(),
         }
     }
 
@@ -466,16 +451,5 @@ impl RegAllocator {
         Reg::iter()
             .filter(Reg::is_general_purpose)
             .filter(move |reg| !self.free_regs.contains(reg))
-    }
-
-    pub fn enter_scope(&mut self) {
-        self.scopes.push(self.free_regs.clone());
-    }
-
-    pub fn exit_scope(&mut self) {
-        self.free_regs = self
-            .scopes
-            .pop()
-            .unwrap_or_else(|| panic!("cannot exit global scope"));
     }
 }

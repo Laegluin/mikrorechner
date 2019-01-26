@@ -221,18 +221,6 @@ impl FnContext<'_> {
             .get_or_gen(ty, self.ast)
             .map_err(|err| Spanned::new(err, at))
     }
-
-    fn enter_scope(&mut self) {
-        self.regs.enter_scope();
-        self.stack.enter_scope();
-        self.bindings.enter_scope();
-    }
-
-    fn exit_scope(&mut self) {
-        self.regs.exit_scope();
-        self.stack.exit_scope();
-        self.bindings.exit_scope();
-    }
 }
 
 fn gen_fn(
@@ -249,10 +237,7 @@ fn gen_fn(
         .label()
         .clone();
 
-    let mut regs = RegAllocator::new();
     let mut stack = StackAllocator::new();
-    regs.enter_scope();
-    stack.enter_scope();
     bindings.enter_scope();
 
     // reserve the space used by the return address
@@ -284,7 +269,7 @@ fn gen_fn(
         ret_addr: &ret_addr,
         ret_value: &ret_value,
         ret_layout: &ret_layout,
-        regs,
+        regs: RegAllocator::new(),
         stack,
         bindings,
         layouts,
@@ -301,7 +286,7 @@ fn gen_fn(
     asm.push(Command::Jmp(TMP_REG));
     asm.push(Command::EmptyLine);
 
-    ctx.exit_scope();
+    ctx.bindings.exit_scope();
     Ok(())
 }
 
@@ -571,8 +556,6 @@ fn gen_expr(
                 arg_values.push((arg_value, arg_layout));
             }
 
-            ctx.stack.enter_scope();
-
             // save the registers; we can do this in the new scope, since
             // we don't need them after restoring them again
             for reg in ctx.regs.allocated_regs() {
@@ -604,8 +587,6 @@ fn gen_expr(
                 copy(&arg_value, &value, &arg_layout, asm);
             }
 
-            ctx.stack.exit_scope();
-
             // set the frame pointer, load the function address and then call the function
             asm.push(Command::Set(TMP_REG, new_frame_offset.0));
             asm.push(Command::Add(FRAME_PTR_REG, FRAME_PTR_REG, TMP_REG));
@@ -618,17 +599,10 @@ fn gen_expr(
             asm.push(Command::Set(TMP_REG, new_frame_offset.0));
             asm.push(Command::Sub(FRAME_PTR_REG, FRAME_PTR_REG, TMP_REG));
 
-            // restore the saved registers using the temporary values saved to the stack
-            // just before the called functions's frame, then throw away the allocations
-            // to allow overwriting the no longer needed values
-            ctx.stack.enter_scope();
-
             for reg in ctx.regs.allocated_regs() {
                 let save = Value::Stack(ctx.stack.alloc(&Layout::word()));
                 copy(&save, &Value::reg(reg), &Layout::word(), asm);
             }
-
-            ctx.stack.exit_scope();
 
             // copy the result to the target (we cannot build in place because the result
             // might be discarded, but the called function does not know that)
@@ -792,7 +766,7 @@ fn gen_expr(
             asm.push(Command::Label(end_if_label));
         }
         Expr::Block(Block { ref exprs, .. }, _) => {
-            ctx.enter_scope();
+            ctx.bindings.enter_scope();
 
             for expr in exprs.iter().rev().skip(1).rev() {
                 gen_expr(
@@ -808,7 +782,7 @@ fn gen_expr(
                 gen_expr(expr.as_ref(), &result_value, &result_layout, ctx, asm)?;
             }
 
-            ctx.exit_scope();
+            ctx.bindings.exit_scope();
         }
         Expr::ConstructRecord(ref ty) => {
             // reinterpret the args as the return type, then copy it into the return value
