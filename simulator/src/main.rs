@@ -168,7 +168,10 @@ fn listen_for_events(printer: Arc<Printer>, sim: &CtrlHandle) {
             }
             Response::NextInstrAddrValue(addr) => displayln!(printer, "{}", support::to_hex(addr)),
             Response::CmpFlagValue(flag) => displayln!(printer, "{}", flag),
-            Response::MemRange(bytes) => displayln!(printer, "{}", support::to_hex_octets(&bytes)),
+            Response::MemRange(bytes) => {
+                displayln!(printer, "bytes: {}", support::to_hex_octets(&bytes));
+                displayln!(printer, "utf-8: {}", String::from_utf8_lossy(&bytes));
+            }
             Response::InvalidRequest(why) => displayln!(printer, "error: {}", why),
         }
     }
