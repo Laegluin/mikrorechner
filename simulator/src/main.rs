@@ -5,7 +5,7 @@ mod support;
 mod vm;
 
 use crate::asm::AsmError;
-use crate::memory::{Memory, Word};
+use crate::memory::{Access, Memory, Word};
 use crate::simulation::{CtrlHandle, Request, Response, SimError};
 use crate::vm::{Breakpoints, Reg, Status, VmError};
 use linefeed::ReadResult;
@@ -120,7 +120,7 @@ fn run(args: Args) -> Result<(), CliError> {
     }
 
     let mut mem = Memory::new();
-    mem.store(0, &img).map_err(VmError::new)?;
+    mem.store(0, &img, Access::All).map_err(VmError::new)?;
 
     let sim = simulation::start(mem, Breakpoints::new(), args.start_paused)?;
 

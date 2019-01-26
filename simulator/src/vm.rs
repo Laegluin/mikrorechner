@@ -42,6 +42,11 @@ impl Display for VmError {
                 "attempt to read from uninitialized memory at {}",
                 to_hex(addr),
             ),
+            ErrorKind::ReadOnlyMemoryWriteAccess(addr) => write!(
+                f,
+                "attempt to write to read-only memory at {}",
+                to_hex(addr),
+            ),
             ErrorKind::OutOfBoundsMemoryAccess(addr, len) => write!(
                 f,
                 "out of bounds memory access with length {} at {}",
@@ -64,6 +69,7 @@ pub enum ErrorKind {
     IllegalInstruction(Word),
     IllegalRegister(u8),
     UninitializedMemoryAccess(Word),
+    ReadOnlyMemoryWriteAccess(Word),
     OutOfBoundsMemoryAccess(Word, usize),
     DivideByZero,
 }

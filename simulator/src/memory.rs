@@ -11,6 +11,7 @@ pub const WORD_BITS: Word = WORD_BYTES * 8;
 pub const OP_CODE_BITS: Word = 5;
 pub const REG_REF_BITS: Word = 6;
 
+const WRITABLE_MEM_START_ADDR: Word = 0x80000000;
 const PAGE_LEN: usize = 4096;
 const LEVEL_1_TABLE_LEN: usize = 1024;
 const LEVEL_2_TABLE_LEN: usize = 1024;
@@ -23,6 +24,15 @@ const LEVEL_2_TABLE_LEN: usize = 1024;
 pub struct Memory {
     init_value: u8,
     page_table: Level2Table,
+}
+
+/// Regulates access rights to a memory location. This is needed because the VM initialization
+/// needs more rights than actually allowed during execution (for example to load the image).
+pub enum Access {
+    /// Allow writes to all memory locations.
+    All,
+    /// Only allow writes to memory that is not read-only.
+    Protected,
 }
 
 impl Memory {
@@ -39,17 +49,27 @@ impl Memory {
     pub fn store_word(&mut self, addr: Word, value: Word) -> Result<(), vm::ErrorKind> {
         let mut bytes = [0; WORD_BYTES as usize];
         LittleEndian::write_u32(&mut bytes, value);
-        self.store(addr, &bytes)
+        self.store(addr, &bytes, Access::Protected)
     }
 
-    /// Stores the contents of `buf` into memory, starting at `addr`.
+    /// Stores the contents of `buf` into memory, starting at `addr`. Accesses the memory
+    /// with the given mode.
     ///
     /// ## Panics
     /// Panics if `addr + buf.len()` would cause an overflow.
-    pub fn store(&mut self, addr: Word, buf: &[u8]) -> Result<(), vm::ErrorKind> {
+    pub fn store(&mut self, addr: Word, buf: &[u8], access: Access) -> Result<(), vm::ErrorKind> {
         // make sure the address does not overflow
         if buf.len() > (Word::max_value() - addr) as usize {
             return Err(vm::ErrorKind::OutOfBoundsMemoryAccess(addr, buf.len()));
+        }
+
+        match access {
+            Access::All => (),
+            Access::Protected => {
+                if addr < WRITABLE_MEM_START_ADDR {
+                    return Err(vm::ErrorKind::ReadOnlyMemoryWriteAccess(addr));
+                }
+            }
         }
 
         let mut ptr = addr;
@@ -180,8 +200,8 @@ mod test {
         assert!(mem.mem_ref(0, 100).1);
 
         let mut mem = Memory::new();
-        mem.store(0, &[0; 10]).unwrap();
-        mem.store(10, &[1; 10]).unwrap();
+        mem.store(0, &[0; 10], Access::All).unwrap();
+        mem.store(10, &[1; 10], Access::All).unwrap();
         assert_eq!(mem.mem_ref(0, 10), (&mut *vec![0; 10], false));
         assert_eq!(mem.mem_ref(10, 10), (&mut *vec![1; 10], false));
 
@@ -198,7 +218,8 @@ mod test {
     #[should_panic]
     fn store_panic_on_overflow() {
         let mut mem = Memory::new();
-        mem.store(Word::max_value(), &[1, 2, 3, 4]).unwrap();
+        mem.store(Word::max_value(), &[1, 2, 3, 4], Access::All)
+            .unwrap();
     }
 
     #[test]
@@ -216,7 +237,7 @@ mod test {
 
         // simple load and store
         let mut mem = Memory::new();
-        mem.store(0, &[1, 2, 3, 4]).unwrap();
+        mem.store(0, &[1, 2, 3, 4], Access::All).unwrap();
 
         let mut buf = vec![0; 4];
         mem.load(0, &mut buf).unwrap();
@@ -227,7 +248,7 @@ mod test {
 
         // load and store across page boundaries
         let mut mem = Memory::new();
-        mem.store(PAGE_LEN as Word - 3, &[1, 2, 3, 4, 5, 6])
+        mem.store(PAGE_LEN as Word - 3, &[1, 2, 3, 4, 5, 6], Access::All)
             .unwrap();
         let mut buf = vec![0; 6];
         mem.load(PAGE_LEN as Word - 3, &mut buf).unwrap();

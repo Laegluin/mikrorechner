@@ -1,4 +1,4 @@
-use crate::memory::{Memory, Word};
+use crate::memory::{ Memory, Word};
 use crate::vm::{self, Breakpoints, Reg, RegBank, Status, VmError};
 use crossbeam_channel::{self, Receiver, Sender};
 use std::fmt::{self, Display};
@@ -438,6 +438,7 @@ impl Display for State {
 mod test {
     use super::*;
     use crate::asm;
+    use crate::memory::Access;
     use crate::vm::{ErrorKind, Reg};
     use std::io::Cursor;
 
@@ -448,7 +449,7 @@ mod test {
         asm::assemble(src, &mut img).unwrap();
 
         let mut mem = Memory::new();
-        mem.store(0, &img).unwrap();
+        mem.store(0, &img, Access::All).unwrap();
         let (regs, _) = run(mem, Breakpoints::new()).unwrap();
 
         assert_eq!(regs[Reg::R0], 500);
@@ -462,7 +463,7 @@ mod test {
         asm::assemble(src, &mut img).unwrap();
 
         let mut mem = Memory::new();
-        mem.store(0, &img).unwrap();
+        mem.store(0, &img, Access::All).unwrap();
 
         // place breakpoint inside of the loop
         let mut breaks = Breakpoints::new();
@@ -478,7 +479,7 @@ mod test {
         asm::assemble(src, &mut img).unwrap();
 
         let mut mem = Memory::new();
-        mem.store(0, &img).unwrap();
+        mem.store(0, &img, Access::All).unwrap();
 
         match run(mem, Breakpoints::new()) {
             Err(SimError::Vm(VmError {
@@ -497,7 +498,7 @@ mod test {
         asm::assemble(src, &mut img).unwrap();
 
         let mut mem = Memory::new();
-        mem.store(0, &img).unwrap();
+        mem.store(0, &img, Access::All).unwrap();
 
         run(mem, Breakpoints::new()).unwrap();
     }
