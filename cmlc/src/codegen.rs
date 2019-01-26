@@ -32,8 +32,10 @@ pub const ENTRY_POINT: &str = "main";
 
 const STACK_START_ADDR: u32 = 0x80000000;
 const FRAME_PTR_REG: Reg = Reg::R31;
-const TMP_REG: Reg = Reg::R0;
-const TMP_OP_REG: Reg = Reg::R1;
+const TMP1_REG: Reg = Reg::R0;
+const TMP2_REG: Reg = Reg::R1;
+const TMP_COPY1_REG: Reg = Reg::R2;
+const TMP_COPY2_REG: Reg = Reg::R3;
 
 #[derive(Debug)]
 pub enum CodegenError {
@@ -156,11 +158,11 @@ fn gen_rt_start(asm: &mut Asm, bindings: &ScopeMap<Ident, Value>) {
         // set addr_offset to 0
         Command::Set(Reg::AddrOffset, 0),
         // initialize the stack
-        Command::SetLabel(TMP_REG, stack_start),
-        Command::Load(FRAME_PTR_REG, TMP_REG, 0),
+        Command::SetLabel(TMP1_REG, stack_start),
+        Command::Load(FRAME_PTR_REG, TMP1_REG, 0),
         // set the return address to the last instruction in rt_start (halt)
-        Command::SetLabel(TMP_REG, exit.clone()),
-        Command::Store(FRAME_PTR_REG, TMP_REG, 0),
+        Command::SetLabel(TMP1_REG, exit.clone()),
+        Command::Store(FRAME_PTR_REG, TMP1_REG, 0),
         // call main
         Command::JmpRelLabel(entry_point),
         Command::Label(exit),
@@ -283,8 +285,8 @@ fn gen_fn(
     gen_expr(def.body.as_ref(), &mut result, &mut ctx, asm)?;
 
     // return to caller (needed if there is no explicit return)
-    copy(&ret_addr, &Value::reg(TMP_REG), &Layout::word(), asm);
-    asm.push(Command::Jmp(TMP_REG));
+    copy(&ret_addr, &Value::reg(TMP1_REG), &Layout::word(), asm);
+    asm.push(Command::Jmp(TMP1_REG));
     asm.push(Command::EmptyLine);
 
     ctx.bindings.exit_scope();
@@ -345,40 +347,40 @@ fn gen_expr(
                 if let Some(reg) = result.or_alloc(ctx).try_get_reg() {
                     asm.push(Command::Set(reg, value));
                 } else {
-                    asm.push(Command::Set(TMP_REG, value));
-                    result.assign(Value::reg(TMP_REG), asm);
+                    asm.push(Command::Set(TMP1_REG, value));
+                    result.assign(Value::reg(TMP1_REG), asm);
                 }
             }
             Lit::Int(value) if value <= SET_IMMEDIATE_MAX => {
                 if let Some(reg) = result.or_alloc(ctx).try_get_reg() {
                     asm.push(Command::Set(reg, value));
                 } else {
-                    asm.push(Command::Set(TMP_REG, value));
-                    result.assign(Value::reg(TMP_REG), asm);
+                    asm.push(Command::Set(TMP1_REG, value));
+                    result.assign(Value::reg(TMP1_REG), asm);
                 }
             }
             Lit::Int(value) => {
                 let value = asm.push_const_u32(value);
 
                 if let Some(reg) = result.or_alloc(ctx).try_get_reg() {
-                    asm.push(Command::SetLabel(TMP_REG, value.label().clone()));
-                    asm.push(Command::Load(reg, TMP_REG, 0));
+                    asm.push(Command::SetLabel(TMP1_REG, value.label().clone()));
+                    asm.push(Command::Load(reg, TMP1_REG, 0));
                 } else {
-                    asm.push(Command::SetLabel(TMP_REG, value.label().clone()));
-                    asm.push(Command::Load(TMP_REG, TMP_REG, 0));
-                    result.assign(Value::reg(TMP_REG), asm);
+                    asm.push(Command::SetLabel(TMP1_REG, value.label().clone()));
+                    asm.push(Command::Load(TMP1_REG, TMP1_REG, 0));
+                    result.assign(Value::reg(TMP1_REG), asm);
                 }
             }
             Lit::Str(ref string) => {
                 let value = asm.push_const(string.as_bytes());
 
                 if let Some(reg) = result.or_alloc(ctx).try_get_reg() {
-                    asm.push(Command::SetLabel(TMP_REG, value.label().clone()));
-                    asm.push(Command::Load(reg, TMP_REG, 0));
+                    asm.push(Command::SetLabel(TMP1_REG, value.label().clone()));
+                    asm.push(Command::Load(reg, TMP1_REG, 0));
                 } else {
-                    asm.push(Command::SetLabel(TMP_REG, value.label().clone()));
-                    asm.push(Command::Load(TMP_REG, TMP_REG, 0));
-                    result.assign(Value::reg(TMP_REG), asm);
+                    asm.push(Command::SetLabel(TMP1_REG, value.label().clone()));
+                    asm.push(Command::Load(TMP1_REG, TMP1_REG, 0));
+                    result.assign(Value::reg(TMP1_REG), asm);
                 }
             }
         },
@@ -391,24 +393,24 @@ fn gen_expr(
                 UnOpKind::Not => {
                     gen_expr(
                         operand.as_ref().map(Box::as_ref),
-                        &mut ExprResult::copy_to(Value::reg(TMP_REG), Layout::word()),
+                        &mut ExprResult::copy_to(Value::reg(TMP1_REG), Layout::word()),
                         ctx,
                         asm,
                     )?;
 
-                    asm.push(Command::Not(TMP_REG, TMP_REG));
-                    result.assign(Value::reg(TMP_REG), asm);
+                    asm.push(Command::Not(TMP1_REG, TMP1_REG));
+                    result.assign(Value::reg(TMP1_REG), asm);
                 }
                 UnOpKind::Negate => {
                     gen_expr(
                         operand.as_ref().map(Box::as_ref),
-                        &mut ExprResult::copy_to(Value::reg(TMP_REG), Layout::word()),
+                        &mut ExprResult::copy_to(Value::reg(TMP1_REG), Layout::word()),
                         ctx,
                         asm,
                     )?;
 
-                    asm.push(Command::Sub(TMP_REG, Reg::Null, TMP_REG));
-                    result.assign(Value::reg(TMP_REG), asm);
+                    asm.push(Command::Sub(TMP1_REG, Reg::Null, TMP1_REG));
+                    result.assign(Value::reg(TMP1_REG), asm);
                 }
                 UnOpKind::AddrOf | UnOpKind::AddrOfMut => {
                     // allocate the value on the stack, so we can generate a pointer to it
@@ -424,9 +426,9 @@ fn gen_expr(
                     )?;
 
                     // set the pointer and assign it to the result
-                    asm.push(Command::Set(TMP_REG, operand_offset.0));
-                    asm.push(Command::Add(TMP_REG, FRAME_PTR_REG, TMP_REG));
-                    result.assign(Value::reg(TMP_REG), asm);
+                    asm.push(Command::Set(TMP1_REG, operand_offset.0));
+                    asm.push(Command::Add(TMP1_REG, FRAME_PTR_REG, TMP1_REG));
+                    result.assign(Value::reg(TMP1_REG), asm);
                 }
                 UnOpKind::Deref => {
                     // load the pointer and assign it to the result value
@@ -451,74 +453,74 @@ fn gen_expr(
             let result_reg = match result.or_alloc(ctx).try_get_reg() {
                 Some(reg) => reg,
                 None => {
-                    result.assign(Value::reg(TMP_REG), asm);
-                    TMP_REG
+                    result.assign(Value::reg(TMP1_REG), asm);
+                    TMP1_REG
                 }
             };
 
             gen_expr(
                 lhs.as_ref().map(Box::as_ref),
-                &mut ExprResult::copy_to(Value::reg(TMP_REG), Layout::word()),
+                &mut ExprResult::copy_to(Value::reg(TMP1_REG), Layout::word()),
                 ctx,
                 asm,
             )?;
 
             gen_expr(
                 rhs.as_ref().map(Box::as_ref),
-                &mut ExprResult::copy_to(Value::reg(TMP_OP_REG), Layout::word()),
+                &mut ExprResult::copy_to(Value::reg(TMP2_REG), Layout::word()),
                 ctx,
                 asm,
             )?;
 
             match op {
-                BinOpKind::Or => asm.push(Command::Or(result_reg, TMP_REG, TMP_OP_REG)),
-                BinOpKind::And => asm.push(Command::And(result_reg, TMP_REG, TMP_OP_REG)),
+                BinOpKind::Or => asm.push(Command::Or(result_reg, TMP1_REG, TMP2_REG)),
+                BinOpKind::And => asm.push(Command::And(result_reg, TMP1_REG, TMP2_REG)),
                 BinOpKind::Eq => {
-                    asm.push(Command::CmpEq(TMP_REG, TMP_OP_REG));
+                    asm.push(Command::CmpEq(TMP1_REG, TMP2_REG));
                     asm.push(Command::JmpRelIf(12));
                     asm.push(Command::Set(result_reg, 0));
                     asm.push(Command::JmpRel(8));
                     asm.push(Command::Set(result_reg, 1));
                 }
                 BinOpKind::Ne => {
-                    asm.push(Command::CmpEq(TMP_REG, TMP_OP_REG));
+                    asm.push(Command::CmpEq(TMP1_REG, TMP2_REG));
                     asm.push(Command::JmpRelIf(12));
                     asm.push(Command::Set(result_reg, 1));
                     asm.push(Command::JmpRel(8));
                     asm.push(Command::Set(result_reg, 0));
                 }
                 BinOpKind::Lt => {
-                    asm.push(Command::CmpGe(TMP_REG, TMP_OP_REG));
+                    asm.push(Command::CmpGe(TMP1_REG, TMP2_REG));
                     asm.push(Command::JmpRelIf(12));
                     asm.push(Command::Set(result_reg, 1));
                     asm.push(Command::JmpRel(8));
                     asm.push(Command::Set(result_reg, 0));
                 }
                 BinOpKind::Le => {
-                    asm.push(Command::CmpGt(TMP_REG, TMP_OP_REG));
+                    asm.push(Command::CmpGt(TMP1_REG, TMP2_REG));
                     asm.push(Command::JmpRelIf(12));
                     asm.push(Command::Set(result_reg, 1));
                     asm.push(Command::JmpRel(8));
                     asm.push(Command::Set(result_reg, 0));
                 }
                 BinOpKind::Gt => {
-                    asm.push(Command::CmpGt(TMP_REG, TMP_OP_REG));
+                    asm.push(Command::CmpGt(TMP1_REG, TMP2_REG));
                     asm.push(Command::JmpRelIf(12));
                     asm.push(Command::Set(result_reg, 0));
                     asm.push(Command::JmpRel(8));
                     asm.push(Command::Set(result_reg, 1));
                 }
                 BinOpKind::Ge => {
-                    asm.push(Command::CmpGe(TMP_REG, TMP_OP_REG));
+                    asm.push(Command::CmpGe(TMP1_REG, TMP2_REG));
                     asm.push(Command::JmpRelIf(12));
                     asm.push(Command::Set(result_reg, 0));
                     asm.push(Command::JmpRel(8));
                     asm.push(Command::Set(result_reg, 1));
                 }
-                BinOpKind::Add => asm.push(Command::Add(result_reg, TMP_REG, TMP_OP_REG)),
-                BinOpKind::Sub => asm.push(Command::Sub(result_reg, TMP_REG, TMP_OP_REG)),
-                BinOpKind::Mul => asm.push(Command::Mul(result_reg, TMP_REG, TMP_OP_REG)),
-                BinOpKind::Div => asm.push(Command::Div(result_reg, TMP_REG, TMP_OP_REG)),
+                BinOpKind::Add => asm.push(Command::Add(result_reg, TMP1_REG, TMP2_REG)),
+                BinOpKind::Sub => asm.push(Command::Sub(result_reg, TMP1_REG, TMP2_REG)),
+                BinOpKind::Mul => asm.push(Command::Mul(result_reg, TMP1_REG, TMP2_REG)),
+                BinOpKind::Div => asm.push(Command::Div(result_reg, TMP1_REG, TMP2_REG)),
             }
         }
         // TODO: clean up the allocations
@@ -561,10 +563,10 @@ fn gen_expr(
             );
 
             // write the address for the return value
-            asm.push(Command::Set(TMP_REG, ret_value.offset().0));
-            asm.push(Command::Add(TMP_REG, FRAME_PTR_REG, TMP_REG));
+            asm.push(Command::Set(TMP1_REG, ret_value.offset().0));
+            asm.push(Command::Add(TMP1_REG, FRAME_PTR_REG, TMP1_REG));
             let ret_value_addr = Value::Stack(ctx.stack.alloc(&Layout::word()));
-            copy(&Value::reg(TMP_REG), &ret_value_addr, &Layout::word(), asm);
+            copy(&Value::reg(TMP1_REG), &ret_value_addr, &Layout::word(), asm);
 
             // copy the args to the new stack frame
             for (arg_value, arg_layout) in arg_values {
@@ -573,16 +575,16 @@ fn gen_expr(
             }
 
             // set the frame pointer, load the function address and then call the function
-            asm.push(Command::Set(TMP_REG, new_frame_offset.0));
-            asm.push(Command::Add(FRAME_PTR_REG, FRAME_PTR_REG, TMP_REG));
+            asm.push(Command::Set(TMP1_REG, new_frame_offset.0));
+            asm.push(Command::Add(FRAME_PTR_REG, FRAME_PTR_REG, TMP1_REG));
             let fn_ptr = ctx.bindings.path_get(&call.name.value).unwrap();
-            copy(fn_ptr, &Value::reg(TMP_REG), &Layout::word(), asm);
-            asm.push(Command::Jmp(TMP_REG));
+            copy(fn_ptr, &Value::reg(TMP1_REG), &Layout::word(), asm);
+            asm.push(Command::Jmp(TMP1_REG));
 
             // restore the frame pointer
             asm.push(Command::Label(ret_addr_label));
-            asm.push(Command::Set(TMP_REG, new_frame_offset.0));
-            asm.push(Command::Sub(FRAME_PTR_REG, FRAME_PTR_REG, TMP_REG));
+            asm.push(Command::Set(TMP1_REG, new_frame_offset.0));
+            asm.push(Command::Sub(FRAME_PTR_REG, FRAME_PTR_REG, TMP1_REG));
 
             for reg in ctx.regs.allocated_regs() {
                 let save = Value::Stack(ctx.stack.alloc(&Layout::word()));
@@ -693,8 +695,8 @@ fn gen_expr(
             }
 
             // jump to caller
-            copy(&ctx.ret_addr, &Value::reg(TMP_REG), &Layout::word(), asm);
-            asm.push(Command::Jmp(TMP_REG));
+            copy(&ctx.ret_addr, &Value::reg(TMP1_REG), &Layout::word(), asm);
+            asm.push(Command::Jmp(TMP1_REG));
         }
         Expr::IfExpr(
             IfExpr {
@@ -706,13 +708,13 @@ fn gen_expr(
         ) => {
             gen_expr(
                 cond.as_ref().map(Box::as_ref),
-                &mut ExprResult::copy_to(Value::reg(TMP_REG), Layout::word()),
+                &mut ExprResult::copy_to(Value::reg(TMP1_REG), Layout::word()),
                 ctx,
                 asm,
             )?;
 
             let else_label = LabelValue::new("else").label().clone();
-            asm.push(Command::CmpEq(TMP_REG, Reg::Null));
+            asm.push(Command::CmpEq(TMP1_REG, Reg::Null));
             asm.push(Command::JmpRelIfLabel(else_label.clone()));
 
             gen_expr(then_block.as_ref().map(Box::as_ref), result, ctx, asm)?;
@@ -787,13 +789,13 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
             asm.push(Command::SetLabel(dst.reg(), src.label().clone()));
         }
         (Value::Label(ref src), Value::Stack(ref dst)) => {
-            asm.push(Command::SetLabel(TMP_REG, src.label().clone()));
-            asm.push(Command::Store(FRAME_PTR_REG, TMP_REG, dst.offset().0));
+            asm.push(Command::SetLabel(TMP_COPY1_REG, src.label().clone()));
+            asm.push(Command::Store(FRAME_PTR_REG, TMP_COPY1_REG, dst.offset().0));
         }
         (Value::Label(ref src), Value::Ptr(ref dst)) => {
-            copy(dst, &Value::reg(TMP_REG), &Layout::word(), asm);
-            asm.push(Command::SetLabel(TMP_OP_REG, src.label().clone()));
-            asm.push(Command::Store(TMP_REG, TMP_OP_REG, 0));
+            copy(dst, &Value::reg(TMP_COPY1_REG), &Layout::word(), asm);
+            asm.push(Command::SetLabel(TMP_COPY2_REG, src.label().clone()));
+            asm.push(Command::Store(TMP_COPY1_REG, TMP_COPY2_REG, 0));
         }
         (Value::Stack(ref src), Value::Reg(ref dst)) => {
             assert!(layout.is_uniform());
@@ -819,14 +821,14 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
                 let src_offset = src.offset() + offset;
                 let dst_offset = dst.offset() + offset;
 
-                asm.push(Command::Load(TMP_REG, FRAME_PTR_REG, src_offset.0));
-                asm.push(Command::Store(FRAME_PTR_REG, TMP_REG, dst_offset.0));
+                asm.push(Command::Load(TMP_COPY1_REG, FRAME_PTR_REG, src_offset.0));
+                asm.push(Command::Store(FRAME_PTR_REG, TMP_COPY1_REG, dst_offset.0));
             }
         }
         (Value::Stack(ref src), Value::Ptr(ref dst)) => {
-            copy(dst, &Value::reg(TMP_REG), &Layout::word(), asm);
-            asm.push(Command::Load(TMP_OP_REG, FRAME_PTR_REG, src.offset().0));
-            asm.push(Command::Store(TMP_REG, TMP_OP_REG, 0));
+            copy(dst, &Value::reg(TMP_COPY1_REG), &Layout::word(), asm);
+            asm.push(Command::Load(TMP_COPY2_REG, FRAME_PTR_REG, src.offset().0));
+            asm.push(Command::Store(TMP_COPY1_REG, TMP_COPY2_REG, 0));
         }
         (Value::Reg(ref src), Value::Stack(ref dst)) => {
             assert!(layout.is_uniform());
@@ -842,14 +844,14 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
             }
         }
         (Value::Reg(ref src), Value::Ptr(ref dst)) => {
-            copy(dst, &Value::reg(TMP_REG), &Layout::word(), asm);
-            asm.push(Command::Store(TMP_REG, src.reg(), 0));
+            copy(dst, &Value::reg(TMP_COPY1_REG), &Layout::word(), asm);
+            asm.push(Command::Store(TMP_COPY1_REG, src.reg(), 0));
         }
         (Value::Ptr(ref src), Value::Stack(ref dst)) => {
             // very similar to stack -> stack, except that the offset is applied
             // directly to the address of the pointer
             assert!(layout.stack_size() >= StackOffset(4));
-            copy(src, &Value::reg(TMP_OP_REG), &Layout::word(), asm);
+            copy(src, &Value::reg(TMP_COPY2_REG), &Layout::word(), asm);
 
             for offset in (0..layout.stack_size().0).step_by(4) {
                 let offset = if offset <= (layout.stack_size().0 - 4) {
@@ -861,18 +863,18 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
                 let src_offset = offset;
                 let dst_offset = dst.offset() + offset;
 
-                asm.push(Command::Load(TMP_REG, TMP_OP_REG, src_offset.0));
-                asm.push(Command::Store(FRAME_PTR_REG, TMP_REG, dst_offset.0));
+                asm.push(Command::Load(TMP_COPY1_REG, TMP_COPY2_REG, src_offset.0));
+                asm.push(Command::Store(FRAME_PTR_REG, TMP_COPY1_REG, dst_offset.0));
             }
         }
         (Value::Ptr(ref src), Value::Reg(ref dst)) => {
             // very similar to stack -> reg, except that the offset is applied
             // directly to the address of the pointer
             assert!(layout.is_uniform());
-            copy(src, &Value::reg(TMP_REG), &Layout::word(), asm);
+            copy(src, &Value::reg(TMP_COPY1_REG), &Layout::word(), asm);
 
             for (offset, reg) in (0..layout.stack_size().0).step_by(4).zip(dst.regs()) {
-                asm.push(Command::Load(*reg, TMP_REG, offset));
+                asm.push(Command::Load(*reg, TMP_COPY1_REG, offset));
             }
         }
         (Value::Ptr(ref src), Value::Ptr(ref dst)) => {
@@ -889,10 +891,10 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
                     layout.stack_size().0 - 4
                 };
 
-                copy(src, &Value::reg(TMP_OP_REG), &Layout::word(), asm);
-                asm.push(Command::Load(TMP_REG, TMP_OP_REG, offset));
-                copy(dst, &Value::reg(TMP_OP_REG), &Layout::word(), asm);
-                asm.push(Command::Store(TMP_OP_REG, TMP_REG, offset));
+                copy(src, &Value::reg(TMP_COPY2_REG), &Layout::word(), asm);
+                asm.push(Command::Load(TMP_COPY1_REG, TMP_COPY2_REG, offset));
+                copy(dst, &Value::reg(TMP_COPY2_REG), &Layout::word(), asm);
+                asm.push(Command::Store(TMP_COPY2_REG, TMP_COPY1_REG, offset));
             }
         }
     }
