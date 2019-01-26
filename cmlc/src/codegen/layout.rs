@@ -269,7 +269,7 @@ impl Layout {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Value {
     Label(LabelValue),
     Reg(RegValue),
@@ -288,10 +288,6 @@ impl Value {
 
     pub fn ptr(ptr: Value) -> Value {
         Value::Ptr(Box::new(ptr))
-    }
-
-    pub fn zero_sized() -> Value {
-        Value::Reg(RegValue { regs: Vec::new() })
     }
 
     /// Gets the first register of this value or `None`, if the value is not
@@ -344,7 +340,7 @@ impl LabelValue {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct StackValue {
     start: StackOffset,
 }
@@ -395,7 +391,7 @@ impl StackAllocator {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RegValue {
     regs: Vec<Reg>,
 }
