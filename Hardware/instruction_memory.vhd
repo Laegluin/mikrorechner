@@ -25,7 +25,7 @@ end instruction_memory;
 architecture behavior of instruction_memory is
 
 subtype word_t  is unsigned(7 downto 0);
-type    rom_t   is array(0 to (83*4)- 1) of word_t; -- was mem_Depth, just testing
+type    rom_t   is array(0 to (85*4)- 1) of word_t; -- was mem_Depth, just testing
 impure function mem_read_file(FileName : STRING) return rom_t is --function to read file into rom
 file FileHandle       : TEXT open READ_MODE is FileName;
 variable CurrentLine  : LINE;
@@ -33,7 +33,7 @@ variable TempWord     : std_logic_vector(bit_Width- 1 downto 0); -- was (div_cei
 variable Result       : rom_t    := (others => (others => '0'));
 
 begin
-  for i in 0 to 83- 1 loop -- was mem_Depth, just testing
+  for i in 0 to 85- 1 loop -- was mem_Depth, just testing
     exit when endfile(FileHandle);
 
     readline(FileHandle, CurrentLine);
@@ -48,7 +48,8 @@ begin
 end function;
 
 
-signal rom : rom_t := mem_read_file("/informatik2/students/home/6lahann/Projekt/work/instruction_mem.hex");
+--signal rom : rom_t := mem_read_file("/informatik2/students/home/6lahann/Projekt/work/instruction_mem.hex");
+signal rom : rom_t := mem_read_file("C:/Users/Moritz Lahann/Desktop/STUDIUM/PROJEKT MIKROPROZESSOR/GIT/Hardware/instruction_mem.hex");
 		--full filepath must always be specified!
 signal mem_read_data : unsigned(bit_Width-1 downto 0); 
 
@@ -56,7 +57,8 @@ begin
     process(clk, rst)
     begin
         if(rst = '1') then
-            rom <= mem_read_file("/informatik2/students/home/6lahann/Projekt/work/instruction_mem.hex");
+            --rom <= mem_read_file("/informatik2/students/home/6lahann/Projekt/work/instruction_mem.hex");
+            rom <= mem_read_file("C:/Users/Moritz Lahann/Desktop/STUDIUM/PROJEKT MIKROPROZESSOR/GIT/Hardware/instruction_mem.hex");
 		--full filepath must always be specified!
         else
             if(rising_edge(clk)) then

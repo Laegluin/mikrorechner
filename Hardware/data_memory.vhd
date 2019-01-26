@@ -73,7 +73,8 @@ begin
 end function;
 
 
-signal ram : ram_t := mem_read_file("/informatik2/students/home/6lahann/Projekt/work/data_mem.hex");
+--signal ram : ram_t := mem_read_file("/informatik2/students/home/6lahann/Projekt/work/data_mem.hex");
+signal ram : ram_t := mem_read_file("C:/Users/Moritz Lahann/Desktop/STUDIUM/PROJEKT MIKROPROZESSOR/GIT/Hardware/data_mem.hex");
 		--full filepath must always be specified!
 signal mem_read_data : unsigned(bit_Width-1 downto 0);
 signal mem_write_data : unsigned(bit_Width-1 downto 0);
@@ -87,7 +88,8 @@ begin
 
         if rst = '1' then
 
-            ram <= mem_read_file("/informatik2/students/home/6lahann/Projekt/work/data_mem.hex");
+            --ram <= mem_read_file("/informatik2/students/home/6lahann/Projekt/work/data_mem.hex");
+            ram <= mem_read_file("C:/Users/Moritz Lahann/Desktop/STUDIUM/PROJEKT MIKROPROZESSOR/GIT/Hardware/data_mem.hex");
 		--full filepath must always be specified!
         elsif rising_edge(clk) then
 
