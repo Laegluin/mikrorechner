@@ -456,7 +456,8 @@ fn gen_expr(
                 }
                 UnOpKind::Deref => {
                     // load the pointer and assign it to the result value
-                    let mut ptr_result = ExprResult::by_ref(Layout::word());
+                    let mut ptr_result =
+                        ExprResult::copy_to(ctx.alloc(&Layout::word()), Layout::word());
                     gen_expr(operand.as_ref().map(Box::as_ref), &mut ptr_result, ctx, asm)?;
                     result.assign(Value::ptr(ptr_result.or_alloc(ctx).clone()), asm);
                 }
