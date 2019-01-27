@@ -136,7 +136,7 @@ impl Command {
                 LittleEndian::write_u32(&mut bytes, instr);
             }
             Not(dst, src) => {
-                let instr = Instruction::op(Op::Add).dst(dst).arg1(src).get();
+                let instr = Instruction::op(Op::Not).dst(dst).arg1(src).get();
                 LittleEndian::write_u32(&mut bytes, instr);
             }
             Xor(dst, lhs, rhs) => {
@@ -245,7 +245,7 @@ impl Command {
                 LittleEndian::write_u32(&mut bytes, instr);
             }
             Store(dst_addr, src, offset) => {
-                let instr = Instruction::op(Op::Load)
+                let instr = Instruction::op(Op::Store)
                     .dst(dst_addr)
                     .arg1(src)
                     .immediate(offset, STORE_IMMEDIATE_MAX.count_ones())
