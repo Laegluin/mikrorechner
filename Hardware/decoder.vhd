@@ -85,16 +85,16 @@ begin
             sign_temp   <= instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-1);
 
             -- bandaid fix for timing issue, seems like using the sign_temp signal delays by one cycle
-            jump_offset <= instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-1) & instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-1) & instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-1) & instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-1) & instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-1) & instruction(bit_Width-opcode_Bits-1 downto 0);
+            --jump_offset <= instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-1) & instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-1) & instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-1) & instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-1) & instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-1) & instruction(bit_Width-opcode_Bits-1 downto 0);
 
-            --if sign_temp = "0" then
-            --    jump_offset <= jump_offset_ext0 & instruction(bit_Width-opcode_Bits-1 downto 0);
-            --elsif sign_temp = "1" then
+            if instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-1) = "0" then
+                jump_offset <= jump_offset_ext0 & instruction(bit_Width-opcode_Bits-1 downto 0);
+            elsif instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-1) = "1" then
                 -- jump_offset <= jump_offset_ext1 & not instruction(bit_Width-opcode_Bits-1 downto 0) + "1";
-            --    jump_offset <= jump_offset_ext1 & instruction(bit_Width-opcode_Bits-1 downto 0);
+                jump_offset <= jump_offset_ext1 & instruction(bit_Width-opcode_Bits-1 downto 0);
                 -- jump_offset <= temp + "1";
-            --else jump_offset <= (others => '0');
-            --end if;
+            else jump_offset <= (others => '0');
+            end if;
 
             mem_offset  <= mem_offset_ext & instruction(bit_Width-opcode_Bits-(2*adr_Width)-1 downto 0);
 

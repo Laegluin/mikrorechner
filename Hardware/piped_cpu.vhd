@@ -13,7 +13,6 @@ use ieee.numeric_std.all;
 use work.universal_constants.all;
 
 entity piped_cpu is
-
 port
 (
     clk, reset    : in std_logic;
@@ -114,7 +113,6 @@ architecture behavior of piped_cpu is
     
     -- executer to delay reg
 
-    signal PC_enable_exmemdelay : std_logic;
     signal PC_write_enable_exmemdelay : std_logic;
     signal wb_control_exmemdelay : unsigned(1 downto 0);
     signal jump_to_exmemdelay : unsigned(bit_Width-1 downto 0);
@@ -128,6 +126,10 @@ architecture behavior of piped_cpu is
     signal ALU_opcode : unsigned(opcode_Bits-1 downto 0);
 	signal ALU_stim : std_logic; -- dummy
 
+    -- executer to pc mux
+
+    signal pc_enable_mux : std_logic;
+
     -- alu to executer
 
     signal ALU_flag : std_logic;
@@ -138,7 +140,6 @@ architecture behavior of piped_cpu is
 
     -- delay reg to ex/mem reg
 
-    signal PC_enable_exmem : std_logic;
     signal PC_write_enable_exmem : std_logic;
     signal wb_control_exmem : unsigned(1 downto 0);
     signal jump_to_exmem : unsigned(bit_Width-1 downto 0);
@@ -150,7 +151,6 @@ architecture behavior of piped_cpu is
 
     -- ex/mem reg to data memory
 
-    signal PC_enable_mem : std_logic;
     signal PC_write_enable_mem : std_logic;
     signal wb_control_mem : unsigned(1 downto 0);
     signal jump_to_mem : unsigned(bit_Width-1 downto 0);
@@ -163,7 +163,6 @@ architecture behavior of piped_cpu is
 
     -- data memory to pc
 
-    signal PC_enable_mux : std_logic;
     signal PC_write_enable_pc : std_logic;
     signal jump_to_pc : unsigned(bit_Width-1 downto 0);
 
@@ -188,9 +187,6 @@ architecture behavior of piped_cpu is
     signal write_address_reg : unsigned(adr_Width-1 downto 0);
     signal write_back_data : unsigned(bit_Width-1 downto 0);
     signal reg_write_en : std_logic;
-
-	-- testing fast halt, TODO refactor stuff accordingly
-    signal pc_enable_mux2 : std_logic;
         
     begin
 
@@ -217,7 +213,7 @@ architecture behavior of piped_cpu is
         (
             SEL => manual_halt,
             A   => manual_PC_enable,
-            B   => PC_enable_mux2,
+            B   => PC_enable_mux,
             X   => PC_enable
         );
 
@@ -335,7 +331,7 @@ architecture behavior of piped_cpu is
             alu_flag        => ALU_flag,
             C_in            => C_address_ex,       
             C_out           => C_address_exmemdelay,
-            pc_enable       => PC_enable_mux2, --was exmem, testing fast halt
+            pc_enable       => PC_enable_mux,
             pc_write_en     => PC_write_enable_exmemdelay,
             mem_rw_en       => mem_rw_en_exmemdelay,
             reg_imm_out     => reg_imm_exmemdelay,
@@ -375,7 +371,6 @@ architecture behavior of piped_cpu is
         (
             clk             => clk,
             rst             => pipeline_reset,
-            PC_enable_in    => PC_enable_exmemdelay,
             PC_write_enable_in  => PC_write_enable_exmemdelay,
             wb_control_in   => wb_control_exmemdelay,
             jump_to_in      => jump_to_exmemdelay,
@@ -384,7 +379,6 @@ architecture behavior of piped_cpu is
             mem_rw_en_in    => mem_rw_en_exmemdelay,
             C_addr_in       => C_address_exmemdelay,
 
-            PC_enable_out   => PC_enable_exmem,
             PC_write_enable_out => PC_write_enable_exmem,
             wb_control_out  => wb_control_exmem,
             jump_to_out     => jump_to_exmem,
@@ -399,7 +393,6 @@ architecture behavior of piped_cpu is
         (
             clk             => clk,
             reset           => pipeline_reset,
-            pc_en_in        => PC_enable_exmem,
             pc_wr_en_in     => PC_write_enable_exmem,
             mem_rw_en_in    => mem_rw_en_exmem,
             wb_control_in   => wb_control_exmem,
@@ -409,7 +402,7 @@ architecture behavior of piped_cpu is
             mem_off_in      => mem_offset_exmem,
             C_data_in       => C_data_exmem,
             mem_address_in  => store_address_exmem,
-            pc_en_out       => PC_enable_mem,
+
             pc_wr_en_out    => PC_write_enable_mem,
             mem_rw_en_out   => mem_rw_en_mem, -- refactor so they dont pass through mem but go straight to mem/wb reg?
             wb_control_out  => wb_control_mem,
@@ -431,8 +424,7 @@ architecture behavior of piped_cpu is
             mem_out             => mem_out_memwb,
             mem_offset          => mem_offset_mem,
 
-            pc_enable_in        => PC_enable_mem,  -- refactor so they dont pass through mem but go straight to mem/wb reg?
-            pc_write_enable_in  => PC_write_enable_mem,
+            pc_write_enable_in  => PC_write_enable_mem, -- refactor so they dont pass through mem but go straight to mem/wb reg?
             C_in                => C_data_mem,
             wb_control_in       => wb_control_mem,
             reg_imm_in          => reg_imm_mem,
@@ -442,7 +434,6 @@ architecture behavior of piped_cpu is
             wb_control_out      => wb_control_memwb,
             C_out               => C_data_memwb,
             pc_write_enable_out => PC_write_enable_pc,
-            pc_enable_out       => PC_enable_mux, 
             c_address_in        => C_address_mem,
             c_address_out       => C_address_memwb
         );

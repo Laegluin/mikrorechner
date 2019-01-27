@@ -13,7 +13,6 @@ entity exmem_delay_reg is
 port
 (
     clk, rst: in std_logic;
-    PC_enable_in : in std_logic;
     PC_write_enable_in : in std_logic;
     wb_control_in : in unsigned(1 downto 0);
     jump_to_in : in unsigned(bit_Width-1 downto 0);
@@ -22,7 +21,6 @@ port
     mem_rw_en_in : in unsigned(1 downto 0);
     C_addr_in : in unsigned(adr_Width-1 downto 0);
 
-    PC_enable_out : out std_logic;
     PC_write_enable_out : out std_logic;
     wb_control_out : out unsigned(1 downto 0);
     jump_to_out : out unsigned(bit_Width-1 downto 0);
@@ -35,7 +33,6 @@ end exmem_delay_reg;
 
 architecture behavior of exmem_delay_reg is
 
-signal tmp_PC_enable: std_logic := '0';
 signal tmp_PC_write_enable : std_logic := '0';
 signal tmp_wb_control : unsigned(1 downto 0) := (others => '0');
 signal tmp_jump_to: unsigned(bit_Width-1 downto 0) := (others => '0');
@@ -48,10 +45,18 @@ begin
     process(clk, rst)
     begin
         if(rst='1') then
-            --?
+
+            tmp_PC_write_enable <= '0';
+            tmp_wb_control <= (others => '0');
+            tmp_jump_to <= (others => '0');
+            tmp_reg_imm <= (others => '0');
+            tmp_mem_off <= (others => '0');
+            tmp_mem_rw_en <= (others => '0');
+            tmp_C_addr <= (others => '0');
+
         else
 			if rising_edge(clk) then
-            	tmp_PC_enable <= PC_enable_in;
+
 				tmp_PC_write_enable <= PC_write_enable_in;
 				tmp_wb_control <= wb_control_in;
                 tmp_jump_to <= jump_to_in;
@@ -59,12 +64,12 @@ begin
                 tmp_mem_off <= mem_off_in;
                 tmp_mem_rw_en <= mem_rw_en_in;
                 tmp_C_addr <= C_addr_in;
+
 			end if;
         end if;
 
     end process;
 
-    PC_enable_out <= tmp_PC_enable;
     PC_write_enable_out <= tmp_PC_write_enable;
     wb_control_out <= tmp_wb_control;
     jump_to_out <= tmp_jump_to;

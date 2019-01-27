@@ -18,7 +18,6 @@ entity pipe_ex_mem is
         reset          : in  std_logic;
 
         -- input from executer stage
-        pc_en_in       : in std_logic;
         pc_wr_en_in    : in std_logic;
         mem_rw_en_in   : in unsigned(1 downto 0);
         wb_control_in  : in unsigned(1 downto 0);
@@ -35,7 +34,6 @@ entity pipe_ex_mem is
         mem_address_in : in unsigned(bit_Width-1 downto 0);
 
         -- output to memory access stage
-        pc_en_out      : out std_logic;
         pc_wr_en_out   : out std_logic;
         mem_rw_en_out  : out unsigned(1 downto 0);
         wb_control_out : out unsigned(1 downto 0);
@@ -55,7 +53,6 @@ end entity pipe_ex_mem;
 architecture behavior of pipe_ex_mem is
 
     -- signale
-signal tmp_pc_en      : std_logic := '0';
 signal tmp_pc_wr_en   : std_logic := '0';
 signal tmp_mem_rw_en  : unsigned(1 downto 0) := (others => '0');
 signal tmp_wb_control : unsigned(1 downto 0) := (others => '0');
@@ -75,7 +72,6 @@ begin
 
         if reset = '1' then
             -- reset signals
-            tmp_pc_en      <= '0';
             tmp_pc_wr_en   <= '0';
             tmp_mem_rw_en  <= (others => '0');
             tmp_wb_control <= (others => '0');
@@ -91,7 +87,6 @@ begin
 
         elsif rising_edge(clk) then
 
-            tmp_pc_en      <= pc_en_in;
             tmp_pc_wr_en   <= pc_wr_en_in;
             tmp_mem_rw_en  <= mem_rw_en_in;
             tmp_wb_control <= wb_control_in;
@@ -109,7 +104,6 @@ begin
 
     end process;
 
-    pc_en_out      <= tmp_pc_en;
     pc_wr_en_out   <= tmp_pc_wr_en;
     mem_rw_en_out  <= tmp_mem_rw_en;
     wb_control_out <= tmp_wb_control;

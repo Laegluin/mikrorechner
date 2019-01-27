@@ -26,7 +26,6 @@ port
     C_in                : in unsigned(bit_Width-1 downto 0);
 
     -- inputs for passing on
-    pc_enable_in        : in std_logic;
     pc_write_enable_in  : in std_logic;
     reg_imm_in          : in unsigned(bit_Width-1 downto 0);
     wb_control_in       : in unsigned(1 downto 0);
@@ -37,7 +36,6 @@ port
     mem_out             : out unsigned(bit_Width-1 downto 0);
     
     -- outputs from passing on
-    pc_enable_out       : out std_logic;
     pc_write_enable_out : out std_logic;
     reg_imm_out         : out unsigned(bit_Width-1 downto 0);
     wb_control_out      : out unsigned(1 downto 0);
@@ -140,7 +138,6 @@ begin
     mem_out <= mem_read_data;
 
     -- unchanged outputs from passing on values
-    pc_enable_out <= pc_enable_in;
     pc_write_enable_out <= pc_write_enable_in;
     wb_control_out <= wb_control_in;
     reg_imm_out <= reg_imm_in;
