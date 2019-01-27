@@ -1,0 +1,12 @@
+fn factorial n = {
+    if n <= 1 {
+        1
+    } else {
+        n * factorial: n - 1
+    }
+}
+
+fn main = {
+    let addr = 4000000000 as *mut u32;
+    *addr = factorial: 10;
+}

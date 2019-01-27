@@ -1,6 +1,9 @@
 fn main = {
     let ten_to_the_two = 10 pow: 2;
     pow: 2, exponent = 10;
+
+    let addr = 4000000000 as *mut u32;
+    *addr = ten_to_the_two;
 }
 
 fn pow n, exponent = {
