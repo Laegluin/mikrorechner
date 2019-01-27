@@ -479,12 +479,10 @@ fn gen_expr(
                 None => (TMP1_REG, true),
             };
 
-            gen_expr(
-                lhs.as_ref().map(Box::as_ref),
-                &mut ExprResult::copy_to(Value::reg(TMP1_REG), Layout::word()),
-                ctx,
-                asm,
-            )?;
+            // properly allocate and only copy after generating rhs, a tmp register might
+            // get clobbered while generating rhs
+            let mut lhs_result = ExprResult::copy_to(ctx.alloc(&Layout::word()), Layout::word());
+            gen_expr(lhs.as_ref().map(Box::as_ref), &mut lhs_result, ctx, asm)?;
 
             gen_expr(
                 rhs.as_ref().map(Box::as_ref),
@@ -492,6 +490,13 @@ fn gen_expr(
                 ctx,
                 asm,
             )?;
+
+            copy(
+                lhs_result.or_alloc(ctx),
+                &Value::reg(TMP1_REG),
+                &Layout::word(),
+                asm,
+            );
 
             match op {
                 BinOpKind::Or => asm.push(Command::Or(result_reg, TMP1_REG, TMP2_REG)),
