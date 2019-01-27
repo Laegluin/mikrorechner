@@ -391,6 +391,11 @@ fn gen_expr(
         Expr::UnOp(UnOp { op, ref operand }, _) => {
             match op {
                 UnOpKind::Not => {
+                    let (result_reg, needs_copy) = match result.or_alloc(ctx).try_get_reg() {
+                        Some(reg) => (reg, false),
+                        None => (TMP1_REG, true),
+                    };
+
                     gen_expr(
                         operand.as_ref().map(Box::as_ref),
                         &mut ExprResult::copy_to(Value::reg(TMP1_REG), Layout::word()),
@@ -398,10 +403,18 @@ fn gen_expr(
                         asm,
                     )?;
 
-                    asm.push(Command::Not(TMP1_REG, TMP1_REG));
-                    result.assign(Value::reg(TMP1_REG), asm);
+                    asm.push(Command::Not(result_reg, TMP1_REG));
+
+                    if needs_copy {
+                        result.assign(Value::reg(TMP1_REG), asm);
+                    }
                 }
                 UnOpKind::Negate => {
+                    let (result_reg, needs_copy) = match result.or_alloc(ctx).try_get_reg() {
+                        Some(reg) => (reg, false),
+                        None => (TMP1_REG, true),
+                    };
+
                     gen_expr(
                         operand.as_ref().map(Box::as_ref),
                         &mut ExprResult::copy_to(Value::reg(TMP1_REG), Layout::word()),
@@ -409,10 +422,18 @@ fn gen_expr(
                         asm,
                     )?;
 
-                    asm.push(Command::Sub(TMP1_REG, Reg::Null, TMP1_REG));
-                    result.assign(Value::reg(TMP1_REG), asm);
+                    asm.push(Command::Sub(result_reg, Reg::Null, TMP1_REG));
+
+                    if needs_copy {
+                        result.assign(Value::reg(TMP1_REG), asm);
+                    }
                 }
                 UnOpKind::AddrOf | UnOpKind::AddrOfMut => {
+                    let (result_reg, needs_copy) = match result.or_alloc(ctx).try_get_reg() {
+                        Some(reg) => (reg, false),
+                        None => (TMP1_REG, true),
+                    };
+
                     // allocate the value on the stack, so we can generate a pointer to it
                     let operand_layout = ctx.layout(operand.value.ty().clone(), span)?;
                     let operand_value = ctx.stack.alloc(&operand_layout);
@@ -427,8 +448,11 @@ fn gen_expr(
 
                     // set the pointer and assign it to the result
                     asm.push(Command::Set(TMP1_REG, operand_offset.0));
-                    asm.push(Command::Add(TMP1_REG, FRAME_PTR_REG, TMP1_REG));
-                    result.assign(Value::reg(TMP1_REG), asm);
+                    asm.push(Command::Add(result_reg, FRAME_PTR_REG, TMP1_REG));
+
+                    if needs_copy {
+                        result.assign(Value::reg(TMP1_REG), asm);
+                    }
                 }
                 UnOpKind::Deref => {
                     // load the pointer and assign it to the result value
@@ -450,12 +474,9 @@ fn gen_expr(
             },
             ..
         ) => {
-            let result_reg = match result.or_alloc(ctx).try_get_reg() {
-                Some(reg) => reg,
-                None => {
-                    result.assign(Value::reg(TMP1_REG), asm);
-                    TMP1_REG
-                }
+            let (result_reg, needs_copy) = match result.or_alloc(ctx).try_get_reg() {
+                Some(reg) => (reg, false),
+                None => (TMP1_REG, true),
             };
 
             gen_expr(
@@ -521,6 +542,10 @@ fn gen_expr(
                 BinOpKind::Sub => asm.push(Command::Sub(result_reg, TMP1_REG, TMP2_REG)),
                 BinOpKind::Mul => asm.push(Command::Mul(result_reg, TMP1_REG, TMP2_REG)),
                 BinOpKind::Div => asm.push(Command::Div(result_reg, TMP1_REG, TMP2_REG)),
+            }
+
+            if needs_copy {
+                result.assign(Value::reg(TMP1_REG), asm);
             }
         }
         Expr::FnCall(ref call, ref ty) => {
