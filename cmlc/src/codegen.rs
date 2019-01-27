@@ -523,7 +523,6 @@ fn gen_expr(
                 BinOpKind::Div => asm.push(Command::Div(result_reg, TMP1_REG, TMP2_REG)),
             }
         }
-        // TODO: clean up the allocations
         Expr::FnCall(ref call, ref ty) => {
             let ret_layout = ctx.layout(ty.clone(), span)?;
             let ret_value = ctx.stack.alloc(&ret_layout);
@@ -536,15 +535,13 @@ fn gen_expr(
             for arg in &call.args {
                 let arg_expr = arg.value.value.as_ref();
                 let arg_layout = ctx.layout(arg_expr.value.ty().clone(), span)?;
-                let arg_value = Value::Stack(ctx.stack.alloc(&arg_layout));
-                let mut arg_result = ExprResult::copy_to(arg_value.clone(), Rc::clone(&arg_layout));
+                let mut arg_result = ExprResult::by_ref(Rc::clone(&arg_layout));
 
                 gen_expr(arg_expr, &mut arg_result, ctx, asm)?;
-                arg_values.push((arg_value, arg_layout));
+                arg_values.push((arg_result.or_alloc(ctx).clone(), arg_layout));
             }
 
-            // save the registers; we can do this in the new scope, since
-            // we don't need them after restoring them again
+            // save the registers
             for reg in ctx.regs.allocated_regs() {
                 let save = Value::Stack(ctx.stack.alloc(&Layout::word()));
                 copy(&Value::reg(reg), &save, &Layout::word(), asm);
@@ -586,6 +583,7 @@ fn gen_expr(
             asm.push(Command::Set(TMP1_REG, new_frame_offset.0));
             asm.push(Command::Sub(FRAME_PTR_REG, FRAME_PTR_REG, TMP1_REG));
 
+            // restore the registers
             for reg in ctx.regs.allocated_regs() {
                 let save = Value::Stack(ctx.stack.alloc(&Layout::word()));
                 copy(&save, &Value::reg(reg), &Layout::word(), asm);
