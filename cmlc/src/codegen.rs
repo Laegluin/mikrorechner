@@ -567,10 +567,16 @@ fn gen_expr(
             }
 
             // save the registers
-            for reg in ctx.regs.allocated_regs() {
-                let save = Value::Stack(ctx.stack.alloc(&Layout::word()));
-                copy(&Value::reg(reg), &save, &Layout::word(), asm);
-            }
+            let stack = &mut ctx.stack;
+            let reg_saves: Vec<_> = ctx
+                .regs
+                .allocated_regs()
+                .map(|reg| {
+                    let save = Value::Stack(stack.alloc(&Layout::word()));
+                    copy(&Value::reg(reg), &save, &Layout::word(), asm);
+                    (reg, save)
+                })
+                .collect();
 
             // the new stack frame will start here
             let new_frame_offset = ctx.stack.frame_offset();
@@ -609,8 +615,7 @@ fn gen_expr(
             asm.push(Command::Sub(FRAME_PTR_REG, FRAME_PTR_REG, TMP1_REG));
 
             // restore the registers
-            for reg in ctx.regs.allocated_regs() {
-                let save = Value::Stack(ctx.stack.alloc(&Layout::word()));
+            for (reg, save) in reg_saves {
                 copy(&save, &Value::reg(reg), &Layout::word(), asm);
             }
 
