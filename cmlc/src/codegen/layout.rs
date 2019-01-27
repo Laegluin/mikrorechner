@@ -1,5 +1,7 @@
 use crate::ast::*;
-use crate::codegen::{CodegenError, FRAME_PTR_REG, TMP2_REG, TMP1_REG};
+use crate::codegen::{
+    CodegenError, FRAME_PTR_REG, TMP1_REG, TMP2_REG, TMP_COPY1_REG, TMP_COPY2_REG,
+};
 use crate::emit::{Label, Reg, LOAD_IMMEDIATE_MAX, STORE_IMMEDIATE_MAX};
 use crate::typecheck::{Type, TypeDesc, TypeRef};
 use derive_more::{Add, AddAssign, Sub};
@@ -13,7 +15,13 @@ use strum::IntoEnumIterator;
 impl Reg {
     fn is_general_purpose(&self) -> bool {
         match *self {
-            Reg::AddrOffset | Reg::Null | FRAME_PTR_REG | TMP1_REG | TMP2_REG => false,
+            Reg::AddrOffset
+            | Reg::Null
+            | FRAME_PTR_REG
+            | TMP1_REG
+            | TMP2_REG
+            | TMP_COPY1_REG
+            | TMP_COPY2_REG => false,
             _ => true,
         }
     }
