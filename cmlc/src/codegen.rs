@@ -840,7 +840,7 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
         }
         (Value::Reg(ref src), Value::Reg(ref dst)) => {
             for (src, dst) in src.regs().iter().zip(dst.regs()) {
-                asm.push(Command::Copy(*src, *dst));
+                asm.push(Command::Copy(*dst, *src));
             }
         }
         (Value::Reg(ref src), Value::Ptr(ref dst)) => {
