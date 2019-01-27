@@ -71,7 +71,7 @@ bank</panel_attributes>
   <element>
     <id>UMLClass</id>
     <coordinates>
-      <x>864</x>
+      <x>872</x>
       <y>544</y>
       <w>96</w>
       <h>80</h>
@@ -382,24 +382,24 @@ C (Adresse)</panel_attributes>
     <coordinates>
       <x>792</x>
       <y>464</y>
-      <w>120</w>
+      <w>128</w>
       <h>96</h>
     </coordinates>
     <panel_attributes>lt=&lt;-
  ALU_opcode</panel_attributes>
-    <additional_attributes>130.0;100.0;130.0;30.0;10.0;30.0;10.0;10.0</additional_attributes>
+    <additional_attributes>140.0;100.0;140.0;30.0;10.0;30.0;10.0;10.0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates>
       <x>768</x>
       <y>464</y>
-      <w>120</w>
+      <w>128</w>
       <h>96</h>
     </coordinates>
     <panel_attributes>lt=&lt;-
 Flag</panel_attributes>
-    <additional_attributes>10.0;10.0;10.0;50.0;130.0;50.0;130.0;100.0</additional_attributes>
+    <additional_attributes>10.0;10.0;10.0;50.0;140.0;50.0;140.0;100.0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
@@ -428,15 +428,15 @@ B (Value) </panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>952</x>
+      <x>960</x>
       <y>552</y>
-      <w>104</w>
+      <w>96</w>
       <h>40</h>
     </coordinates>
     <panel_attributes>lt=&lt;-
 C (Value)
 (jump to)</panel_attributes>
-    <additional_attributes>110.0;20.0;10.0;20.0</additional_attributes>
+    <additional_attributes>100.0;20.0;10.0;20.0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
@@ -496,18 +496,6 @@ REG_write_enable</panel_attributes>
     </coordinates>
     <panel_attributes>lt=&lt;-
 REG_immediate</panel_attributes>
-    <additional_attributes>120.0;20.0;10.0;20.0</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates>
-      <x>944</x>
-      <y>152</y>
-      <w>112</w>
-      <h>32</h>
-    </coordinates>
-    <panel_attributes>lt=&lt;-
-PC_enable   </panel_attributes>
     <additional_attributes>120.0;20.0;10.0;20.0</additional_attributes>
   </element>
   <element>
@@ -744,18 +732,6 @@ bg=green</panel_attributes>
     <id>Relation</id>
     <coordinates>
       <x>1080</x>
-      <y>152</y>
-      <w>112</w>
-      <h>32</h>
-    </coordinates>
-    <panel_attributes>lt=&lt;-
-PC_enable   </panel_attributes>
-    <additional_attributes>120.0;20.0;10.0;20.0</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates>
-      <x>1080</x>
       <y>184</y>
       <w>112</w>
       <h>32</h>
@@ -926,24 +902,24 @@ C (Adresse)</panel_attributes>
     <coordinates>
       <x>656</x>
       <y>544</y>
-      <w>104</w>
+      <w>112</w>
       <h>32</h>
     </coordinates>
     <panel_attributes>lt=&lt;-
 A (Value) </panel_attributes>
-    <additional_attributes>110.0;20.0;10.0;20.0</additional_attributes>
+    <additional_attributes>120.0;20.0;10.0;20.0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates>
       <x>656</x>
       <y>568</y>
-      <w>104</w>
+      <w>112</w>
       <h>32</h>
     </coordinates>
     <panel_attributes>lt=&lt;-
 B (Value) </panel_attributes>
-    <additional_attributes>110.0;20.0;10.0;20.0</additional_attributes>
+    <additional_attributes>120.0;20.0;10.0;20.0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
@@ -962,12 +938,12 @@ REG_offset_en</panel_attributes>
     <coordinates>
       <x>656</x>
       <y>640</y>
-      <w>104</w>
+      <w>112</w>
       <h>32</h>
     </coordinates>
     <panel_attributes>lt=&lt;-
 Zieladresse (Store)</panel_attributes>
-    <additional_attributes>110.0;20.0;10.0;20.0</additional_attributes>
+    <additional_attributes>120.0;20.0;10.0;20.0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
@@ -996,7 +972,7 @@ bg=orange</panel_attributes>
   <element>
     <id>UMLClass</id>
     <coordinates>
-      <x>744</x>
+      <x>752</x>
       <y>520</y>
       <w>56</w>
       <h>160</h>
@@ -1008,7 +984,7 @@ bg=orange</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>792</x>
+      <x>800</x>
       <y>544</y>
       <w>88</w>
       <h>32</h>
@@ -1020,7 +996,7 @@ A (Value) </panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>792</x>
+      <x>800</x>
       <y>568</y>
       <w>88</w>
       <h>32</h>
@@ -1032,26 +1008,14 @@ B (Value) </panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>792</x>
+      <x>800</x>
       <y>640</y>
-      <w>264</w>
+      <w>256</w>
       <h>32</h>
     </coordinates>
     <panel_attributes>lt=&lt;-
 Zieladresse (Store)</panel_attributes>
-    <additional_attributes>310.0;20.0;10.0;20.0</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates>
-      <x>800</x>
-      <y>152</y>
-      <w>112</w>
-      <h>32</h>
-    </coordinates>
-    <panel_attributes>lt=&lt;-
-PC_enable   </panel_attributes>
-    <additional_attributes>120.0;20.0;10.0;20.0</additional_attributes>
+    <additional_attributes>300.0;20.0;10.0;20.0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
