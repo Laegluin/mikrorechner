@@ -90,8 +90,8 @@ begin
             if instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-1) = "0" then
                 jump_offset <= jump_offset_ext0 & instruction(bit_Width-opcode_Bits-1 downto 0);
             elsif instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-1) = "1" then
-                -- jump_offset <= jump_offset_ext1 & not instruction(bit_Width-opcode_Bits-1 downto 0) + "1";
-                jump_offset <= jump_offset_ext1 & instruction(bit_Width-opcode_Bits-1 downto 0);
+                jump_offset <= jump_offset_ext1 & not instruction(bit_Width-opcode_Bits-1 downto 0) + "1";
+                --jump_offset <= jump_offset_ext1 & instruction(bit_Width-opcode_Bits-1 downto 0);
                 -- jump_offset <= temp + "1";
             else jump_offset <= (others => '0');
             end if;
