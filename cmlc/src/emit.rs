@@ -261,13 +261,13 @@ impl Command {
                 let instr = Instruction::op(Op::Halt).get();
                 LittleEndian::write_u32(&mut bytes, instr);
             }
-            Label(_) => (),
+            Label(_) => bytes.clear(),
             Data(ref data) => {
                 bytes.clear();
                 bytes.extend_from_slice(data);
             }
-            Comment(_) => (),
-            EmptyLine => (),
+            Comment(_) => bytes.clear(),
+            EmptyLine => bytes.clear(),
         }
 
         img.append(&mut bytes);
