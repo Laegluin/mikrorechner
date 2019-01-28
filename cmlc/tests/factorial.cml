@@ -8,5 +8,5 @@ fn factorial n = {
 
 fn main = {
     let addr = 4000000000 as *mut u32;
-    *addr = factorial: 10;
+    *addr = factorial: 6;
 }
