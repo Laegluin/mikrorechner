@@ -1380,8 +1380,20 @@ mod test {
     use crate::parser;
 
     #[test]
-    fn default_syntax() {
+    fn parse_syntax_example() {
         let tokens = lexer::lex(include_str!("../tests/syntax.cml")).unwrap();
+        parser::parse(&tokens).unwrap();
+    }
+
+    #[test]
+    fn parse_pow_example() {
+        let tokens = lexer::lex(include_str!("../tests/pow.cml")).unwrap();
+        parser::parse(&tokens).unwrap();
+    }
+
+    #[test]
+    fn parse_factorial_example() {
+        let tokens = lexer::lex(include_str!("../tests/factorial.cml")).unwrap();
         parser::parse(&tokens).unwrap();
     }
 }

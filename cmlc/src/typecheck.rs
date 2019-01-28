@@ -1392,8 +1392,15 @@ mod test {
     }
 
     #[test]
-    fn check_faculty_example() {
+    fn check_factorial_example() {
         let tokens = lexer::lex(include_str!("../tests/factorial.cml")).unwrap();
+        let ast = parser::parse(&tokens).unwrap();
+        typecheck(ast).unwrap();
+    }
+
+    #[test]
+    fn check_pow_example() {
+        let tokens = lexer::lex(include_str!("../tests/pow.cml")).unwrap();
         let ast = parser::parse(&tokens).unwrap();
         typecheck(ast).unwrap();
     }
