@@ -933,3 +933,35 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::lexer;
+    use crate::parser;
+    use crate::typecheck;
+
+    #[test]
+    fn gen_syntax_example() {
+        let tokens = lexer::lex(include_str!("../tests/syntax.cml")).unwrap();
+        let ast = parser::parse(&tokens).unwrap();
+        let typed_ast = typecheck::typecheck(ast).unwrap();
+        gen_asm(typed_ast).unwrap();
+    }
+
+    #[test]
+    fn gen_factorial_example() {
+        let tokens = lexer::lex(include_str!("../tests/factorial.cml")).unwrap();
+        let ast = parser::parse(&tokens).unwrap();
+        let typed_ast = typecheck::typecheck(ast).unwrap();
+        gen_asm(typed_ast).unwrap();
+    }
+
+    #[test]
+    fn gen_pow_example() {
+        let tokens = lexer::lex(include_str!("../tests/pow.cml")).unwrap();
+        let ast = parser::parse(&tokens).unwrap();
+        let typed_ast = typecheck::typecheck(ast).unwrap();
+        gen_asm(typed_ast).unwrap();
+    }
+}
