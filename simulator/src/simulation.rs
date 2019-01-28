@@ -1,4 +1,4 @@
-use crate::memory::{ Memory, Word};
+use crate::memory::{Memory, Word};
 use crate::vm::{self, Breakpoints, Reg, RegBank, Status, VmError};
 use crossbeam_channel::{self, Receiver, Sender};
 use std::fmt::{self, Display};
@@ -44,7 +44,7 @@ impl Display for SimError {
 /// Immediately starts the simulation and blocks this thread until the VM halts.
 #[allow(unused)]
 pub fn run(mem: Memory, breakpoints: Breakpoints) -> Result<(RegBank, Memory), SimError> {
-    let handle = start(mem, breakpoints, false)?;
+    let handle = start(mem, breakpoints, false, |_| {})?;
     let mut c = 0;
 
     loop {
@@ -64,11 +64,15 @@ pub fn run(mem: Memory, breakpoints: Breakpoints) -> Result<(RegBank, Memory), S
     handle.join()
 }
 
-pub fn start(
+pub fn start<F>(
     mem: Memory,
     breakpoints: Breakpoints,
     start_paused: bool,
-) -> Result<SimHandle, SimError> {
+    trace: F,
+) -> Result<SimHandle, SimError>
+where
+    F: 'static + Send + Sync + FnMut(Word),
+{
     let signals = Arc::new(SimSignals {
         pause: AtomicBool::new(start_paused),
         is_running: AtomicBool::new(false),
@@ -84,7 +88,7 @@ pub fn start(
     }));
 
     let ctrl = CtrlHandle::new();
-    let sim_thread = SimThread::start(&ctrl, Arc::clone(&signals), Arc::clone(&state))?;
+    let sim_thread = SimThread::start(&ctrl, Arc::clone(&signals), Arc::clone(&state), trace)?;
     let ctrl_thread = CtrlThread::start(&ctrl, signals, state)?;
 
     Ok(SimHandle {
@@ -180,11 +184,15 @@ impl SimSignals {
 }
 
 impl SimThread {
-    fn start(
+    fn start<F>(
         ctrl: &CtrlHandle,
         signals: Arc<SimSignals>,
         state: Arc<Mutex<State>>,
-    ) -> Result<SimThread, SimError> {
+        mut trace: F,
+    ) -> Result<SimThread, SimError>
+    where
+        F: 'static + Send + Sync + FnMut(Word),
+    {
         let resp_sender = ctrl.resp_sender.clone();
 
         let handle = thread::Builder::new()
@@ -202,6 +210,7 @@ impl SimThread {
                         &mut state.mem,
                         &state.breakpoints,
                         &signals.pause,
+                        &mut trace,
                     );
 
                     signals.set_is_running(false);

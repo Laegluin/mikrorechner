@@ -14,9 +14,12 @@ use std::fs::{self, File};
 use std::io::{self, BufReader};
 use std::path::PathBuf;
 use std::process;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use structopt::StructOpt;
+
+static IS_TRACE_ENABLED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug)]
 pub enum CliError {
@@ -122,9 +125,10 @@ fn run(args: Args) -> Result<(), CliError> {
     let mut mem = Memory::new();
     mem.store(0, &img, Access::All).map_err(VmError::new)?;
 
-    let sim = simulation::start(mem, Breakpoints::new(), args.start_paused)?;
-
     let printer = Arc::new(new_printer()?);
+    let trace = tracer(Arc::clone(&printer));
+
+    let sim = simulation::start(mem, Breakpoints::new(), args.start_paused, trace)?;
     let handle = listen_for_input(Arc::clone(&printer), sim.ctrl_handle().clone())?;
     listen_for_events(printer, sim.ctrl_handle());
 
@@ -214,6 +218,8 @@ fn exec_command(line: &str, printer: &Printer, sim: &CtrlHandle) -> Result<bool,
     match &words[..] {
         &["continue"] | &["c"] => sim.send(Request::Continue),
         &["pause"] | &["p"] => sim.send(Request::Pause),
+        &["enable_trace"] => IS_TRACE_ENABLED.store(true, Ordering::SeqCst),
+        &["disable_trace"] => IS_TRACE_ENABLED.store(false, Ordering::SeqCst),
         &["reg", reg] => sim.send(Request::GetReg(
             reg.parse::<Reg>().map_err(|_| CliError::IllegalRegister)?,
         )),
@@ -248,6 +254,16 @@ fn parse_word(word: &str) -> Result<Word, CliError> {
     result.map_err(|_| CliError::CannotParseWord(word.to_owned()))
 }
 
+fn tracer(printer: Arc<Printer>) -> impl 'static + Send + Sync + FnMut(Word) {
+    move |instr| {
+        if IS_TRACE_ENABLED.load(Ordering::SeqCst) {
+            if let Some(instr) = vm::instr_to_string(instr) {
+                displayln!(printer, "> {}", instr);
+            }
+        }
+    }
+}
+
 const HELP: &str = r#"Inspect and interact with the simulator.
 
 All commands interacting with the simulators state require the simulation to be paused.
@@ -256,6 +272,8 @@ or `0b` for binary.
 
 c | continue            Continue execution if paused
 p | pause               Pause execution if currently running
+enable_trace            Log each executed instruction
+disable_trace           Disable logging of instructions
 reg <register>          Display the contents of `register`
 pc                      Display the value of the program counter
 cmp_flag                Display the value of the compare flag
