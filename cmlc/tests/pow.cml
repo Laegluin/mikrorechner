@@ -1,15 +1,15 @@
 fn main = {
     let ten_to_the_two = 10 pow: 2;
-    pow: 2, exponent = 10;
+    let two_to_the_ten = pow: 2, exponent = 10;
 
-    let addr = 4000000000 as *mut u32;
-    *addr = ten_to_the_two;
+    *(4000000000 as *mut u32) = ten_to_the_two;
+    *(4000000004 as *mut u32) = two_to_the_ten;
 }
 
 fn pow n, exponent = {
-    if n == 0 {
+    if exponent == 0 {
         1
-    } else if n == 1 {
+    } else if exponent == 1 {
         n
     } else {
         n * (n pow: exponent - 1)
