@@ -125,8 +125,11 @@ def check_format(input,path):
             l = [['jump','jump_if'],0,1,1,0,[11]]
         elif re.match(r'\w+\s+(to)\s[-]?\d+\s*$', s):  # format für jumps mit rel
             l = [['jump_rel', 'jump_rel_if'],0,0,0,1,[],27,2,0]
-        elif re.match(r'\w+\s+(R)\d{1,2}\s+(to)\s+(R)\d{1,2}\s+[+]\s+\d+\s*$', s):  # format fuer load und store
-            l = [['load', 'store'],0,1,1,1,[11,5],15,5,1]
+        elif re.match(r'(store)\s+(R)\d{1,2}\s+(to)\s+(R)\d{1,2}\s+[+]\s+\d+\s*$', s):  # format fuer load und store
+            l = [['store'],0,1,1,1,[11,5],15,5,1]
+        elif re.match(r'(load)\s+(R)\d{1,2}\s+[+]\s+\d+\s+(to)\s+(R)\d{1,2}\s*$', s):  # format fuer load und store
+            # liste mit: [[opcodes],befehlswortIndex, registerSchreiben?, registerIndexe?, restImmediate?, [indexe], laengeImmediate,wordImmediate,unsigned?]
+            l = [['load'],0,1,1,1,[11,5],15,3,1]
         elif re.match(r'R\d{1,2}\s+[=]\s+[~][R]\d{1,2}\s*$',s):#format für not
             words[1] = '~'
             s = s.replace('~','')
@@ -176,7 +179,10 @@ def check_format(input,path):
         return []
 
 def show_output_array(a):
+    idx = 0
     for w in a:
+        print(str(idx) + ':\t',end='')
+        idx += 1
         #jedes w printen sodass alle 8 Schritte was gedruckt wird
         for c in range(len(w)):
             print(w[c], end='')

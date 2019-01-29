@@ -1,14 +1,13 @@
 import os
 import re
 import asm
-import sys
 import math
 
-# gültige werte für labelnamen definieren
-#problem: beim konverieren zum int von hex oder irgendwas strings wird die adresse falsch inkrementiert
+#testen: R1 = label, dann dahin jumpen
+#labels mit zahlen erlauben
+#refactoring
 
 def check_labels(input,source):
-    print('Text nach Labelmodul:')
     label_list = {}
     input_array = input.split('\n')
     for line, s in enumerate(input_array):
@@ -18,7 +17,7 @@ def check_labels(input,source):
     dataidx = 0
     data = [] #liste für indexe aller Datenstrings
     for line, s in enumerate(input_array):
-        if(re.match(r'(.)*\s+(_)\w+\s*$',s)):
+        if(re.match(r'(.)*\s+(_)[A-Za-z0-9_-]+\s*$',s)):
             input_array[line] = re.sub(r'_(.)*','',s)
             label = s.split()[-1][1:]
             for x in label_list:
@@ -45,6 +44,9 @@ def check_labels(input,source):
             addr += 4
             dataidx += 1
     opts_labels = '|'.join(label_list)
+    print('Labels:')
+    print('\n'.join(label_list))
+    print('\nText nach Labelmodul:')
     if not same:
         addr = 0
         for line, s in enumerate(input_array):
@@ -69,9 +71,10 @@ def check_labels(input,source):
                 else:
                     break
                 summand = math.ceil(math.ceil(math.log2(i + 1)) / 8)
+                print(str(addr) + ':\t\t' + input_array[line])
                 addr += summand
             elif not re.match(r'\s*$', s):
-                print(str(addr) + ':\t\t' + s)
+                print(str(addr) + ':\t\t' + input_array[line])
                 addr += 4
         print('\n')
         output_array = asm.check_format('\n'.join(input_array),'')
