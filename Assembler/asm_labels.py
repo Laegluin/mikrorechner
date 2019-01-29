@@ -1,14 +1,22 @@
 import os
 import re
 import asm
+import sys
+import math
+
+# gültige werte für labelnamen definieren
+#problem: beim konverieren zum int von hex oder irgendwas strings wird die adresse falsch inkrementiert
 
 def check_labels(input,source):
+    print('Text nach Labelmodul:')
+    label_list = {}
     input_array = input.split('\n')
     for line, s in enumerate(input_array):
         input_array[line] = re.sub(r'#(.)*','',s)
     addr = 0
-    label_list = {}
     same = 0
+    dataidx = 0
+    data = [] #liste für indexe aller Datenstrings
     for line, s in enumerate(input_array):
         if(re.match(r'(.)*\s+(_)\w+\s*$',s)):
             input_array[line] = re.sub(r'_(.)*','',s)
@@ -20,19 +28,54 @@ def check_labels(input,source):
             else:
                 print('Labelnamen müssen eindeutig sein und Labels dürfen nur einmal eingeführt werden!')
                 break
-        if not re.match(r'\s*$', s):
-            addr += 1
+        s = input_array[line]
+        if re.match(r'(0x|0b)?[0-9A-Fa-f]+\s*$', s):
+            if re.match(r'0x[0-9A-Fa-f]+\s*$',s): i = int(s.split()[0],0)
+            elif re.match(r'0b[01]+\s*$',s): i = int(s.split()[0],0)
+            elif re.match('[0-9]+\s*$',s): i = int(s.split()[0])
+            else:
+                print('Fehler in Zeile ' + str(line+1) + ' Datenstring konnte nicht konvertiert werden')
+                same = 1
+                break
+            summand = math.ceil(math.ceil(math.log2(i + 1)) / 8)
+            data.append(dataidx)
+            addr += summand
+            dataidx += 1
+        elif not re.match(r'\s*$', s):
+            addr += 4
+            dataidx += 1
     opts_labels = '|'.join(label_list)
     if not same:
         addr = 0
         for line, s in enumerate(input_array):
             if re.match('(jump)\s+(to)\s+(' + opts_labels + ')\s*(_\w+\s*)?(\s+#(.)*)?$',s):
-                input_array[line] = 'jump_rel to ' + str(label_list[s.split()[2]] - addr)
+                dest = label_list[s.split()[2]] - addr
+                if dest-4 > 0: input_array[line] = 'jump_rel to ' + str(dest)
+                else: input_array[line] = 'jump_rel to ' + str(dest)
             elif re.match('(jump_if)\s+(to)\s+(' + opts_labels + ')\s*(_\w+\s*)?$', s):
-                input_array[line] = 'jump_rel_if to ' + str(label_list[s.split()[2]] - addr)
-            if not re.match(r'\s*$', s): addr += 1
-    if not same:
-        asm.check_format('\n'.join(input_array),source)
+                dest = label_list[s.split()[2]] - addr
+                if dest-4 > 0: input_array[line] = 'jump_rel_if to ' + str(dest)
+                else: input_array[line] = 'jump_rel_if to ' + str(dest)
+            elif re.match('(R)\d{1,2}\s+(=)\s+(' + opts_labels + ')\s*$', s):
+                words = s.split()
+                input_array[line] = words[0] + ' = ' + str(label_list[words[2]])
+            if re.match(r'(0x|0b)?[0-9A-Fa-f]+\s*$', s):
+                if re.match(r'0x[0-9A-Fa-f]+\s*$', s):
+                    i = int(s.split()[0], 0)
+                elif re.match(r'0b[01]+\s*$', s):
+                    i = int(s.split()[0], 0)
+                elif re.match('[0-9]+\s*$',s):
+                    i = int(s.split()[0])
+                else:
+                    break
+                summand = math.ceil(math.ceil(math.log2(i + 1)) / 8)
+                addr += summand
+            elif not re.match(r'\s*$', s):
+                print(str(addr) + ':\t\t' + s)
+                addr += 4
+        print('\n')
+        output_array = asm.check_format('\n'.join(input_array),'')
+        asm.save_binary(output_array, source,data)
 
 def start(source):
     if(os.path.exists(source)):
@@ -43,3 +86,6 @@ def start(source):
             print('Pfad muss in Textdatei enden!')
     else:
         print('Pfad existiert nicht.\n- benutze slashes anstatt backslashes\n- relative oder absolute Dateipfade sind gültig')
+
+# if __name__ == '__main__':
+#     start(sys.argv[0])

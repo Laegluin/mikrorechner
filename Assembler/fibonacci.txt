@@ -1,15 +1,19 @@
 #die n-te fibonacci zahl berechnen, bekommt n über R0 übergeben, output in R31
-#die 0-te ficonacci zahl wäre hier 0
+#die 0-te ficonacci zahl wäre hier 1
 
-R1 = 1                      #zum dekrementieren und inkrementieren
-R2 = 1                      #summand
-R31 = 0                     #output
+offset = 0                  #0
+R0 = 5                      #4   R0 ist n
+R1 = 0                      #8: fb(n - R0 - 2)
+R2 = 1                      #12: fb(n - R0 - 1
+R3 = 1
+R31 = 1                     #16: output: fb(n - R0)
 
 compare R0 = null           _schleife
-jump_if to ende            #sobald in R0 0 steht ist es zuende
-R0 = R0 - R1               #R0 dekrementieren
-R31 = R31 + R2
-R2 = R2 + R1               #summand inkrementieren
-jump to schleife
+jump_if to ende            #24: sobald in R0 0 steht ist es zuende
+R0 = R0 - R3               #28: R0 dekrementieren
+R31 = R1 + R2              #32
+copy R2 to R1              #36: summand inkrementieren
+copy R31 to R2
+jump to schleife            #44
 
-halt                        _ende
+halt                        _ende  #48
