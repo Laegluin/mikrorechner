@@ -21,7 +21,7 @@ use crate::ast::*;
 use crate::codegen::layout::*;
 use crate::emit::{Command, Reg, SET_IMMEDIATE_MAX};
 use crate::scope_map::ScopeMap;
-use crate::span::{Span, Spanned};
+use crate::span::{Index, Offset, Span, Spanned};
 use crate::typecheck::{TypeDesc, TypeRef};
 use byteorder::{ByteOrder, LittleEndian};
 use std::collections::HashMap;
@@ -41,6 +41,7 @@ const TMP_COPY2_REG: Reg = Reg::R3;
 pub enum CodegenError {
     UnsizedType(Rc<TypeDesc>),
     InfiniteSize(Rc<TypeDesc>),
+    MissingEntryPoint,
 }
 
 impl Display for CodegenError {
@@ -54,6 +55,7 @@ impl Display for CodegenError {
                 ty
             ),
             InfiniteSize(ref ty) => write!(f, "type `{}` has an infinite size", ty),
+            MissingEntryPoint => write!(f, "missing entry point `{}`", ENTRY_POINT),
         }
     }
 }
@@ -140,16 +142,20 @@ pub fn gen_asm(ast: TypedAst) -> Result<Asm, Spanned<CodegenError>> {
     let mut bindings = ScopeMap::new();
 
     gen_items(&ast.items, &mut bindings, &mut layouts, &ast, &mut asm)?;
-    gen_rt_start(&mut asm, &bindings);
+    gen_rt_start(&mut asm, &bindings)?;
 
     Ok(asm)
 }
 
-fn gen_rt_start(asm: &mut Asm, bindings: &ScopeMap<Ident, Value>) {
-    // get the entry point
-    // typechecking already made sure it exits and since it is in the global
-    // scope, it must be a label
-    let entry_point = bindings.get(&Ident::new(ENTRY_POINT)).unwrap();
+fn gen_rt_start(
+    asm: &mut Asm,
+    bindings: &ScopeMap<Ident, Value>,
+) -> Result<(), Spanned<CodegenError>> {
+    let entry_point = bindings.get(&Ident::new(ENTRY_POINT)).ok_or(Spanned::new(
+        CodegenError::MissingEntryPoint,
+        Span::from_offset(Index(1), Offset(0)),
+    ))?;
+
     let entry_point = entry_point.unwrap_label().label().clone();
     let exit = LabelValue::new("program_exit").label().clone();
     let stack_start = asm.push_const_u32(STACK_START_ADDR).label().clone();
@@ -168,6 +174,8 @@ fn gen_rt_start(asm: &mut Asm, bindings: &ScopeMap<Ident, Value>) {
         Command::Label(exit),
         Command::Halt,
     ]);
+
+    Ok(())
 }
 
 fn gen_items(
