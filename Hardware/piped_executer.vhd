@@ -2,7 +2,7 @@
 
 -- contains jump logic and ALU control
 
--- entity executor
+-- entity piped_executor
 
 -- architecture behavior
 
@@ -11,7 +11,7 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 use work.universal_constants.all;
 
-entity executer is
+entity piped_executer is
 
     port
     (
@@ -33,24 +33,20 @@ entity executer is
         wb_control    : out      unsigned(1 downto 0);
         jump_to_out   : out      unsigned(bit_Width-1 downto 0);
         mem_off_out   : out      unsigned(bit_Width-1 downto 0);
-        opcode_out    : out      unsigned(opcode_Bits-1 downto 0);
-        alu_stim      : out      std_logic
+        opcode_out    : out      unsigned(opcode_Bits-1 downto 0)
     );
 
-end entity executer;
+end entity piped_executer;
 
 
 
-architecture behavior of executer is
+architecture behavior of piped_executer is
 
     -- signale
     -- init
     signal C_in_tmp       : unsigned(adr_Width-1 downto 0) := (others => '0');
     signal mem_off_in_tmp : unsigned(bit_Width-1 downto 0) := (others => '0');
     signal reg_imm_in_tmp : unsigned(bit_Width-1 downto 0) := (others => '0');
-
-    signal tmp_alu_stim   : std_logic := '0';
-
 
 begin
     process(clk, enable)
@@ -162,12 +158,6 @@ begin
             end if;
         end if;
 
-    end process;
-
-    process(pc_in)
-    begin
-        alu_stim <= tmp_alu_stim;
-        tmp_alu_stim <= not tmp_alu_stim;
     end process;
 
 end behavior;

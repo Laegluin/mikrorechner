@@ -124,7 +124,6 @@ architecture behavior of piped_cpu is
     -- executer to alu
 
     signal ALU_opcode : unsigned(opcode_Bits-1 downto 0);
-	signal ALU_stim : std_logic; -- dummy
 
     -- executer to pc mux
 
@@ -187,6 +186,8 @@ architecture behavior of piped_cpu is
     signal write_address_reg : unsigned(adr_Width-1 downto 0);
     signal write_back_data : unsigned(bit_Width-1 downto 0);
     signal reg_write_en : std_logic;
+
+    --test
         
     begin
 
@@ -252,6 +253,7 @@ architecture behavior of piped_cpu is
             reset           => pipeline_reset,
             instr_in        => instruction_ifid,
             pc_in           => PC_value_ifid,
+
             instr_out       => instruction_de,
             pc_out          => PC_value_de
         );
@@ -289,6 +291,7 @@ architecture behavior of piped_cpu is
             A_data_in       => A_data_idex,
             B_data_in       => B_data_idex,
             mem_address_in  => store_address_idex,
+
             pc_out          => PC_value_ex,
             opcode_out      => opcode_ex,
 			C_address_out	=> C_address_ex,
@@ -317,7 +320,7 @@ architecture behavior of piped_cpu is
             reg_read_data_C     => store_address_idex
         );
     
-    executer : entity work.executer
+    executer : entity work.piped_executer
         port map
         (
             clk             => clk,
@@ -329,7 +332,8 @@ architecture behavior of piped_cpu is
             reg_imm_in      => reg_imm_ex,
             opcode_in       => opcode_ex,
             alu_flag        => ALU_flag,
-            C_in            => C_address_ex,       
+            C_in            => C_address_ex,   
+
             C_out           => C_address_exmemdelay,
             pc_enable       => PC_enable_mux,
             pc_write_en     => PC_write_enable_exmemdelay,
@@ -338,8 +342,7 @@ architecture behavior of piped_cpu is
             wb_control      => wb_control_exmemdelay,
             jump_to_out     => jump_to_exmemdelay,
             mem_off_out     => mem_offset_exmemdelay,
-            opcode_out      => ALU_opcode,
-			alu_stim		=> ALU_stim
+            opcode_out      => ALU_opcode
         );
 
 	alu_delay_reg : entity work.alu_delay_reg
@@ -350,6 +353,7 @@ architecture behavior of piped_cpu is
 			A_in			=> A_data_aludelay,
 			B_in			=> B_data_aludelay,
 			C_in			=> store_address_aludelay,
+
 			A_out			=> A_data_alu,
 			B_out			=> B_data_alu,
 			C_out			=> store_address_exmem			
@@ -358,12 +362,12 @@ architecture behavior of piped_cpu is
     alu : entity work.piped_alu
         port map
         (
+            clk             => clk,
             A               => A_data_alu,
             B               => B_data_alu,
             opcode          => ALU_opcode,
             ALU_Out         => C_data_exmem,
-            ALU_Flag        => ALU_flag,
-			alu_stim		=> clk
+            ALU_Flag        => ALU_flag
         );
 
     exmemdelayreg : entity work.exmem_delay_reg
@@ -448,6 +452,7 @@ architecture behavior of piped_cpu is
             mem_in              => mem_out_memwb,
             reg_imm_in          => reg_imm_memwb,
             C_address_in        => C_address_memwb,
+
             wb_control_out      => wb_control_wb,
             C_data_out          => C_data_wb,
             mem_out             => mem_out_wb,

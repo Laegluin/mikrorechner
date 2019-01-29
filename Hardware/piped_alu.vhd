@@ -13,11 +13,12 @@ entity piped_ALU is
 
     port
     (
+        clk         : in    std_logic;
         A, B        : in    unsigned(bit_Width-1 downto 0);    -- Operanden
         opcode      : in    unsigned(4 downto 0);              -- Opcode
         ALU_Out     : out   unsigned(bit_Width-1 downto 0);    -- Ausgang
-        ALU_Flag    : out   std_logic;                          -- Flag
-        alu_stim    : in    std_logic
+        ALU_Flag    : out   std_logic                          -- Flag
+        
      );
 end entity piped_ALU;
 
@@ -29,10 +30,10 @@ signal Flag_tmp     : std_logic := '0';
 
 
 begin
-    process(alu_stim)
+    process(clk)
 
     begin
-	if rising_edge(alu_stim) then 
+	if rising_edge(clk) then 
         vorz_tmp <= A(bit_Width-1 downto bit_Width-1);
 
         case(opcode) 

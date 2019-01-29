@@ -14,8 +14,8 @@ entity pipe_mem_wb is
     port
     (
         -- pipeline stage control inputs
-        clk             : in  std_logic;
-        reset           : in  std_logic;
+        clk             : in std_logic;
+        reset           : in std_logic;
 
         -- inputs from memory stage
         wb_control_in   : in unsigned(1 downto 0);

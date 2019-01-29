@@ -70,7 +70,6 @@ begin
   return Result;
 end function;
 
-
 --signal ram : ram_t := mem_read_file("/informatik2/students/home/6lahann/Projekt/work/data_mem.hex");
 signal ram : ram_t := mem_read_file("C:/Users/Moritz Lahann/Desktop/STUDIUM/PROJEKT MIKROPROZESSOR/GIT/Hardware/data_mem.hex");
 		--full filepath must always be specified!
@@ -95,39 +94,39 @@ begin
 
                 address <= mem_address + mem_offset;
 
-                --if address > "00000000000000001111111111111111" then --Area for Data Memory is 0x0000FFFF upwards, remove for simulation
+                if address > "01111111111111111111111111111111" then --Area for Data Memory is 0x80000000 upwards (including that), remove for simulation?
 
                     ram(to_integer(address))    <= mem_write_data(31 downto 24);
                     ram(to_integer(address)+1)  <= mem_write_data(23 downto 16);
                     ram(to_integer(address)+2)  <= mem_write_data(15 downto 8);
                     ram(to_integer(address)+3)  <= mem_write_data(7 downto 0);
                 
-                --else
+                else
 
-                --    mem_read_data <= to_unsigned(0, mem_read_data'length);
+                    mem_read_data <= (others => '0');
 
-                --end if;
+                end if;
                     
             elsif mem_rw_en = "10" then --LOAD
 
                 address <= C_in + mem_offset;
 
-                --if address > "00000000000000001111111111111111" then --Area for Data Memory is 0x0000FFFF upwards, remove for simulation
+                if address > "01111111111111111111111111111111" then --Area for Data Memory is 0x80000000 upwards (including that), remove for simulation?
 
                     mem_read_data(31 downto 24) <= ram(to_integer(address));
                     mem_read_data(23 downto 16) <= ram(to_integer(address)+1);
                     mem_read_data(15 downto 8)  <= ram(to_integer(address)+2);
                     mem_read_data(7 downto 0)   <= ram(to_integer(address)+3); 
 
-                --else
+                else
 
-                --    mem_read_data <= to_unsigned(0, mem_read_data'length);
+                    mem_read_data <= (others => '0');
 
-                --end if;
+                end if;
 
             else
 
-                mem_read_data <= to_unsigned(0, mem_read_data'length);
+                mem_read_data <= (others => '0');
 
             end if;
                 

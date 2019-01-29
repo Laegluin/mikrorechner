@@ -14,12 +14,12 @@ entity pipe_if_id is
     port
     (
         -- pipeline stage control inputs
-        clk           : in  std_logic;
-        reset         : in  std_logic;
+        clk           : in std_logic;
+        reset         : in std_logic;
 
         -- inputs from instruction fetch stage
-        instr_in      : in  unsigned(bit_Width-1 downto 0);
-        pc_in         : in  unsigned(bit_Width-1 downto 0);
+        instr_in      : in unsigned(bit_Width-1 downto 0);
+        pc_in         : in unsigned(bit_Width-1 downto 0);
         -- inputs from register bank unneeded?
 
         -- outputs to decoder stage
