@@ -282,20 +282,12 @@ pub enum Value {
     Label(LabelValue),
     Reg(RegValue),
     Stack(StackValue),
-    /// A dynamically allocated value that lives at an address pointed to by the nested value.
-    /// Effectively, this acts like an lvalue: it is a pointer, but refers to the value inside,
-    /// not to the pointer itself. Thus, the layout used with this value needs to be the layout
-    /// of the pointed at value.
-    Ptr(Box<Value>),
+    Ptr(PtrValue),
 }
 
 impl Value {
     pub fn reg(reg: Reg) -> Value {
         Value::Reg(RegValue { regs: vec![reg] })
-    }
-
-    pub fn ptr(ptr: Value) -> Value {
-        Value::Ptr(Box::new(ptr))
     }
 
     /// Gets the first register of this value or `None`, if the value is not
@@ -311,7 +303,8 @@ impl Value {
         match *self {
             Value::Reg(ref value) => Value::Reg(value.field(field, layout)),
             Value::Stack(ref value) => Value::Stack(value.field(field, layout)),
-            _ => panic!("cannot access field for lvalue or label"),
+            Value::Ptr(ref value) => Value::Ptr(value.field(field, layout)),
+            _ => panic!("cannot access field for label"),
         }
     }
 
@@ -345,6 +338,42 @@ impl LabelValue {
 
     pub fn label(&self) -> &Label {
         &self.label
+    }
+}
+
+/// A dynamically allocated value that lives at an address pointed to by the nested value.
+/// Effectively, this acts like an lvalue: it is a pointer, but refers to the value inside,
+/// not to the pointer itself. Thus, the layout used with this value needs to be the layout
+/// of the pointed at value.
+#[derive(Debug, Clone)]
+pub struct PtrValue {
+    ptr: Rc<Value>,
+    offset: StackOffset,
+}
+
+impl PtrValue {
+    pub fn new(ptr: Value) -> PtrValue {
+        PtrValue {
+            ptr: Rc::new(ptr),
+            offset: StackOffset(0),
+        }
+    }
+
+    pub fn ptr(&self) -> &Value {
+        &self.ptr
+    }
+
+    pub fn offset(&self) -> StackOffset {
+        self.offset
+    }
+
+    fn field<'a>(&self, field: impl Into<FieldIdent<'a>>, layout: &Layout) -> PtrValue {
+        let offset = layout.stack_field_offset(field);
+
+        PtrValue {
+            ptr: Rc::clone(&self.ptr),
+            offset: self.offset + offset,
+        }
     }
 }
 

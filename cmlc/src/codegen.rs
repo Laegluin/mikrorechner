@@ -250,7 +250,7 @@ fn gen_fn(
         .get_or_gen(def.ret_ty.clone(), ast)
         .map_err(|err| Spanned::new(err, def.name.span()))?;
 
-    let ret_value = Value::ptr(Value::Stack(stack.alloc(&Layout::word())));
+    let ret_value = Value::Ptr(PtrValue::new(Value::Stack(stack.alloc(&Layout::word()))));
 
     // bind the arguments
     for param in &def.params {
@@ -340,6 +340,7 @@ fn gen_expr(
     let Spanned { value: expr, span } = expr;
 
     match *expr {
+        // FIXME: do not allocate in tmp registers
         Expr::Lit(ref lit, _) => match *lit {
             Lit::Bool(is_true) => {
                 let value = if is_true { 1 } else { 0 };
@@ -428,6 +429,7 @@ fn gen_expr(
                         result.assign(Value::reg(TMP1_REG), asm);
                     }
                 }
+                // FIXME: make this sound (do not copy the value)
                 UnOpKind::AddrOf | UnOpKind::AddrOfMut => {
                     let (result_reg, needs_copy) = match result.or_alloc(ctx).try_get_reg() {
                         Some(reg) => (reg, false),
@@ -459,7 +461,9 @@ fn gen_expr(
                     let mut ptr_result =
                         ExprResult::copy_to(ctx.alloc(&Layout::word()), Layout::word());
                     gen_expr(operand.as_ref().map(Box::as_ref), &mut ptr_result, ctx, asm)?;
-                    result.assign(Value::ptr(ptr_result.or_alloc(ctx).clone()), asm);
+
+                    let ptr = PtrValue::new(ptr_result.or_alloc(ctx).clone());
+                    result.assign(Value::Ptr(ptr), asm);
                 }
             }
         }
@@ -827,9 +831,9 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
             asm.push(Command::Store(FRAME_PTR_REG, TMP_COPY1_REG, dst.offset().0));
         }
         (Value::Label(ref src), Value::Ptr(ref dst)) => {
-            copy(dst, &Value::reg(TMP_COPY1_REG), &Layout::word(), asm);
+            copy(dst.ptr(), &Value::reg(TMP_COPY1_REG), &Layout::word(), asm);
             asm.push(Command::SetLabel(TMP_COPY2_REG, src.label().clone()));
-            asm.push(Command::Store(TMP_COPY1_REG, TMP_COPY2_REG, 0));
+            asm.push(Command::Store(TMP_COPY1_REG, TMP_COPY2_REG, dst.offset().0));
         }
         (Value::Stack(ref src), Value::Reg(ref dst)) => {
             assert!(layout.is_uniform());
@@ -860,9 +864,9 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
             }
         }
         (Value::Stack(ref src), Value::Ptr(ref dst)) => {
-            copy(dst, &Value::reg(TMP_COPY1_REG), &Layout::word(), asm);
+            copy(dst.ptr(), &Value::reg(TMP_COPY1_REG), &Layout::word(), asm);
             asm.push(Command::Load(TMP_COPY2_REG, FRAME_PTR_REG, src.offset().0));
-            asm.push(Command::Store(TMP_COPY1_REG, TMP_COPY2_REG, 0));
+            asm.push(Command::Store(TMP_COPY1_REG, TMP_COPY2_REG, dst.offset().0));
         }
         (Value::Reg(ref src), Value::Stack(ref dst)) => {
             assert!(layout.is_uniform());
@@ -878,14 +882,14 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
             }
         }
         (Value::Reg(ref src), Value::Ptr(ref dst)) => {
-            copy(dst, &Value::reg(TMP_COPY1_REG), &Layout::word(), asm);
-            asm.push(Command::Store(TMP_COPY1_REG, src.reg(), 0));
+            copy(dst.ptr(), &Value::reg(TMP_COPY1_REG), &Layout::word(), asm);
+            asm.push(Command::Store(TMP_COPY1_REG, src.reg(), dst.offset().0));
         }
         (Value::Ptr(ref src), Value::Stack(ref dst)) => {
             // very similar to stack -> stack, except that the offset is applied
             // directly to the address of the pointer
             assert!(layout.stack_size() >= StackOffset(4));
-            copy(src, &Value::reg(TMP_COPY2_REG), &Layout::word(), asm);
+            copy(src.ptr(), &Value::reg(TMP_COPY2_REG), &Layout::word(), asm);
 
             for offset in (0..layout.stack_size().0).step_by(4) {
                 let offset = if offset <= (layout.stack_size().0 - 4) {
@@ -894,7 +898,7 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
                     layout.stack_size() - StackOffset(4)
                 };
 
-                let src_offset = offset;
+                let src_offset = offset + src.offset();
                 let dst_offset = dst.offset() + offset;
 
                 asm.push(Command::Load(TMP_COPY1_REG, TMP_COPY2_REG, src_offset.0));
@@ -905,10 +909,10 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
             // very similar to stack -> reg, except that the offset is applied
             // directly to the address of the pointer
             assert!(layout.is_uniform());
-            copy(src, &Value::reg(TMP_COPY1_REG), &Layout::word(), asm);
+            copy(src.ptr(), &Value::reg(TMP_COPY1_REG), &Layout::word(), asm);
 
             for (offset, reg) in (0..layout.stack_size().0).step_by(4).zip(dst.regs()) {
-                asm.push(Command::Load(*reg, TMP_COPY1_REG, offset));
+                asm.push(Command::Load(*reg, TMP_COPY1_REG, offset + src.offset().0));
             }
         }
         (Value::Ptr(ref src), Value::Ptr(ref dst)) => {
@@ -925,10 +929,19 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
                     layout.stack_size().0 - 4
                 };
 
-                copy(src, &Value::reg(TMP_COPY2_REG), &Layout::word(), asm);
-                asm.push(Command::Load(TMP_COPY1_REG, TMP_COPY2_REG, offset));
-                copy(dst, &Value::reg(TMP_COPY2_REG), &Layout::word(), asm);
-                asm.push(Command::Store(TMP_COPY2_REG, TMP_COPY1_REG, offset));
+                copy(src.ptr(), &Value::reg(TMP_COPY2_REG), &Layout::word(), asm);
+                asm.push(Command::Load(
+                    TMP_COPY1_REG,
+                    TMP_COPY2_REG,
+                    offset + src.offset().0,
+                ));
+
+                copy(dst.ptr(), &Value::reg(TMP_COPY2_REG), &Layout::word(), asm);
+                asm.push(Command::Store(
+                    TMP_COPY2_REG,
+                    TMP_COPY1_REG,
+                    offset + dst.offset().0,
+                ));
             }
         }
     }
