@@ -1026,4 +1026,12 @@ mod test {
         let typed_ast = typecheck::typecheck(ast).unwrap();
         gen_asm(typed_ast).unwrap();
     }
+
+    #[test]
+    fn gen_vector_example() {
+        let tokens = lexer::lex(include_str!("../tests/vector.cml")).unwrap();
+        let ast = parser::parse(&tokens).unwrap();
+        let typed_ast = typecheck::typecheck(ast).unwrap();
+        gen_asm(typed_ast).unwrap();
+    }
 }

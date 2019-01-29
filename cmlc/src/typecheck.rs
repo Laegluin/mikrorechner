@@ -1438,4 +1438,11 @@ mod test {
         let ast = parser::parse(&tokens).unwrap();
         typecheck(ast).unwrap();
     }
+
+    #[test]
+    fn check_vector_example() {
+        let tokens = lexer::lex(include_str!("../tests/vector.cml")).unwrap();
+        let ast = parser::parse(&tokens).unwrap();
+        typecheck(ast).unwrap();
+    }
 }

@@ -1406,4 +1406,10 @@ mod test {
         let tokens = lexer::lex(include_str!("../tests/factorial.cml")).unwrap();
         parser::parse(&tokens).unwrap();
     }
+
+    #[test]
+    fn parse_vector_example() {
+        let tokens = lexer::lex(include_str!("../tests/vector.cml")).unwrap();
+        parser::parse(&tokens).unwrap();
+    }
 }
