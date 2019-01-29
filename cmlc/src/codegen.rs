@@ -340,7 +340,7 @@ fn gen_expr(
     let Spanned { value: expr, span } = expr;
 
     match *expr {
-        // FIXME: do not allocate in tmp registers
+        // assigning a tmp register is fine, since we forced allocation for the result before hand
         Expr::Lit(ref lit, _) => match *lit {
             Lit::Bool(is_true) => {
                 let value = if is_true { 1 } else { 0 };
