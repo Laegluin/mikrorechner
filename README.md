@@ -205,7 +205,7 @@ Line comments are initiated with #.
 
 ### Labels
 ```text
-Labels can only consist of A-Z,a-z and _
+Labels can only consist of [A-Za-z0-9_-]
 <command> _<label> #<comment>      Initiation of labels
 jump to <label>
 jump_if to <label>
@@ -261,7 +261,7 @@ jump_rel_if to <I>
 
 ```text
 load <R> + <I> to <R>
-store <R> + <I> to <R>
+store <R> to <R> + <I>
 ```
 ### Data
 
