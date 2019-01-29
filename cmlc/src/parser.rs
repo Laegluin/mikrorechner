@@ -1079,7 +1079,7 @@ fn block(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<ParseError>>
         let expr = expr(tokens)?;
 
         let is_block_delimited = match expr.value {
-            Expr::Block(..) | Expr::IfExpr(..) => true,
+            Expr::Block(..) | Expr::IfExpr(..) | Expr::WhileExpr(..) => true,
             _ => false,
         };
 
