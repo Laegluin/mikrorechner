@@ -1035,6 +1035,40 @@ fn check_expr<'a>(
 
             Ok(ty)
         }
+        Expr::WhileExpr(ref mut while_expr, ref mut ty) => {
+            let cond_ty = check_expr(
+                while_expr.cond.as_mut().map(Box::as_mut),
+                ret_ty,
+                Mutability::Const,
+                type_env,
+                type_bindings,
+                value_bindings,
+            )?;
+
+            // the condition must be a bool
+            let bool_ty = type_env.insert(Type::Bool);
+            type_env
+                .unify(&bool_ty, &cond_ty)
+                .map_err(|err| Spanned::new(err, while_expr.cond.span))?;
+
+            let body_ty = check_expr(
+                while_expr.body.as_mut().map(Box::as_mut),
+                ret_ty,
+                Mutability::Const,
+                type_env,
+                type_bindings,
+                value_bindings,
+            )?;
+
+            // body must be a ()
+            let unit_ty = type_env.insert(Type::unit());
+            type_env
+                .unify(&unit_ty, body_ty)
+                .map_err(|err| Spanned::new(err, while_expr.body.span))?;
+
+            *ty = unit_ty;
+            Ok(ty)
+        }
         Expr::Block(ref mut block, ref mut ty) => {
             type_bindings.enter_scope();
             value_bindings.enter_scope();

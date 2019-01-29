@@ -768,6 +768,27 @@ fn gen_expr(
             asm.push(Command::Noop); // avoid two consecutive labels if there's no else block
             asm.push(Command::Label(end_if_label));
         }
+        Expr::WhileExpr(WhileExpr { ref cond, ref body }, _) => {
+            let while_label = LabelValue::new("while").label().clone();
+            let end_label = LabelValue::new("end_while").label().clone();
+
+            asm.push(Command::Label(while_label.clone()));
+
+            gen_expr(
+                cond.as_ref().map(Box::as_ref),
+                &mut ExprResult::copy_to(Value::reg(TMP1_REG), Layout::word()),
+                ctx,
+                asm,
+            )?;
+
+            asm.push(Command::CmpEq(TMP1_REG, Reg::Null));
+            asm.push(Command::JmpRelIfLabel(end_label.clone()));
+
+            gen_expr(body.as_ref().map(Box::as_ref), result, ctx, asm)?;
+
+            asm.push(Command::JmpRelLabel(while_label));
+            asm.push(Command::Label(end_label));
+        }
         Expr::Block(Block { ref exprs, .. }, _) => {
             ctx.bindings.enter_scope();
 

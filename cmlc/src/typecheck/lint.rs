@@ -152,6 +152,18 @@ fn verify_expr(
 
             canonicalize_type_ref(ty, type_env, types, span)?;
         }
+        Expr::WhileExpr(
+            WhileExpr {
+                ref mut cond,
+                ref mut body,
+            },
+            ref mut ty,
+        ) => {
+            verify_expr(cond.as_mut().map(Box::as_mut), type_env, types)?;
+            verify_expr(body.as_mut().map(Box::as_mut), type_env, types)?;
+
+            canonicalize_type_ref(ty, type_env, types, span)?;
+        }
         Expr::Block(Block { ref mut exprs, .. }, ref mut ty) => {
             for expr in exprs {
                 verify_expr(expr.as_mut(), type_env, types)?;

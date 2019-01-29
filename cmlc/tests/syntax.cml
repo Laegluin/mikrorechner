@@ -164,3 +164,13 @@ fn casts = {
     let mut addr = &mut uint;
     addr = 16 as *mut _;
 }
+
+fn loops = {
+    let mut i = 0;
+
+    // break and continue not support right now
+    while i < 10 {
+        i = i + 1;
+        zero_arg_function!;
+    }
+}

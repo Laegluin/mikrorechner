@@ -891,6 +891,7 @@ fn atom_or_group(tokens: &TokenStream<'_>) -> Result<Spanned<Expr>, Spanned<Pars
             parenthesized_or_tuple_cons,
             ret_expr,
             if_expr,
+            while_expr,
             block_expr,
         ],
     )
@@ -1052,6 +1053,15 @@ fn if_expr(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
         then_block,
         else_block,
     }))
+}
+
+fn while_expr(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {
+    token(tokens, Token::Keyword(Keyword::While), "while")?;
+
+    let cond = expr(tokens)?.map(Box::new);
+    let body = block(tokens)?.map(Box::new);
+
+    Ok(Expr::while_expr(WhileExpr { cond, body }))
 }
 
 fn block_expr(tokens: &TokenStream<'_>) -> Result<Expr, Spanned<ParseError>> {

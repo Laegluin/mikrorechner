@@ -166,6 +166,7 @@ pub enum Expr {
     AutoRef(Box<Expr>, TypeRef),
     Ret(Option<Spanned<Box<Expr>>>, TypeRef),
     IfExpr(IfExpr, TypeRef),
+    WhileExpr(WhileExpr, TypeRef),
     Block(Block, TypeRef),
     /// Placeholder expression representing the body of a record constructor function.
     ConstructRecord(TypeRef),
@@ -228,6 +229,10 @@ impl Expr {
         Expr::IfExpr(if_expr, TypeRef::invalid())
     }
 
+    pub fn while_expr(while_expr: WhileExpr) -> Expr {
+        Expr::WhileExpr(while_expr, TypeRef::invalid())
+    }
+
     pub fn block(block: Block) -> Expr {
         Expr::Block(block, TypeRef::invalid())
     }
@@ -252,6 +257,7 @@ impl Expr {
             Expr::AutoRef(_, ref ty) => ty,
             Expr::Ret(_, ref ty) => ty,
             Expr::IfExpr(_, ref ty) => ty,
+            Expr::WhileExpr(_, ref ty) => ty,
             Expr::Block(_, ref ty) => ty,
             Expr::ConstructRecord(ref ty) => ty,
         }
@@ -445,6 +451,12 @@ pub struct IfExpr {
     pub cond: Spanned<Box<Expr>>,
     pub then_block: Spanned<Box<Expr>>,
     pub else_block: Option<Spanned<Box<Expr>>>,
+}
+
+#[derive(Debug)]
+pub struct WhileExpr {
+    pub cond: Spanned<Box<Expr>>,
+    pub body: Spanned<Box<Expr>>,
 }
 
 #[derive(Debug)]

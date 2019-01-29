@@ -47,6 +47,7 @@ pub enum Keyword {
     Let,
     Mut,
     If,
+    While,
     Else,
     As,
 }
@@ -348,6 +349,7 @@ fn reserved_idents(string: &str) -> Option<Token> {
         "let" => Some(Token::Keyword(Keyword::Let)),
         "mut" => Some(Token::Keyword(Keyword::Mut)),
         "if" => Some(Token::Keyword(Keyword::If)),
+        "while" => Some(Token::Keyword(Keyword::While)),
         "else" => Some(Token::Keyword(Keyword::Else)),
         "as" => Some(Token::Keyword(Keyword::As)),
         _ => None,
