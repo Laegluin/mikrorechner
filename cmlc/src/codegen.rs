@@ -812,9 +812,14 @@ fn gen_expr(
             ctx.bindings.exit_scope();
         }
         Expr::ConstructRecord(ref ty) => {
-            // reinterpret the args as the return type, then copy it into the return value
+            // skip return and return value address
+            let mut stack = StackAllocator::new();
+            stack.alloc(&Layout::word());
+            stack.alloc(&Layout::word());
+
+            // reinterpret the args as the return type, then copy them into the return value
             let layout = ctx.layout(ty.clone(), span)?;
-            let value = Value::Stack(StackAllocator::new().alloc(&layout));
+            let value = Value::Stack(stack.alloc(&layout));
             copy(&value, ctx.ret_value, &layout, asm);
         }
     }
@@ -850,6 +855,7 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
         return;
     }
 
+    // TODO: abstract the iteration over stack values with strides of one word
     match (src, dst) {
         (_, Value::Label(_)) => panic!("cannot copy to label"),
         (Value::Label(ref src), Value::Reg(ref dst)) => {
@@ -893,9 +899,23 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
             }
         }
         (Value::Stack(ref src), Value::Ptr(ref dst)) => {
-            copy(dst.ptr(), &Value::reg(TMP_COPY1_REG), &Layout::word(), asm);
-            asm.push(Command::Load(TMP_COPY2_REG, FRAME_PTR_REG, src.offset().0));
-            asm.push(Command::Store(TMP_COPY1_REG, TMP_COPY2_REG, dst.offset().0));
+            // see ptr -> stack, here only the registers used are changed
+            assert!(layout.stack_size() >= StackOffset(4));
+            copy(dst.ptr(), &Value::reg(TMP_COPY2_REG), &Layout::word(), asm);
+
+            for offset in (0..layout.stack_size().0).step_by(4) {
+                let offset = if offset <= (layout.stack_size().0 - 4) {
+                    StackOffset(offset)
+                } else {
+                    layout.stack_size() - StackOffset(4)
+                };
+
+                let src_offset = src.offset() + offset;
+                let dst_offset = dst.offset() + offset;
+
+                asm.push(Command::Load(TMP_COPY1_REG, FRAME_PTR_REG, src_offset.0));
+                asm.push(Command::Store(TMP_COPY2_REG, TMP_COPY1_REG, dst_offset.0));
+            }
         }
         (Value::Reg(ref src), Value::Stack(ref dst)) => {
             assert!(layout.is_uniform());
@@ -927,7 +947,7 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
                     layout.stack_size() - StackOffset(4)
                 };
 
-                let src_offset = offset + src.offset();
+                let src_offset = src.offset() + offset;
                 let dst_offset = dst.offset() + offset;
 
                 asm.push(Command::Load(TMP_COPY1_REG, TMP_COPY2_REG, src_offset.0));
