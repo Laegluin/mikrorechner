@@ -22,7 +22,10 @@ script:
 
 before_deploy:
   - cargo build --release
-  - zip toolchain-$TRAVIS_OS_NAME.zip target/release/simulator* target/release/cmlc*
+  - mkdir -p target/release/laegluin.cml
+  - cp -r cmlc/package.json cmlc/language-configuration.json cmlc/grammars target/release/laegluin.cml
+  - cd target/release
+  - zip -r $TRAVIS_TAG-$TRAVIS_OS_NAME.zip simulator cmlc simulator.exe cmlc.exe laegluin.cml
 
 deploy:
   provider: releases
@@ -32,4 +35,4 @@ deploy:
   on:
     tags: true
   file_glob: true
-  file: '*.zip'
+  file: target/release/*.zip
