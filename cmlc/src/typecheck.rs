@@ -1399,8 +1399,7 @@ fn type_from_decl(
                 type_bindings,
             )?;
 
-            let fn_ty = type_env.insert(Type::Function(Function { params, ret }));
-            type_env.insert(Type::ConstPtr(fn_ty))
+            type_env.insert(Type::Function(Function { params, ret }))
         }
         TypeDecl::Tuple(ref ty_descs) => {
             let tys = ty_descs
