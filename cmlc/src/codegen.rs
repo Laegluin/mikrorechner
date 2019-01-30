@@ -1036,4 +1036,12 @@ mod test {
         let typed_ast = typecheck::typecheck(ast).unwrap();
         gen_asm(typed_ast).unwrap();
     }
+
+    #[test]
+    fn gen_find_example() {
+        let tokens = lexer::lex(include_str!("../tests/find.cml")).unwrap();
+        let ast = parser::parse(&tokens).unwrap();
+        let typed_ast = typecheck::typecheck(ast).unwrap();
+        gen_asm(typed_ast).unwrap();
+    }
 }

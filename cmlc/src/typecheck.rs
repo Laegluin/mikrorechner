@@ -1456,4 +1456,11 @@ mod test {
         let ast = parser::parse(&tokens).unwrap();
         typecheck(ast).unwrap();
     }
+
+    #[test]
+    fn check_find_example() {
+        let tokens = lexer::lex(include_str!("../tests/find.cml")).unwrap();
+        let ast = parser::parse(&tokens).unwrap();
+        typecheck(ast).unwrap();
+    }
 }
