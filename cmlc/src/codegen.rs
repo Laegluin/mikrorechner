@@ -620,11 +620,13 @@ fn gen_expr(
                 copy(&arg_value, &value, &arg_layout, asm);
             }
 
-            // set the frame pointer, load the function address and then call the function
-            asm.push(Command::Set(TMP1_REG, new_frame_offset.0));
-            asm.push(Command::Add(FRAME_PTR_REG, FRAME_PTR_REG, TMP1_REG));
+            // load the function address, set the frame pointer and then call the function
+            // it is important to load the address first, because it might be stored on the
+            // stack
             let fn_ptr = ctx.bindings.path_get(&call.name.value).unwrap();
             copy(fn_ptr, &Value::reg(TMP1_REG), &Layout::word(), asm);
+            asm.push(Command::Set(TMP2_REG, new_frame_offset.0));
+            asm.push(Command::Add(FRAME_PTR_REG, FRAME_PTR_REG, TMP2_REG));
             asm.push(Command::Jmp(TMP1_REG));
 
             // restore the frame pointer
