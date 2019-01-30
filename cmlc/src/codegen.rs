@@ -170,7 +170,7 @@ fn gen_rt_start(
         Command::SetLabel(TMP1_REG, exit.clone()),
         Command::Store(FRAME_PTR_REG, TMP1_REG, 0),
         // call main
-        Command::JmpRelLabel(entry_point),
+        Command::JmpLabel(entry_point),
         Command::Label(exit),
         Command::Halt,
     ]);
@@ -761,12 +761,12 @@ fn gen_expr(
 
             let else_label = LabelValue::new("else").label().clone();
             asm.push(Command::CmpEq(TMP1_REG, Reg::Null));
-            asm.push(Command::JmpRelIfLabel(else_label.clone()));
+            asm.push(Command::JmpIfLabel(else_label.clone()));
 
             gen_expr(then_block.as_ref().map(Box::as_ref), result, ctx, asm)?;
 
             let end_if_label = LabelValue::new("end_if").label().clone();
-            asm.push(Command::JmpRelLabel(end_if_label.clone()));
+            asm.push(Command::JmpLabel(end_if_label.clone()));
             asm.push(Command::Label(else_label));
 
             if let Some(ref else_block) = *else_block {
@@ -790,11 +790,11 @@ fn gen_expr(
             )?;
 
             asm.push(Command::CmpEq(TMP1_REG, Reg::Null));
-            asm.push(Command::JmpRelIfLabel(end_label.clone()));
+            asm.push(Command::JmpIfLabel(end_label.clone()));
 
             gen_expr(body.as_ref().map(Box::as_ref), result, ctx, asm)?;
 
-            asm.push(Command::JmpRelLabel(while_label));
+            asm.push(Command::JmpLabel(while_label));
             asm.push(Command::Label(end_label));
         }
         Expr::Block(Block { ref exprs, .. }, _) => {

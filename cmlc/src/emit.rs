@@ -73,9 +73,9 @@ pub enum Command {
     CmpGt(Reg, Reg),
     CmpGe(Reg, Reg),
     Jmp(Reg),
-    JmpRelLabel(Label),
+    JmpLabel(Label),
     JmpRel(i32),
-    JmpRelIfLabel(Label),
+    JmpIfLabel(Label),
     JmpRelIf(i32),
     Load(Reg, Reg, u32),
     Store(Reg, Reg, u32),
@@ -204,7 +204,7 @@ impl Command {
                 let instr = Instruction::op(Op::Jmp).dst(addr).get();
                 LittleEndian::write_u32(&mut bytes, instr);
             }
-            JmpRelLabel(ref label) => {
+            JmpLabel(ref label) => {
                 let offset = labels[label] as i32 - idx as i32;
 
                 let instr = Instruction::op(Op::JmpRel)
@@ -220,7 +220,7 @@ impl Command {
 
                 LittleEndian::write_u32(&mut bytes, instr);
             }
-            JmpRelIfLabel(ref label) => {
+            JmpIfLabel(ref label) => {
                 let offset = labels[label] as i32 - idx as i32;
 
                 let instr = Instruction::op(Op::JmpRelIf)
@@ -290,16 +290,16 @@ impl Display for Command {
             ShiftL(dst, lhs, rhs) => write!(f, "{} = {} << {} times", dst, lhs, rhs),
             ShiftR(dst, lhs, rhs) => write!(f, "{} = {} >> {} times", dst, lhs, rhs),
             SignedShiftR(dst, lhs, rhs) => write!(f, "{} = {} >>_s {} times", dst, lhs, rhs),
-            Copy(dst, src) => write!(f, "copy {} to {}", src, dst,),
+            Copy(dst, src) => write!(f, "{} = {}", dst, src),
             Set(dst, imm) => write!(f, "{} = {}", dst, imm,),
             SetLabel(dst, ref label) => write!(f, "{} = {}", dst, label,),
             CmpEq(lhs, rhs) => write!(f, "compare {} = {}", lhs, rhs,),
             CmpGt(lhs, rhs) => write!(f, "compare {} > {}", lhs, rhs,),
             CmpGe(lhs, rhs) => write!(f, "compare {} >= {}", lhs, rhs,),
             Jmp(addr) => write!(f, "jump to {}", addr,),
-            JmpRelLabel(ref label) => write!(f, "jump_rel to {}", label,),
+            JmpLabel(ref label) => write!(f, "jump to {}", label,),
             JmpRel(offset) => write!(f, "jump_rel to {}", offset,),
-            JmpRelIfLabel(ref label) => write!(f, "jump_rel_if to {}", label,),
+            JmpIfLabel(ref label) => write!(f, "jump_if to {}", label,),
             JmpRelIf(offset) => write!(f, "jump_rel_if to {}", offset,),
             Load(dst, src_addr, offset) => write!(f, "load {} + {} to {}", src_addr, offset, dst),
             Store(dst_addr, src, offset) => write!(f, "store {} to {} + {}", src, dst_addr, offset),
