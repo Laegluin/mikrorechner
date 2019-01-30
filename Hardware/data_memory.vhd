@@ -9,7 +9,7 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
-use STD.textio.all;
+use std.textio.all;
 use ieee.std_logic_textio.all;
 use work.universal_constants.all;
 
@@ -41,7 +41,10 @@ port
     wb_control_out      : out unsigned(1 downto 0);
     C_address_out       : out unsigned(adr_Width-1 downto 0);
     jump_out            : out unsigned(bit_Width-1 downto 0);
-    C_out               : out unsigned(bit_Width-1 downto 0)
+    C_out               : out unsigned(bit_Width-1 downto 0);
+
+    -- testing
+    dump : in std_logic
 );
 end data_memory;
 
@@ -130,6 +133,29 @@ begin
 
             end if;
                 
+        end if;
+    end process;
+
+    process(dump)
+
+        file data_file : text;
+        variable file_line : line;
+        variable open_status : file_open_status;
+
+    begin
+        if dump = '1' then 
+            file_open(open_status, data_file, "C:/Users/Moritz Lahann/Desktop/STUDIUM/PROJEKT MIKROPROZESSOR/GIT/Hardware/mem_dump.dat", write_mode);
+            assert open_status = open_ok;
+                report "Error opening dump file"
+                severity error;
+            for i in 0 to mem_Depth - 1 loop
+                write(file_line, std_logic_vector(ram(4*i+0)));
+                write(file_line, std_logic_vector(ram(4*i+1)));
+                write(file_line, std_logic_vector(ram(4*i+2)));
+                write(file_line, std_logic_vector(ram(4*i+3)));
+                writeline(data_file, file_line);
+            end loop; 
+            file_close(data_file);
         end if;
     end process;
 

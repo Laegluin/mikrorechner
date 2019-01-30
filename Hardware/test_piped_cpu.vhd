@@ -20,7 +20,8 @@ architecture behavior of test_piped_cpu is
     port
     (
         clk, reset : std_logic;
-		enable, halt : std_logic
+		enable, halt : std_logic;
+        dump : std_logic
     );
     
     end component piped_cpu;
@@ -30,6 +31,7 @@ architecture behavior of test_piped_cpu is
     signal reset : std_logic;
 	signal enable: std_logic;
     signal halt  : std_logic;
+    signal dump  : std_logic;
 
     -- outputs
 
@@ -40,7 +42,8 @@ begin
         clk   => clk,
         reset => reset,
 		enable => enable,
-        halt => halt
+        halt => halt,
+        dump => dump
     );
 
 
@@ -57,9 +60,10 @@ begin
     stim_proc: process
     begin
 
+        dump <= '0';
         halt <= '0';
 		reset <= '1';
-		wait for 150 ns;
+		wait for 40 ns;
 		reset <= '0';
 		enable <= '1';
 		wait;

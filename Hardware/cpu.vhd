@@ -15,7 +15,8 @@ entity cpu is
 port
 (
     clk, sclk, reset    : in std_logic;
-    enable, halt        : in std_logic
+    enable, halt        : in std_logic;
+    dump                : in std_logic
 );
 
 end entity cpu;
@@ -290,7 +291,8 @@ architecture behavior of cpu is
             C_out               => mem_C_data,
             pc_write_enable_out => if_PC_write_enable,
             c_address_in        => ex_C_address,
-            c_address_out       => mem_C_address
+            c_address_out       => mem_C_address,
+            dump                => dump
         );
 
     writeback : entity work.reg_write_back

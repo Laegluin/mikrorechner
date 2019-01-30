@@ -16,7 +16,8 @@ entity piped_cpu is
 port
 (
     clk, reset    : in std_logic;
-    enable, halt        : in std_logic
+    enable, halt  : in std_logic;
+    dump          : in std_logic
 );
 
 end entity piped_cpu;
@@ -439,7 +440,8 @@ architecture behavior of piped_cpu is
             C_out               => C_data_memwb,
             pc_write_enable_out => PC_write_enable_pc,
             c_address_in        => C_address_mem,
-            c_address_out       => C_address_memwb
+            c_address_out       => C_address_memwb,
+            dump                => dump
         );
 
     mem_wb_mem : entity work.pipe_mem_wb
