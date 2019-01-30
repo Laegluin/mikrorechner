@@ -29,6 +29,8 @@ pub enum TypeError {
     CannotInfer(Rc<TypeDesc>),
     TypeIsNotCastable(Rc<TypeDesc>),
     EntryPointTypeMismatch(Rc<TypeDesc>),
+    ShadowedFnDef,
+    ShadowedTypeDef,
 }
 
 impl Display for TypeError {
@@ -79,6 +81,8 @@ impl Display for TypeError {
                 "{} must be of type `*fn -> ()`, found `{}`",
                 ENTRY_POINT, ty
             ),
+            ShadowedFnDef => write!(f, "function definition shadows previous definition"),
+            ShadowedTypeDef => write!(f, "type definition shadows previous definition"),
         }
     }
 }
@@ -387,7 +391,6 @@ fn check_items(
     value_bindings: &mut ScopeMap<Ident, Binding>,
 ) -> Result<(), Spanned<TypeError>> {
     // collect all type and function defs, but delay resolution to allow for (mutally) recursive definitions
-    // TODO: detect shadowed types and shadowed fns
     for item in &*items {
         match item.value {
             Item::TypeDef(TypeDef::Alias(Spanned {
@@ -398,7 +401,12 @@ fn check_items(
                 value: RecordDef { ref name, .. },
                 ..
             })) => {
-                type_bindings.insert(name.value.clone(), type_env.insert(Type::Var));
+                let prev_binding =
+                    type_bindings.insert(name.value.clone(), type_env.insert(Type::Var));
+
+                if prev_binding.is_some() {
+                    return Err(Spanned::new(TypeError::ShadowedTypeDef, name.span));
+                }
             }
             Item::FnDef(FnDef {
                 ref name,
@@ -424,7 +432,12 @@ fn check_items(
                     param_names.push(name.clone());
                 }
 
-                value_bindings.path_insert(name.clone(), Binding::new_fn(ty, param_names));
+                let prev_binding =
+                    value_bindings.path_insert(name.clone(), Binding::new_fn(ty, param_names));
+
+                if prev_binding.is_some() {
+                    return Err(Spanned::new(TypeError::ShadowedFnDef, name.span()));
+                }
             }
         }
     }
@@ -442,7 +455,6 @@ fn check_items(
                 value: AliasDef { ref name, ref ty },
                 ..
             })) => {
-                // TODO: also alias the constructors
                 let ty = type_from_decl(ty.as_ref(), true, type_env, type_bindings)?;
                 let var = &type_bindings.get(&name.value).unwrap();
                 type_env.unify(&var, &ty).unwrap();
@@ -1387,8 +1399,7 @@ fn type_from_decl(
                 type_bindings,
             )?;
 
-            let fn_ty = type_env.insert(Type::Function(Function { params, ret }));
-            type_env.insert(Type::ConstPtr(fn_ty))
+            type_env.insert(Type::Function(Function { params, ret }))
         }
         TypeDecl::Tuple(ref ty_descs) => {
             let tys = ty_descs
@@ -1442,6 +1453,13 @@ mod test {
     #[test]
     fn check_vector_example() {
         let tokens = lexer::lex(include_str!("../tests/vector.cml")).unwrap();
+        let ast = parser::parse(&tokens).unwrap();
+        typecheck(ast).unwrap();
+    }
+
+    #[test]
+    fn check_find_example() {
+        let tokens = lexer::lex(include_str!("../tests/find.cml")).unwrap();
         let ast = parser::parse(&tokens).unwrap();
         typecheck(ast).unwrap();
     }

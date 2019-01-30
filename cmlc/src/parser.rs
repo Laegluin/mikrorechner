@@ -1412,4 +1412,10 @@ mod test {
         let tokens = lexer::lex(include_str!("../tests/vector.cml")).unwrap();
         parser::parse(&tokens).unwrap();
     }
+
+    #[test]
+    fn parse_find_example() {
+        let tokens = lexer::lex(include_str!("../tests/find.cml")).unwrap();
+        parser::parse(&tokens).unwrap();
+    }
 }

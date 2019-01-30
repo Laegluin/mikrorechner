@@ -170,7 +170,7 @@ fn gen_rt_start(
         Command::SetLabel(TMP1_REG, exit.clone()),
         Command::Store(FRAME_PTR_REG, TMP1_REG, 0),
         // call main
-        Command::JmpRelLabel(entry_point),
+        Command::JmpLabel(entry_point),
         Command::Label(exit),
         Command::Halt,
     ]);
@@ -620,11 +620,13 @@ fn gen_expr(
                 copy(&arg_value, &value, &arg_layout, asm);
             }
 
-            // set the frame pointer, load the function address and then call the function
-            asm.push(Command::Set(TMP1_REG, new_frame_offset.0));
-            asm.push(Command::Add(FRAME_PTR_REG, FRAME_PTR_REG, TMP1_REG));
+            // load the function address, set the frame pointer and then call the function
+            // it is important to load the address first, because it might be stored on the
+            // stack
             let fn_ptr = ctx.bindings.path_get(&call.name.value).unwrap();
             copy(fn_ptr, &Value::reg(TMP1_REG), &Layout::word(), asm);
+            asm.push(Command::Set(TMP2_REG, new_frame_offset.0));
+            asm.push(Command::Add(FRAME_PTR_REG, FRAME_PTR_REG, TMP2_REG));
             asm.push(Command::Jmp(TMP1_REG));
 
             // restore the frame pointer
@@ -761,12 +763,12 @@ fn gen_expr(
 
             let else_label = LabelValue::new("else").label().clone();
             asm.push(Command::CmpEq(TMP1_REG, Reg::Null));
-            asm.push(Command::JmpRelIfLabel(else_label.clone()));
+            asm.push(Command::JmpIfLabel(else_label.clone()));
 
             gen_expr(then_block.as_ref().map(Box::as_ref), result, ctx, asm)?;
 
             let end_if_label = LabelValue::new("end_if").label().clone();
-            asm.push(Command::JmpRelLabel(end_if_label.clone()));
+            asm.push(Command::JmpLabel(end_if_label.clone()));
             asm.push(Command::Label(else_label));
 
             if let Some(ref else_block) = *else_block {
@@ -790,11 +792,11 @@ fn gen_expr(
             )?;
 
             asm.push(Command::CmpEq(TMP1_REG, Reg::Null));
-            asm.push(Command::JmpRelIfLabel(end_label.clone()));
+            asm.push(Command::JmpIfLabel(end_label.clone()));
 
             gen_expr(body.as_ref().map(Box::as_ref), result, ctx, asm)?;
 
-            asm.push(Command::JmpRelLabel(while_label));
+            asm.push(Command::JmpLabel(while_label));
             asm.push(Command::Label(end_label));
         }
         Expr::Block(Block { ref exprs, .. }, _) => {
@@ -855,7 +857,6 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
         return;
     }
 
-    // TODO: abstract the iteration over stack values with strides of one word
     match (src, dst) {
         (_, Value::Label(_)) => panic!("cannot copy to label"),
         (Value::Label(ref src), Value::Reg(ref dst)) => {
@@ -873,24 +874,13 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
         (Value::Stack(ref src), Value::Reg(ref dst)) => {
             assert!(layout.is_uniform());
 
-            for (offset, reg) in (0..layout.stack_size().0).step_by(4).zip(dst.regs()) {
-                let offset = src.offset() + StackOffset(offset);
+            for (offset, reg) in word_copy_offsets(&layout).zip(dst.regs()) {
+                let offset = src.offset() + offset;
                 asm.push(Command::Load(*reg, FRAME_PTR_REG, offset.0));
             }
         }
         (Value::Stack(ref src), Value::Stack(ref dst)) => {
-            // need at least four bytes for a copy
-            assert!(layout.stack_size() >= StackOffset(4));
-
-            for offset in (0..layout.stack_size().0).step_by(4) {
-                // if the last value is not exactly four bytes, simply copy
-                // some bytes again
-                let offset = if offset <= (layout.stack_size().0 - 4) {
-                    StackOffset(offset)
-                } else {
-                    layout.stack_size() - StackOffset(4)
-                };
-
+            for offset in word_copy_offsets(&layout) {
                 let src_offset = src.offset() + offset;
                 let dst_offset = dst.offset() + offset;
 
@@ -900,16 +890,9 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
         }
         (Value::Stack(ref src), Value::Ptr(ref dst)) => {
             // see ptr -> stack, here only the registers used are changed
-            assert!(layout.stack_size() >= StackOffset(4));
             copy(dst.ptr(), &Value::reg(TMP_COPY2_REG), &Layout::word(), asm);
 
-            for offset in (0..layout.stack_size().0).step_by(4) {
-                let offset = if offset <= (layout.stack_size().0 - 4) {
-                    StackOffset(offset)
-                } else {
-                    layout.stack_size() - StackOffset(4)
-                };
-
+            for offset in word_copy_offsets(&layout) {
                 let src_offset = src.offset() + offset;
                 let dst_offset = dst.offset() + offset;
 
@@ -920,8 +903,8 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
         (Value::Reg(ref src), Value::Stack(ref dst)) => {
             assert!(layout.is_uniform());
 
-            for (offset, reg) in (0..layout.stack_size().0).step_by(4).zip(src.regs()) {
-                let offset = dst.offset() + StackOffset(offset);
+            for (offset, reg) in word_copy_offsets(&layout).zip(src.regs()) {
+                let offset = dst.offset() + offset;
                 asm.push(Command::Store(FRAME_PTR_REG, *reg, offset.0));
             }
         }
@@ -937,16 +920,9 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
         (Value::Ptr(ref src), Value::Stack(ref dst)) => {
             // very similar to stack -> stack, except that the offset is applied
             // directly to the address of the pointer
-            assert!(layout.stack_size() >= StackOffset(4));
             copy(src.ptr(), &Value::reg(TMP_COPY2_REG), &Layout::word(), asm);
 
-            for offset in (0..layout.stack_size().0).step_by(4) {
-                let offset = if offset <= (layout.stack_size().0 - 4) {
-                    StackOffset(offset)
-                } else {
-                    layout.stack_size() - StackOffset(4)
-                };
-
+            for offset in word_copy_offsets(&layout) {
                 let src_offset = src.offset() + offset;
                 let dst_offset = dst.offset() + offset;
 
@@ -960,8 +936,9 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
             assert!(layout.is_uniform());
             copy(src.ptr(), &Value::reg(TMP_COPY1_REG), &Layout::word(), asm);
 
-            for (offset, reg) in (0..layout.stack_size().0).step_by(4).zip(dst.regs()) {
-                asm.push(Command::Load(*reg, TMP_COPY1_REG, offset + src.offset().0));
+            for (offset, reg) in word_copy_offsets(&layout).zip(dst.regs()) {
+                let offset = src.offset() + offset;
+                asm.push(Command::Load(*reg, TMP_COPY1_REG, offset.0));
             }
         }
         (Value::Ptr(ref src), Value::Ptr(ref dst)) => {
@@ -969,31 +946,39 @@ fn copy(src: &Value, dst: &Value, layout: &Layout, asm: &mut Asm) {
             // are the respective pointers
             // because of that, there is quite a bit of loading to make due with only
             // two temporary registers
-            assert!(layout.stack_size() >= StackOffset(4));
-
-            for offset in (0..layout.stack_size().0).step_by(4) {
-                let offset = if offset <= (layout.stack_size().0 - 4) {
-                    offset
-                } else {
-                    layout.stack_size().0 - 4
-                };
+            for offset in word_copy_offsets(&layout) {
+                let src_offset = src.offset() + offset;
+                let dst_offset = dst.offset() + offset;
 
                 copy(src.ptr(), &Value::reg(TMP_COPY2_REG), &Layout::word(), asm);
-                asm.push(Command::Load(
-                    TMP_COPY1_REG,
-                    TMP_COPY2_REG,
-                    offset + src.offset().0,
-                ));
+                asm.push(Command::Load(TMP_COPY1_REG, TMP_COPY2_REG, src_offset.0));
 
                 copy(dst.ptr(), &Value::reg(TMP_COPY2_REG), &Layout::word(), asm);
-                asm.push(Command::Store(
-                    TMP_COPY2_REG,
-                    TMP_COPY1_REG,
-                    offset + dst.offset().0,
-                ));
+                asm.push(Command::Store(TMP_COPY2_REG, TMP_COPY1_REG, dst_offset.0));
             }
         }
     }
+}
+
+/// An iterator over offsets required to copy a value of the given `layout` word by word.
+///
+/// If the value's size is not divisible by 4, part of the offsets will overlap to compensate.
+///
+/// ## Panics
+/// Panics if the size of the layout is less than 4 bytes.
+fn word_copy_offsets(layout: &Layout) -> impl '_ + Iterator<Item = StackOffset> {
+    // need at least four bytes for a copy
+    assert!(layout.stack_size() >= StackOffset(4));
+
+    (0..layout.stack_size().0).step_by(4).map(move |offset| {
+        // if the last value is not exactly four bytes, simply copy
+        // some bytes again
+        if offset <= (layout.stack_size().0 - 4) {
+            StackOffset(offset)
+        } else {
+            layout.stack_size() - StackOffset(4)
+        }
+    })
 }
 
 #[cfg(test)]
@@ -1030,6 +1015,14 @@ mod test {
     #[test]
     fn gen_vector_example() {
         let tokens = lexer::lex(include_str!("../tests/vector.cml")).unwrap();
+        let ast = parser::parse(&tokens).unwrap();
+        let typed_ast = typecheck::typecheck(ast).unwrap();
+        gen_asm(typed_ast).unwrap();
+    }
+
+    #[test]
+    fn gen_find_example() {
+        let tokens = lexer::lex(include_str!("../tests/find.cml")).unwrap();
         let ast = parser::parse(&tokens).unwrap();
         let typed_ast = typecheck::typecheck(ast).unwrap();
         gen_asm(typed_ast).unwrap();

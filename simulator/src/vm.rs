@@ -517,8 +517,9 @@ pub fn instr_to_string(instr: Word) -> Option<String> {
             format!("{}: dst = {}, src = {}", op, dst, src)
         }
         Set => {
+            let reg = Reg::from_word(instr, RegPos::Dst).ok()?;
             let value = immediate_from_instr(instr, 1);
-            format!("{}: value = {}", op, value)
+            format!("{}: reg = {}, value = {}", op, reg, value)
         }
         CmpEq | CmpGt | CmpGe => {
             let lhs = Reg::from_word(instr, RegPos::Arg1).ok()?;

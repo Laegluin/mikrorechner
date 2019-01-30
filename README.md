@@ -196,7 +196,8 @@ halt: 0110 1*** **** **** **** **** **** ****
 ```text
 <R> ::= R1 | R2 | ... | R31 | null | offset
 <I> ::= -<X> | ... | <X>
-<X> ::= valid value in respect of the domain of command
+<X> ::= 0b<Y> | 0x<Y> | Y
+<Y> ::= valid value in respect of the domain of command 
 ```
 ### Kommentare
 ```text
@@ -205,11 +206,11 @@ Line comments are initiated with #.
 
 ### Labels
 ```text
-Labels can only consist of [A-Za-z0-9_-]
-<command> _<label> #<comment>      Initiation of labels
-jump to <label>
-jump_if to <label>
-<R> = <label>        Store the adress of command or data in register
+Naming convention                                 [A-Za-z0-9_-]
+Initiation of labels                              <command> _<label> #<comment>      
+Jumps                                             jump to <label>
+                                                  jump_if to <label>
+Store the adress of command or data in register   <R> = <label>        
 ```
 
 ### Arithmetic
