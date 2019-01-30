@@ -42,6 +42,10 @@ env:
   global:
     - RUST_BACKTRACE=1
 
+cache:
+  directories:
+    - $HOME/.cargo
+
 script:
   - cargo test
 
