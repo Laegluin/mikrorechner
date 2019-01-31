@@ -97,35 +97,37 @@ begin
 
                 address <= mem_address + mem_offset;
 
-                if address > "01111111111111111111111111111111" then --Area for Data Memory is 0x80000000 upwards (including that), remove for simulation?
+                --if address > "01111111111111111111111111111111" then --Area for Data Memory is 0x80000000 upwards (including that), remove for simulation?
 
-                    ram(to_integer(address))    <= mem_write_data(31 downto 24);
-                    ram(to_integer(address)+1)  <= mem_write_data(23 downto 16);
-                    ram(to_integer(address)+2)  <= mem_write_data(15 downto 8);
-                    ram(to_integer(address)+3)  <= mem_write_data(7 downto 0);
+                    ram(to_integer(address)+3)  <= mem_write_data(31 downto 24);
+                    ram(to_integer(address)+2)  <= mem_write_data(23 downto 16);
+                    ram(to_integer(address)+1)  <= mem_write_data(15 downto 8);
+                    ram(to_integer(address)+0)  <= mem_write_data(7 downto 0);
                 
-                else
+                --else
 
-                    mem_read_data <= (others => '0');
+                --    mem_read_data <= (others => '0');
 
-                end if;
+                --end if;
                     
             elsif mem_rw_en = "10" then --LOAD
 
                 address <= C_in + mem_offset;
 
-                if address > "01111111111111111111111111111111" then --Area for Data Memory is 0x80000000 upwards (including that), remove for simulation?
+                --if address > "01111111111111111111111111111111" then --Area for Data Memory is 0x80000000 upwards (including that), remove for simulation?
 
-                    mem_read_data(31 downto 24) <= ram(to_integer(address));
-                    mem_read_data(23 downto 16) <= ram(to_integer(address)+1);
-                    mem_read_data(15 downto 8)  <= ram(to_integer(address)+2);
-                    mem_read_data(7 downto 0)   <= ram(to_integer(address)+3); 
+                    mem_read_data(31 downto 24) <= ram(to_integer(address)+3);
+                    mem_read_data(23 downto 16) <= ram(to_integer(address)+2);
+                    mem_read_data(15 downto 8)  <= ram(to_integer(address)+1);
+                    mem_read_data(7 downto 0)   <= ram(to_integer(address)+0); 
 
-                else
+                    --mem_out <= ram(to_integer(address)+3) & ram(to_integer(address)+2) & ram(to_integer(address)+1) & ram(to_integer(address)+0);
 
-                    mem_read_data <= (others => '0');
+                --else
 
-                end if;
+                --    mem_read_data <= (others => '0');
+
+                --end if;
 
             else
 
@@ -149,10 +151,10 @@ begin
                 report "Error opening dump file"
                 severity error;
             for i in 0 to mem_Depth - 1 loop
-                write(file_line, std_logic_vector(ram(4*i+0)));
-                write(file_line, std_logic_vector(ram(4*i+1)));
-                write(file_line, std_logic_vector(ram(4*i+2)));
                 write(file_line, std_logic_vector(ram(4*i+3)));
+                write(file_line, std_logic_vector(ram(4*i+2)));
+                write(file_line, std_logic_vector(ram(4*i+1)));
+                write(file_line, std_logic_vector(ram(4*i+0)));
                 writeline(data_file, file_line);
             end loop; 
             file_close(data_file);
