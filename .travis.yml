@@ -42,6 +42,10 @@ env:
   global:
     - RUST_BACKTRACE=1
 
+cache:
+  directories:
+    - $HOME/.cargo
+
 script:
   - cargo test
 
@@ -56,6 +60,7 @@ before_deploy:
 
 deploy:
   provider: releases
+  name: $TRAVIS_TAG
   api_key:
     secure: B+FG2jpKHs7DU6DiVlOC9vEjEobPijwdbcXA0mK72TQ3SXMEXyjvDGdfPx+Zd4mj+u6SfIiUHIUdw4HdxVXnsJ4Cj/PpeD4rjoWnx1vmuXQULkvwBjrAELoPobaQthVm+Ntz1emzxXOJ5ZiIfJxAj2icxWhfxgdLTpKJZeHGPf9F7JHmP5GWAGJ6DquSgri3SARRa552HlV1NscuiBgSlgSTlPPaKxz9lzM70IoyXcP523oOoJEJgV/ONGdLR5qTCPyzt9/pDU3+r1naAJqRD93N+8kieY+xNBxicisgO7Sdbk9bxKc13GgVfMcoy2sZ5kucjjzCvEbUNV2t5cSY9rM/Ebqdg0xGi6X1J4J0UnfPTxa6C9mdQ0WrJh8zeG26iggObrtIoB1giR5qM/2JkUgH3R0RPPXs4mo+Q9voNpP5SrUcWywswvJ44uVBqHk1KPBPbU2pMXptEZsdyWx9aFlzLmm1kS6xo+AGGr3T6Fdz7KZqoLR/nnTa+ukiPZZCjdJFl1fKi7Tb16aR7E2EM9t3gy9VlW64/UNYPoiHqvIcLbOWIRHMjB00k7xPqxSI9MH0uYFQnL0TAcVA3agjbsubA/mfvNzICpI6TNodEtW5bHzfXvmVOTCRHVI6B3maGy4lYo420aQMVCOGD3b987fDn5kouO7zSCpOSvtpA9A=
   on:
