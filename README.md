@@ -264,6 +264,7 @@ jump_rel_if to <I>
 load <R> + <I> to <R>
 store <R> to <R> + <I>
 ```
+
 ### Data
 
 ```text
@@ -273,9 +274,14 @@ Hex-Strings: 0x<value>
 Bin-Strings: 0b<value>
 Decimal: <value>
 ```
+
 ### Miscellaneous
 
 ```text
 halt
 noop
 ```
+
+## License
+
+Licensed under MIT license ([LICENSE](LICENSE) or <http://opensource.org/licenses/MIT>).
