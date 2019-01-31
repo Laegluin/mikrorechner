@@ -113,7 +113,7 @@ begin
                         jump_to_out  <= (others => '0');
                     --JMP_REL
                     when "00111" =>
-                        jump_to_out <= unsigned(pc_in + jump_off_in);
+                        jump_to_out <= unsigned(pc_in - 4+ jump_off_in);
                         pc_write_en <= '1';
                     --JMP_IF
                     when "01000" =>
@@ -124,7 +124,7 @@ begin
                     --JMP_REL_IF
                     when "01001" =>
                         if alu_flag = '1' then
-                            jump_to_out <= unsigned(pc_in + jump_off_in);
+                            jump_to_out <= unsigned(pc_in - 4 + jump_off_in);
                             pc_write_en <= '1';
                         end if;
                         --Speicher
