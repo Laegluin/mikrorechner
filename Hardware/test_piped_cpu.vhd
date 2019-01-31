@@ -66,7 +66,9 @@ begin
 		wait for 40 ns;
 		reset <= '0';
 		enable <= '1';
-		wait;
+		wait for 49 us;
+        dump <= '1';
+        wait;
 
         -- Testwerte
         
