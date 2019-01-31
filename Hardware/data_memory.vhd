@@ -63,18 +63,18 @@ begin
     exit when endfile(FileHandle);
 
     readline(FileHandle, CurrentLine);
-    hread(CurrentLine, TempWord);
-    Result(4*i)    := resize(unsigned(TempWord(31 downto 24)), word_t'length);
-    Result((4*i)+1)  := resize(unsigned(TempWord(23 downto 16)), word_t'length);
-    Result((4*i)+2)  := resize(unsigned(TempWord(15 downto 8)), word_t'length);
-    Result((4*i)+3)  := resize(unsigned(TempWord(7 downto 0)), word_t'length);
+    read(CurrentLine, TempWord);
+    Result((4*i)+3)  := resize(unsigned(TempWord(31 downto 24)), word_t'length);
+    Result((4*i)+2)  := resize(unsigned(TempWord(23 downto 16)), word_t'length);
+    Result((4*i)+1)  := resize(unsigned(TempWord(15 downto 8)), word_t'length);
+    Result((4*i)+0)  := resize(unsigned(TempWord(7 downto 0)), word_t'length);
   end loop;
 
   return Result;
 end function;
 
 --signal ram : ram_t := mem_read_file("/informatik2/students/home/6lahann/Projekt/work/data_mem.hex");
-signal ram : ram_t := mem_read_file("C:/Users/Moritz Lahann/Desktop/STUDIUM/PROJEKT MIKROPROZESSOR/GIT/Hardware/data_mem.hex");
+signal ram : ram_t := mem_read_file("C:/Users/Moritz Lahann/Desktop/STUDIUM/PROJEKT MIKROPROZESSOR/GIT/Hardware/data_mem.dat");
 		--full filepath must always be specified!
 signal mem_read_data : unsigned(bit_Width-1 downto 0);
 signal mem_write_data : unsigned(bit_Width-1 downto 0);
@@ -89,7 +89,7 @@ begin
         if rst = '1' then
 
             --ram <= mem_read_file("/informatik2/students/home/6lahann/Projekt/work/data_mem.hex");
-            ram <= mem_read_file("C:/Users/Moritz Lahann/Desktop/STUDIUM/PROJEKT MIKROPROZESSOR/GIT/Hardware/data_mem.hex");
+            ram <= mem_read_file("C:/Users/Moritz Lahann/Desktop/STUDIUM/PROJEKT MIKROPROZESSOR/GIT/Hardware/data_mem.dat");
 		--full filepath must always be specified!
         elsif rising_edge(clk) then
 
