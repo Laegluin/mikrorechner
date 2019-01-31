@@ -527,7 +527,7 @@ pub fn instr_to_string(instr: Word) -> Option<String> {
             format!("{}: lhs = {}, rhs = {}", op, lhs, rhs)
         }
         Jmp | JmpIf => {
-            let addr = Reg::from_word(instr, RegPos::Arg2).ok()?;
+            let addr = Reg::from_word(instr, RegPos::Arg1).ok()?;
             format!("{}: addr = {}", op, addr)
         }
         JmpRel | JmpRelIf => {

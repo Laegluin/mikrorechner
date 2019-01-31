@@ -201,7 +201,7 @@ impl Command {
                 LittleEndian::write_u32(&mut bytes, instr);
             }
             Jmp(addr) => {
-                let instr = Instruction::op(Op::Jmp).dst(addr).get();
+                let instr = Instruction::op(Op::Jmp).arg1(addr).get();
                 LittleEndian::write_u32(&mut bytes, instr);
             }
             JmpLabel(ref label) => {
