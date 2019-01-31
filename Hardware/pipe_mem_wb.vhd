@@ -58,7 +58,7 @@ begin
 
             tmp_wb_control  <= wb_control_in;
             tmp_C_data      <= C_data_in;
-            tmp_mem         <= mem_in;
+            --tmp_mem         <= mem_in;
             tmp_reg_imm     <= reg_imm_in;
             tmp_C_address   <= C_address_in;
 
@@ -68,7 +68,8 @@ begin
 
     wb_control_out  <= tmp_wb_control;
     C_data_out      <= tmp_C_data;
-    mem_out         <= tmp_mem;
+    --mem_out         <= tmp_mem;
+    mem_out <= mem_in; --dirty fix to timing issue, refactor if possible
     reg_imm_out     <= tmp_reg_imm;
     C_address_out   <= tmp_C_address;
 
