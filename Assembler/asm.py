@@ -192,12 +192,14 @@ def show_output_array(a):
 
 def save_binary(a,s,data):
     try:
-        with open(s.replace('txt','bin'), 'wb+') as f:
+        #with open(s.replace('txt','bin'), 'wb+') as f:
+        with open(s.replace('txt', 'dat'), 'w') as f:
             for (idx,w) in enumerate(a):
-                i = int(w, 2)
-                if idx in data: x = i.to_bytes(math.ceil(len(w)/8),'big')
-                else: x = i.to_bytes(4,'little')
-                f.write(x)
+                #i = int(w, 2)
+                #if idx in data: x = i.to_bytes(math.ceil(len(w)/8),'big')
+                #else: x = i.to_bytes(4,'little')
+                #f.write(x)
+                f.write("%s\n" % w)
             f.truncate()
     except IOError as e:
         print("Konnte Binärdatei nicht lesen oder schreiben (%s)." % e)
@@ -207,7 +209,7 @@ def start(source):
     if(os.path.exists(source)):
         if(source.endswith('.txt')):
             f = open(source,'r')
-            check_format(f.read(),source.replace('.txt','.bin'))
+            check_format(f.read(),source.replace('.txt','.dat'))
         else:
             print('Pfad muss in Textdatei enden!')
     else:
