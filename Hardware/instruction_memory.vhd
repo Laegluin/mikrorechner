@@ -37,8 +37,8 @@ begin
     exit when endfile(FileHandle);
 
     readline(FileHandle, CurrentLine);
-    hread(CurrentLine, TempWord);
-    Result((4*i)+3)    := resize(unsigned(TempWord(31 downto 24)), word_t'length);
+    read(CurrentLine, TempWord); --was hread for hex
+    Result((4*i)+3)  := resize(unsigned(TempWord(31 downto 24)), word_t'length);
     Result((4*i)+2)  := resize(unsigned(TempWord(23 downto 16)), word_t'length);
     Result((4*i)+1)  := resize(unsigned(TempWord(15 downto 8)), word_t'length);
     Result((4*i)+0)  := resize(unsigned(TempWord(7 downto 0)), word_t'length);
@@ -48,8 +48,8 @@ begin
 end function;
 
 
---signal rom : rom_t := mem_read_file("/informatik2/students/home/6lahann/Projekt/work/instruction_mem.hex");
-signal rom : rom_t := mem_read_file("C:/Users/Moritz Lahann/Desktop/STUDIUM/PROJEKT MIKROPROZESSOR/GIT/Hardware/instruction_mem.hex");
+--signal rom : rom_t := mem_read_file("/informatik2/students/home/6lahann/Projekt/work/instruction_mem.dat");
+signal rom : rom_t := mem_read_file("C:/Users/Moritz Lahann/Desktop/STUDIUM/PROJEKT MIKROPROZESSOR/GIT/Hardware/instruction_mem.dat");
 		--full filepath must always be specified!
 signal mem_read_data : unsigned(bit_Width-1 downto 0); 
 
@@ -57,8 +57,8 @@ begin
     process(clk, rst)
     begin
         if rst = '1' then
-            --rom <= mem_read_file("/informatik2/students/home/6lahann/Projekt/work/instruction_mem.hex");
-            rom <= mem_read_file("C:/Users/Moritz Lahann/Desktop/STUDIUM/PROJEKT MIKROPROZESSOR/GIT/Hardware/instruction_mem.hex");
+            --rom <= mem_read_file("/informatik2/students/home/6lahann/Projekt/work/instruction_mem.dat");
+            rom <= mem_read_file("C:/Users/Moritz Lahann/Desktop/STUDIUM/PROJEKT MIKROPROZESSOR/GIT/Hardware/instruction_mem.dat");
 		--full filepath must always be specified!
         else
             if rising_edge(clk) then
