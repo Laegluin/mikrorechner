@@ -1,0 +1,84 @@
+#die n+1-te fibonacci zahl berechnen, bekommt n über R0 übergeben, output in R31
+#die 0-te ficonacci zahl wäre hier 1
+
+offset = 0                  #0
+R0 = 15                     #4   R0 ist n
+R1 = 0                      #8: 
+R2 = 1                      #12:
+R3 = 1
+R31 = 0                     #16: output: fb(n + 1)
+noop
+noop
+noop
+noop
+noop
+noop
+noop
+
+compare R0 = R32           _schleife
+noop
+noop
+noop
+noop
+noop
+noop
+noop
+jump_if to ende            
+noop
+noop
+noop
+noop
+noop
+noop
+noop
+R31 = R1 + R2
+noop
+noop
+noop
+noop
+noop
+noop
+noop
+copy R2 to R1
+noop
+noop
+noop
+noop
+noop
+noop
+noop
+copy R31 to R2
+noop
+noop
+noop
+noop
+noop
+noop
+noop
+R0 = R0 - R3
+noop
+noop
+noop
+noop
+noop
+noop
+noop
+jump to schleife            #44
+noop
+noop
+noop
+noop
+noop
+noop
+noop
+halt                        _ende  #48
+halt
+halt
+halt
+halt
+halt
+halt
+halt
+halt
+halt
+halt

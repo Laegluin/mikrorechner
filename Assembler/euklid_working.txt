@@ -1,0 +1,115 @@
+#bekommt argumente in R0 und R1 übergeben, berechnet den ggt und gibt ihn in R31 zurück
+#wir nennen die Werte von R0 und R1 jeweils a und b und den algorithmus Euklid(a,b)
+
+R0 = 2260          #a
+noop
+noop
+noop
+noop
+noop
+noop
+noop
+R1 = 816           #b
+noop
+noop
+noop
+noop
+noop
+noop
+noop
+R2 = 0             #zum Zwischenspeichern
+noop
+noop
+noop
+noop
+noop
+noop
+noop
+offset = 0         #initialisieren des offset Registers
+noop
+noop
+noop
+noop
+noop
+noop
+noop
+
+compare R1 = null _schleife         #if b = 0
+noop
+noop
+noop
+noop
+noop
+noop
+noop
+jump_if to ende                     #return a
+noop
+noop
+noop
+noop
+noop
+noop
+noop
+
+compare R0 > R1
+noop
+noop
+noop
+noop
+noop
+noop
+noop
+jump_if to b #..wenn a größer ist
+noop
+noop
+noop
+noop
+noop
+noop
+noop
+R1 = R1 - R0 #..b = b - 1 wenn b groesser
+noop
+noop
+noop
+noop
+noop
+noop
+noop
+jump to schleife #euklid(a-b,b)
+noop
+noop
+noop
+noop
+noop
+noop
+noop
+
+R0 = R0 - R1 _b #... wenn a größer ist a = a - b
+noop
+noop
+noop
+noop
+noop
+noop
+noop
+jump to schleife                    #euklid(b-a,b)
+noop
+noop
+noop
+noop
+noop
+noop
+noop
+
+copy R0 to R31 _ende
+halt
+halt
+halt
+halt
+halt
+halt
+halt
+halt
+noop
+noop
+noop
