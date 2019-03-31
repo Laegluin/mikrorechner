@@ -140,7 +140,7 @@ impl TypeEnv {
         match (expected, actual) {
             // always choose the other one, it can never be less specific
             (Type::Var, other) | (other, Type::Var) => Ok(other),
-            // Never is the supertype of all other types (except Any), so use the more specific subtype
+            // Never is the subtype of all other types (except Any), so use the more specific subtype
             (Type::Never, other) | (other, Type::Never) => Ok(other),
             // choose the more specific int
             (Type::Int, int @ Type::U32)

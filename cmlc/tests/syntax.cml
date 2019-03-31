@@ -174,3 +174,16 @@ fn loops = {
         zero_arg_function!;
     }
 }
+
+fn never = {
+    let a: i32 = ret true;
+    ret false;
+}
+
+fn block_expr -> bool = {
+    let truth = {
+        true
+    };
+
+    truth
+}
