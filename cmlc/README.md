@@ -242,19 +242,63 @@ durch 0 führt zu einem Trap.
 
 ### Strings
 
+Strings sind Bytesequenzen, die immer als gültiges UTF-8 kodiert sind. Der Typ eines Strings ist
+`str`. Weil Strings beliebig lang sind, müssen sie über einen Pointer referenziert werden; in
+der Regel werden Strings mit einem `*str` verwendet.
+
+Anders als zum Beispiel in C sind Strings nicht null-terminiert. Momentan muss die Länge deswegen
+separat gespeichert werden. Das Ziel ist, die Länge mit dem Pointer auf den String zu speichern.
+Ein `*str` ist dann ein 'fat pointer', bestehend aus zwei Maschinenworten: Adresse + Länge. Eine
+solche Implementation lässt sich auch für dynamische Arrays verwenden. Der Vorteil dieser Repräsentation
+ist, dass sie auch für Teilsequenzen einer größeren Sequenz verwendet werden kann.
+
+Strings sind in der momentanen Implementation größtenteils nutzlos, weil es keine Operationen gibt,
+die auf Strings angewendet werden kann. Dies liegt vor allem daran, dass der Instruktionssatz
+keine Instruktionen für den Umgang mit einzelnen Bytes besitzt. Außerdem müsste `char` als
+primitiver Typ hinzugefügt werden. Ein `char` sollte einen Unicode-Codepoint (also 32 bit) darstellen.
+
 ### Pointer
 
+Pointer kommen in zwei Varianten: `*T` und `*mut T`. Beide zeigen auf einen Wert vom Typ `T`. `*T`
+Pointer erlauben nur lesenden Zugriff, während `*mut T` Pointer auch schreibenden Zugriff erlauben.
+
+Pointer können mit den beiden address-of-Operatoren erzeugt werden: `&value` für `*T` und `&mut value`
+für `*mut T`. Es gibt keine Beschränkung für die Erzeugung von Pointern. Das heißt insbesondere, dass
+es mehr als einen `*mut T` Pointer auf den gleichen Wert geben kann oder ein `*T` und ein `*mut T`
+Pointer. Ein `*T` Pointer gibt also keine Garantie, dass der Wert nicht verändert werden kann, sondern
+stellt nur sicher, das eine Änderung nicht durch diesen Pointer geschehen kann.
+
 ### Arrays
+
+Arrays haben den Typ `[T; N]`, wobei `T` der Typ der Elemente und `N` eine konstante positive Zahl ist,
+die die Länge des Arrays festlegt. Arrays verschiedener Längen sind also nicht mit einander kompatibel.
+
+Arrays werden fortlaufend auf dem Stack gespeichert, ein Element nach dem anderen ohne zusätzliches
+Padding.
+
+Arrays werden mit Array-Expressions erzeugt. Es gibt zur Zeit keinen Index Operator, auf einzelne Elemente
+muss deswegen mit Pointer-Arithmetik und Typ-Casts zugegriffen werden.
+
+```cml
+// ein Array mit sechs Elementen
+let fib: [u32; 6] = [1, 1, 2, 3, 5, 8];
+
+// Zugriff das dritte (Index 2) Element:
+// - Adresse von Array als u32 casten
+// - Adresse für drittes Element berechnen
+// - u32 als Pointer casten und den Pointer dereferenzieren
+let third_element = *(((&fib as u32) + 2 * 4) as *u32);
+```
 
 ### Tupel
 
 ### Funktionen
 
 Type-Casts
-*mut aliasing
 Nominal-Typing
 Type-Alias
 Patterns
+Copy-Semantics
 Function named-args resolution order
 Method-Calls
 First-Class Functions (arg names)
