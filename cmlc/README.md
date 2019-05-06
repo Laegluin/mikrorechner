@@ -292,7 +292,39 @@ let third_element = *(((&fib as u32) + 2 * 4) as *u32);
 
 ### Tupel
 
+Tupel sind eine heterogene Sammlung von verschiedenen Typen.`(u32, bool)` zum Beispiel, ist ein Tupel
+bestehend aus einem Integer und einem Boolean. Einzelne Felder eines Tupels haben keine Namen und
+können nicht direkt adressiert werden. Sie müssen in einem `let`-Bindung destrukturiert werden.
+
+```cml
+// erzeugt ein Tupel vom Typ (bool, i32, *str)
+let tuple = (false, 1, "two");
+
+// destrukturiert das Tupel und bindet die einzelnen Felder
+let (boolean, number, string) = tuple;
+```
+
 ### Funktionen
+
+Der Typ von Funktionen wird über die Typen der Parameter und den Rückgabetypen definiert. Eine Funktion
+die keine Argumente entgegennimmt und einen Integer zurückgibt, hat den Typen `fn -> i32`, eine Funktion
+die zwei Integer addiert, hat den Typen `fn i32, i32 -> i32`.
+
+Genau wie Strings können Funktionen nicht direkt als Werte gebunden werden, sondern müssen über einen
+Pointer referenziert werden. Wenn eine Funktion definiert wird, wird auch ein Pointer auf diese unter dem
+Namen der Funktion gebunden.
+
+```cml
+// die Definition der Funktion bindet einen Pointer auf diese als `add_twice`
+fn add_twice left: i32, right: i32 -> i32 = {
+    left + right + right
+}
+
+fn main = {
+    // der Pointer auf `add_twice` entspricht dem Typen der Signatur
+    let func: *fn i32, i32 -> i32 = add_twice;
+}
+```
 
 Type-Casts
 Nominal-Typing
@@ -304,13 +336,13 @@ Method-Calls
 First-Class Functions (arg names)
 Inferenz
 Operatoren (div by zero, Overflow)
+Loops
 Expr-basiert
-Safety (Ptr)
 Stacksetup
 Calling-Convention
 Beispiele
 Operator-Präzedenz
 
 [hindley-milner]: https://en.wikipedia.org/wiki/Hindley%E2%80%93Milner_type_system
-[monomorphization]: https://doc.rust-lang.org/1.30.0/book/2018-edition/ch10-01-syntax.html?highlight=mono#performance-of-code-using-generics
+[monomorphization]: https://doc.rust-lang.org/1.30.0/book/2018-edition/ch10-01-syntax.html#performance-of-code-using-generics
 [bottom-type]: https://en.wikipedia.org/wiki/Bottom_type
