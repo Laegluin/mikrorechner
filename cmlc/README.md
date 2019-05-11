@@ -326,9 +326,69 @@ fn main = {
 }
 ```
 
+### Records
+
+Records sind benutzerdefinierbare Typen (ähnlich zu structs in C). Sie erlauben es Daten in benannten
+Feldern zu gruppieren. Felder werden linear im Speicher ausgelegt, abhängig von den Typen der Felder
+(die wiederum Records sein können). Aus diesem Grund müssen alle Felder eine feste Größe haben und
+dürfen nicht rekursiv auf den definierten Typen verweisen. In diesem Fall muss das Feld mit einem Pointer
+auf den Wert verweisen. Der Pointer hat immer eine feste Größe, unabhängig vom Typ des Wertes auf den er zeigt.
+
+```cml
+// definiert einen Record mit den Feldern `x` und `y`
+type Vector = {
+    x: u32,
+    y: u32,
+}
+```
+
+Jeder Record definiert einen neuen nominalen Typen. Das bedeutet, dass die Typen zweier Records nicht
+gleich sind, selbst wenn alle Felder gleich sind. Der Name allein definiert die Identität des Typs.
+
+```cml
+type Point = {
+    x: u32,
+    y: u32,
+}
+
+fn main = {
+    // die Typen sind nicht kompatibel, obwohl die Felder gleich sind,
+    // weil die Namen der Typen unterschiedlich sind
+    let vec: Vector = Point: x = 1, y = 2;
+}
+```
+
+Wenn ein Record definiert wird, erzeugt der Compiler eine Konstruktor-Funktion mit dem Namen des Records.
+Die Signatur des Konstruktors entspricht den Feldern: für jedes Feld besitzt der Konstruktor einen Parameter
+mit dem Namen und Typen des Felds.
+
+```cml
+type Slice = {
+    start: *u32,
+    len: u32,
+}
+
+// der Compiler erzeugt eine vergleichbare Konstruktor-Funktion für `Slice`:
+fn Slice start: *u32, len: u32 -> Slice = {
+    // Compiler-Builtin
+}
+```
+
+Momentan erzeugt der Compiler einen Konstruktor der alle Argumente in den Rückgabewert kopiert. Als zukünftige
+Verbesserung ist es sinnvoll, alle direkten Aufrufe des Konstruktors zu inlinen, um den Overhead eines
+Funktionsaufrufs wenn möglich zu vermeiden.
+
+### Typaliasse
+
+Für Typen, deren Namen lang sind, können Aliasse erstellt werden. Ein Alias verhält sich identisch zum Typen auf
+den er verweist und kann überall an seiner Stelle verwendet werden.
+
+```cml
+// erlaubt den Funktionspointer unter dem Namen `FindPred` zu verwenden
+type FindPred = *fn u32 -> bool;
+```
+
 Type-Casts
-Nominal-Typing
-Type-Alias
 Patterns
 Copy-Semantics
 Function named-args resolution order
