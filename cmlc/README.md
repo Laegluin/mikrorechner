@@ -569,9 +569,71 @@ let (a, (mut b, _, c, (x, y))) = complex_tuple;
 
 ### Benannte Funktionsparameter
 
-Bindung, Auflösungsreihenfolge
+Wenn eine Funktion definiert wird, sind auch die Parameternamen teil der gebundenen Variable. Argumente können dann
+mit expliziten Parameternamen übergeben werden, um die Absicht zu verdeutlichen oder die Reihenfolge zu verändern.
+Weil die Parameternamen nicht Teil des Typs selbst sind, ist ein Aufruf mit Name nicht möglich, wenn der Funktionspointer
+auf eine neue Variable zugewiesen wird. Dies ist eine bewusste Einschränkung, da Funktionen mit unterschiedlichen
+Parameternamen sonst nicht auf die selbe Variable zugewiesen werden könnten (die Namen würden effektiv Teil des
+Typs sein!).
+
+```cml
+fn main = {
+    // benannte Parameter
+    let eight = pow: base = 2, exponent = 3;
+
+    // nur einen Parameter benennen
+    let four = pow: 2, exponent = 2;
+
+    let better_pow = pow;
+    // würde nicht kompilieren, weil die neue Variable die Parameternamen nicht speichert
+    // let four = better_pow: 2, exponent = 2;
+}
+
+fn pow base, exponent = {
+    // Implementation
+}
+```
+
+Benannte Parameter erlauben es, eine Funktion mit anderer Parameterreihenfolge als in der Definition aufzurufen. Es ist
+möglich, nur ein Teil der Parameter zu benennen, und den Rest der Argumente als normale Positionsparameter zu übergeben.
+Der vollständige Algorithmus für die Zuordnung der Argumente ist wie folgt:
+
+- zuerst alle Argumente, die einen Parameter benennen (falls vorhanden), auf diesen Parameter zuweisen
+- die restlichen Argumente von links nach rechts betrachten
+  - das Argument auf den Parameter zuweisen, der am weitesten links steht und nicht bereits zugewiesen wurde
 
 ### Methodenaufrufe
+
+Funktionen können auch als Methoden aufgerufen werden. In diesem Fall wird das erste Argument links vom Funktionsnamen
+geschrieben. Der Rest des Aufrufs erfolgt wie der Aufruf einer Funktion mit den restlichen Argumenten (inklusive der
+Unterscheidung von `:` und `!`). Methodenaufrufe sind links-assoziativ, das heißt sie können ohne Klammern hintereinander
+geschrieben werden, um jeweils den Rückgabewert des Vorgängers als erstes Argument entgegenzunehmen.
+
+```cml
+fn main = {
+    // Aufruf von `add` als Methode
+    let four = 2 add: 2;
+
+    // Verkettung: identisch zu `(2 add: 2) add: 2`
+    let six = 2 add: 2 add: 2;
+
+    // Methodenaufruf ohne weitere Argumente
+    let nine = 3 squared!;
+}
+
+fn add left, right = {
+    left + right
+}
+
+fn squared x = {
+    x * x
+}
+```
+
+Im Moment sind Methodenaufrufe nur eine alternative Funktionsaufrufssyntax, die in einigen Fällen lesbarer ist.
+Ursprünglich geplant waren die automatische Anwendung der address-of-Operatoren auf das erste Argument (falls notwendig),
+um Funktionen die mit Pointern auf ein primären Record arbeiten, angenehmer zu benutzen zu machen, und die Möglichkeit
+die Sichtbarkeit von Funktionen über einen assoziierten Typen einzuschränken, um Namenskollisionen zu vermeiden.
 
 ### Operator-Präzedenz
 
