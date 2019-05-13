@@ -651,9 +651,46 @@ Die folgende Liste ordnet alle Operatoren nach Präzedenz, beginnend mit der nie
 
 ## Code-Generierung und ABI
 
+Der vom Compiler generierte Code besteht aus einer Reihe von Instruktionen (und Konstanten),
+die sequentiell in ein Speicherabbild geschrieben werden. Das generierte Abbild ist dafür gedacht,
+direkt auf dem Prozessor ausgeführt zu werden. Die erste Instruktion startet bei Adresse 0.
+
 ### Laufzeitinitialisierung
 
+Vor dem Aufruf der `main` Funktion fügt der Compiler Code zur Initialisierung der cml Laufzeitumgebung ein.
+Das `addr_offset` Register wird auf 0 gesetzt, der Stackframepointer im Stackframepointerregister wird gesetzt und
+die Rücksprungadresse für `main` an die entsprechende Stelle im Stack geschrieben. Anschließend wird `main`
+mit einem Sprung aufgerufen. Als letztes folgt eine `halt` Instruktion, auf die die Rücksprungadresse verweist.
+
+Eine bespielhafte Initialisierung könnte wie folgt aussehen:
+
+```asm
+# Offset Register initialisieren
+offset = 0
+# Stackframepointer initialisieren
+R0 = l8_const
+load R0 + 0 to R31
+# Rücksprungadresse schreiben
+R0 = l7_program_exit
+store R0 to R31 + 0
+# `main` aufrufen
+jump to l1_main
+# Programmende
+halt _l7_program_exit
+```
+
 ### Callstack
+
+Da der Prozessor keine Unterstützung für einen Stack bietet, wird dieser von der Laufzeit verwaltet. Der
+Stack startet bei Adresse `0x80000000` und wächst nach oben (die theoretisch letzte Adresse ist also
+`0xffffffff`). Ein nach unten wachsender Stack ist zwar sinnvoller, weil Kollisionen mit dem Programmtext
+nur passieren können, wenn der Stack zu groß wird, ist aber nicht effizient umsetzbar, weil die `load` und
+`store` Instruktionen keine Offset-Adressierung mit negativen Offsets unterstützen.
+
+Der Stack wird mit einem einzigen reservierten Register (`R31`) verwaltet. `R31` ist das Stackframepointerregister,
+es speichert die Startadresse des Stackframes für die aktuelle Funktion. Ab dieser Adresse kann der Stack von
+der aktuellen Funktion wie notwendig beschrieben werden. Sobald eine Funktion an den Aufrufer zurückkehrt ist ihr
+Stackframe ungültig und kann vom Aufrufer überschrieben werden.
 
 ### Calling convention
 
