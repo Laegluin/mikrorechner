@@ -694,6 +694,35 @@ Stackframe ungültig und kann vom Aufrufer überschrieben werden.
 
 ### Calling convention
 
+Ein Aufruf einer Funktion sieht wie folgt aus:
+
+- der Stackspeicher für den Rückgabewert (falls vorhanden) wird reserviert
+- alle Register, deren Inhalt später vom Aufrufer benötigt werden, werden auf den Stack gesichert
+- der Stackframepointer wird um die aktuelle Länge des Stackframes inkrementiert
+  (der Pointer zeigt also auf die nächste freie Adresse im aktuellen Stackframe)
+- der neue Stackframe für die aufzurufende Funktion wird vorbereitet:
+  - zuerst wird die Rücksprungadresse geschrieben
+  - anschließend wird die Adresse geschrieben, an die der Rückgabewert geschrieben werden soll.
+    Dieser Wert muss auch den beachtet werden, wenn kein Rückgabewert existiert, um das Layout
+    für einen neuen Stackframe nicht zu verletzen. Der Inhalt ist in diesem Fall egal.
+  - es folgen die Argumente für die Funktion, in der Reihenfolge der Deklaration in der Funktionsdefinition
+- die Funktion wird mit einem Sprung zu ihrer ersten Instruktion aufgerufen
+- nach der Rückkehr aus dem Funktionsaufruf wird der Stackframepointer wiederhergestellt, indem die Länge,
+  die zuvor addiert wurde, wieder subtrahiert wird. Aus diesem Grund ist es nicht notwendig, den Framepointer
+  selbst zu sichern.
+- die gesicherten Register werden wiederhergestellt. Weil der Rückgabewert vor den gesicherten Werten
+  gespeichert wurde, kann dieser Teil des Stacks wieder überschrieben werden.
+
+Eine interessante Eigenart von Funktionsaufrufen ist die explizite Weitergabe der Adresse des Rückgabewerts.
+Dies dient in erster Linie dazu, unnötige Kopien zwischen den Stackframe des Aufrufers und des Aufgerufenen zu
+vermeiden. Den Rückgabewert am Anfang des Stackframes des Aufgerufenen zu konstruieren ist nicht praktikabel,
+weil eine Menge Platz durch die gesicherten Register verschwendet werden würde. Die beste Lösung wäre die Register
+auf der Seite des Aufgerufenen zu sichern, die Implementation im Compiler ist aber deutlich komplexer.
+
+Alternativ könnte die momentane Implementation beibehalten werden, die Adresse aber zur Compile-Zeit berechnet
+werden. Das Problem ist, dass die `load` und `store` Instruktionen keine Offset-Adressierung mit negativen Offsets
+unterstützen, die notwendig ist, um den vorherigen Stackframe zu adressieren.
+
 [repo]: https://github.com/Laegluin/mikrorechner
 [hindley-milner]: https://en.wikipedia.org/wiki/Hindley%E2%80%93Milner_type_system
 [monomorphization]: https://doc.rust-lang.org/1.30.0/book/2018-edition/ch10-01-syntax.html#performance-of-code-using-generics
