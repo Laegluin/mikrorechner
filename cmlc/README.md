@@ -1,4 +1,4 @@
-# cml
+# Compiler (cmlc)
 
 cml ist eine von F# und Rust inspirierte Hochsprache. Der Compiler `cmlc` erzeugt
 ein ausführbares Speicherabbild oder eine Textdatei mit Assemblercode.

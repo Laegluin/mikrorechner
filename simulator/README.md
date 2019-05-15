@@ -1,4 +1,4 @@
-# simulator
+# Simulator
 
 Der Simulator erlaubt es Maschinencode auszuführen und interaktiv zu debuggen.
 
