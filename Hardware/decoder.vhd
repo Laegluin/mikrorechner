@@ -41,19 +41,20 @@ signal Jump_offset_ext1 : unsigned(bit_Width - jump_offset_Bits -1 downto 0) := 
 
 signal mem_offset_ext   : unsigned(bit_Width - mem_offset_Bits -1 downto 0)  := (others => '0');
 
+signal tmp_pc           : unsigned(bit_Width-1 downto 0) := (others => '0');
 
 begin
     process(clk,enable)
     begin
 
         -- init values
-        sign_temp <= "0";
+        -- sign_temp <= "0"; should only change on rising edge if at all
 
         -- reset
         if reset = '1' then
             -- reset out ports
-            pc_out         <= (others => '0');
-            opcode         <= (others => '0');
+            tmp_pc         <= (others => '0');
+            opcode         <= (others => '1');
             A              <= (others => '0');
             B              <= (others => '0');
             C              <= (others => '0');
@@ -70,7 +71,7 @@ begin
             if enable = '1' then
 
             -- init output
-            pc_out <= pc_in;
+            tmp_pc <= pc_in;
 
             -- parse Befehl
             opcode      <= instruction(bit_Width-1 downto bit_Width-opcode_Bits);
@@ -81,12 +82,17 @@ begin
 
             reg_imm     <= reg_imm_ext & instruction(bit_Width-opcode_Bits-adr_Width-1 downto 0);
 
-            sign_temp <= instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-1);
+            sign_temp   <= instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-1);
 
-            if sign_temp = "0" then
+            -- bandaid fix for timing issue, seems like using the sign_temp signal delays by one cycle
+            --jump_offset <= instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-1) & instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-1) & instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-1) & instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-1) & instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-1) & instruction(bit_Width-opcode_Bits-1 downto 0);
+
+            if instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-1) = "0" then
                 jump_offset <= jump_offset_ext0 & instruction(bit_Width-opcode_Bits-1 downto 0);
-            elsif sign_temp = "1" then
-                jump_offset <= jump_offset_ext1 & not instruction(bit_Width-opcode_Bits-1 downto 0) + "1";
+            elsif instruction(bit_Width-opcode_Bits-1 downto bit_Width-opcode_Bits-1) = "1" then
+                --jump_offset <= jump_offset_ext1 & not instruction(bit_Width-opcode_Bits-1 downto 0) + "1";
+                jump_offset <= jump_offset_ext1 & instruction(bit_Width-opcode_Bits-1 downto 0);
+                -- jump_offset <= temp + "1";
             else jump_offset <= (others => '0');
             end if;
 
@@ -108,5 +114,7 @@ begin
         end if;
 
     end process;
+
+    pc_out <= tmp_pc;
 
 end behavior;

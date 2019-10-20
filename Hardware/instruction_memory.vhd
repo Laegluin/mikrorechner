@@ -25,7 +25,7 @@ end instruction_memory;
 architecture behavior of instruction_memory is
 
 subtype word_t  is unsigned(7 downto 0);
-type    rom_t   is array(0 to (mem_Depth*4)- 1) of word_t;
+type    rom_t   is array(0 to (mem_Depth*4)- 1) of word_t; -- was mem_Depth, just testing
 impure function mem_read_file(FileName : STRING) return rom_t is --function to read file into rom
 file FileHandle       : TEXT open READ_MODE is FileName;
 variable CurrentLine  : LINE;
@@ -33,12 +33,12 @@ variable TempWord     : std_logic_vector(bit_Width- 1 downto 0); -- was (div_cei
 variable Result       : rom_t    := (others => (others => '0'));
 
 begin
-  for i in 0 to mem_Depth- 1 loop 
+  for i in 0 to mem_Depth- 1 loop -- was mem_Depth, just testing
     exit when endfile(FileHandle);
 
     readline(FileHandle, CurrentLine);
-    hread(CurrentLine, TempWord);
-    Result((4*i)+3)    := resize(unsigned(TempWord(31 downto 24)), word_t'length);
+    read(CurrentLine, TempWord); --was hread for hex
+    Result((4*i)+3)  := resize(unsigned(TempWord(31 downto 24)), word_t'length);
     Result((4*i)+2)  := resize(unsigned(TempWord(23 downto 16)), word_t'length);
     Result((4*i)+1)  := resize(unsigned(TempWord(15 downto 8)), word_t'length);
     Result((4*i)+0)  := resize(unsigned(TempWord(7 downto 0)), word_t'length);
@@ -48,22 +48,29 @@ begin
 end function;
 
 
-signal rom : rom_t := mem_read_file("/informatik2/students/home/6lahann/Projekt/work/instruction_mem.hex");
+--signal rom : rom_t := mem_read_file("/informatik2/students/home/6lahann/Projekt/work/instruction_mem.dat");
+signal rom : rom_t := mem_read_file("C:/Users/Moritz Lahann/Desktop/STUDIUM/PROJEKT MIKROPROZESSOR/GIT/Hardware/instruction_mem.dat");
 		--full filepath must always be specified!
 signal mem_read_data : unsigned(bit_Width-1 downto 0); 
 
 begin
     process(clk, rst)
     begin
-        if(rst = '1') then
-            rom <= mem_read_file("/informatik2/students/home/6lahann/Projekt/work/instruction_mem.hex");
+        if rst = '1' then
+            --rom <= mem_read_file("/informatik2/students/home/6lahann/Projekt/work/instruction_mem.dat");
+            rom <= mem_read_file("C:/Users/Moritz Lahann/Desktop/STUDIUM/PROJEKT MIKROPROZESSOR/GIT/Hardware/instruction_mem.dat");
 		--full filepath must always be specified!
         else
-            if(rising_edge(clk)) then
-                mem_read_data(31 downto 24) <= rom(to_integer(mem_address)+3);
-                mem_read_data(23 downto 16) <= rom(to_integer(mem_address)+2);
-                mem_read_data(15 downto 8) <= rom(to_integer(mem_address)+1);
-                mem_read_data(7 downto 0) <= rom(to_integer(mem_address)+0);
+            if rising_edge(clk) then
+
+                if mem_address < "10000000000000000000000000000000" then --Area for Data Memory is 0x80000000 downwards (not including that), remove for simulation?
+                    mem_read_data(31 downto 24) <= rom(to_integer(mem_address)+3);
+                    mem_read_data(23 downto 16) <= rom(to_integer(mem_address)+2);
+                    mem_read_data(15 downto 8) <= rom(to_integer(mem_address)+1);
+                    mem_read_data(7 downto 0) <= rom(to_integer(mem_address)+0);
+                else
+                    mem_read_data <= (others => '1');
+                end if;
             end if;        
         end if;
     end process;

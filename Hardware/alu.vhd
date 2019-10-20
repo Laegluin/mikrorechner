@@ -16,7 +16,8 @@ entity ALU is
         A, B        : in    unsigned(bit_Width-1 downto 0);    -- Operanden
         opcode      : in    unsigned(4 downto 0);              -- Opcode
         ALU_Out     : out   unsigned(bit_Width-1 downto 0);    -- Ausgang
-        ALU_Flag    : out   std_logic                          -- Flag
+        ALU_Flag    : out   std_logic;                          -- Flag
+        alu_stim    : in    std_logic
      );
 end entity ALU;
 
@@ -28,7 +29,7 @@ signal Flag_tmp     : std_logic := '0';
 
 
 begin
-    process(A,B,opcode)
+    process(alu_stim)
 
     begin
 
@@ -41,7 +42,7 @@ begin
             -- COPY
                 -- Wert aus Register B kopiert nach Register C
             when "00001" =>
-                ALU_Result <= B;
+                ALU_Result <= A;
 
                 -- Arithmetische Operationen mit Registern
             -- ADD

@@ -1,0 +1,40 @@
+type Slice = {
+    start: *u32,
+    len: u32,
+}
+
+fn main = {
+    let arr = [1, 2, 3, 42, 4, 5, 6];
+    let slice = Slice: &arr as *u32, len = 7;
+
+    let (is_present, idx) = slice find: is_anwser;
+
+    if is_present {
+        *(4000000000 as *u32) = idx;
+    }
+}
+
+fn is_anwser x = {
+    x == 42
+}
+
+type FindPred = *fn u32 -> bool;
+
+fn find slice, is_hit: FindPred = {
+    let mut idx = 0;
+
+    while idx < slice.len {
+        if is_hit: (slice at: idx) {
+            ret (true, idx);
+        }
+
+        idx = idx + 1;
+    }
+
+    (false, 0)
+}
+
+fn at slice, idx = {
+    let ptr = (slice.start as u32 + idx * 4) as *u32;
+    *ptr
+}

@@ -33,7 +33,8 @@ entity executer is
         wb_control    : out      unsigned(1 downto 0);
         jump_to_out   : out      unsigned(bit_Width-1 downto 0);
         mem_off_out   : out      unsigned(bit_Width-1 downto 0);
-        opcode_out    : out      unsigned(opcode_Bits-1 downto 0)
+        opcode_out    : out      unsigned(opcode_Bits-1 downto 0);
+        alu_stim      : out      std_logic
     );
 
 end entity executer;
@@ -47,6 +48,8 @@ architecture behavior of executer is
     signal C_in_tmp       : unsigned(adr_Width-1 downto 0) := (others => '0');
     signal mem_off_in_tmp : unsigned(bit_Width-1 downto 0) := (others => '0');
     signal reg_imm_in_tmp : unsigned(bit_Width-1 downto 0) := (others => '0');
+
+    signal tmp_alu_stim   : std_logic := '0';
 
 
 begin
@@ -65,7 +68,7 @@ begin
                 wb_control     <= (others => '0');
                 jump_to_out    <= (others => '0');
                 mem_off_out    <= (others => '0');
-                opcode_out     <= (others => '0');
+                opcode_out     <= (others => '1');
 
                 -- reset signals
                 C_in_tmp       <= (others => '0');
@@ -80,7 +83,7 @@ begin
                 pc_write_en  <= '0';
                 wb_control   <= "00";
                 mem_rw_en    <= "00";
-                C_out        <= C_in_tmp;
+                C_out        <= C_in;
                 mem_off_out  <= mem_off_in_tmp;
                 reg_imm_out  <= reg_imm_in_tmp;
                 opcode_out   <= opcode_in;
@@ -159,6 +162,12 @@ begin
             end if;
         end if;
 
+    end process;
+
+    process(pc_in)
+    begin
+        alu_stim <= tmp_alu_stim;
+        tmp_alu_stim <= not tmp_alu_stim;
     end process;
 
 end behavior;

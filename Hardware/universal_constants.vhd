@@ -14,6 +14,6 @@ package universal_constants is
     constant jump_offset_Bits   : integer   := 27; -- Jump Offset Bitumfang
     constant mem_offset_Bits    : integer   := 15; -- Speicher Offset Bitumfang
 
-    constant mem_Depth          : integer   := 8;  -- Speichertiefe (klein für Tests, später anpassen!)
+    constant mem_Depth          : integer   := 128;  -- Speichertiefe (klein für Tests, später anpassen!)
 
 end universal_constants;

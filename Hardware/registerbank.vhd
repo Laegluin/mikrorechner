@@ -27,20 +27,22 @@ end registerbank;
 
 architecture behavior of registerbank is
 type reg_type is array (0 to (2**(adr_Width-1))-1) of unsigned(bit_Width-1 downto 0);
-signal reg_array : reg_type;
+signal reg_array : reg_type := (others => (others => '0'));
 signal data_a : unsigned(bit_Width-1 downto 0);
 signal data_b : unsigned(bit_Width-1 downto 0);
 signal data_c : unsigned(bit_Width-1 downto 0);
 
 begin
-    process(clk, rst, reg_read_addr_A, reg_read_addr_B, reg_offset_en)
-	variable offset_register : unsigned(bit_Width-1 downto 0) := to_unsigned(0, bit_Width); --not sure if this is smart...
+    process(clk, rst)
+	variable offset_register : unsigned(bit_Width-1 downto 0) := (others => '0'); 
     begin
-        if(rst='1') then
-            --maybe do something
-        elsif(rising_edge(clk)) then
-            if(reg_write_en='1') then
-                if(reg_write_addr="100001") then
+        if rst='1' then
+
+            reg_array <= (others => (others => '0'));
+
+        elsif rising_edge(clk) then
+            if reg_write_en='1' then
+                if reg_write_addr="100001" then
                     offset_register := reg_write_data;
                 else    
                     reg_array(to_integer(unsigned(reg_write_addr(adr_Width-2 downto 0)))) <= reg_write_data;
@@ -50,14 +52,14 @@ begin
 
 	    case(reg_read_addr_A) is
         	when "100000" =>
-            		data_a <= to_unsigned(0, bit_Width);
+            		data_a <= (others => '0');
         	when "100001" =>
             		data_a <= offset_register;
         	when others =>
             		data_a <= reg_array(to_integer(unsigned(reg_read_addr_A(adr_Width-2 downto 0)))); --only 5 bit for allpurpose registers
     	end case;
 
-        if(reg_offset_en='1') then
+        if reg_offset_en='1' then
       
             data_b <= offset_register;
         
@@ -65,7 +67,7 @@ begin
         
             case(reg_read_addr_B) is
                 when "100000" =>
-                        data_b <= to_unsigned(0, bit_Width);
+                        data_b <= (others => '0');
                 when "100001" =>
                         data_b <= offset_register;
                 when others =>
@@ -76,7 +78,7 @@ begin
 
         case(reg_read_addr_C) is
         	when "100000" =>
-            		data_c <= to_unsigned(0, bit_Width);
+            		data_c <= (others => '0');
         	when "100001" =>
             		data_c <= offset_register;
         	when others =>

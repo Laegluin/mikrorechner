@@ -7,7 +7,7 @@ use std::fmt::{self, Display};
 use std::ops::{BitAnd, BitOr, BitXor, Index};
 use std::sync::atomic::{AtomicBool, Ordering};
 use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
+use strum_macros::{Display, EnumIter};
 
 #[derive(Debug)]
 pub struct VmError {
@@ -42,6 +42,11 @@ impl Display for VmError {
                 "attempt to read from uninitialized memory at {}",
                 to_hex(addr),
             ),
+            ErrorKind::ReadOnlyMemoryWriteAccess(addr) => write!(
+                f,
+                "attempt to write to read-only memory at {}",
+                to_hex(addr),
+            ),
             ErrorKind::OutOfBoundsMemoryAccess(addr, len) => write!(
                 f,
                 "out of bounds memory access with length {} at {}",
@@ -64,6 +69,7 @@ pub enum ErrorKind {
     IllegalInstruction(Word),
     IllegalRegister(u8),
     UninitializedMemoryAccess(Word),
+    ReadOnlyMemoryWriteAccess(Word),
     OutOfBoundsMemoryAccess(Word, usize),
     DivideByZero,
 }
@@ -200,7 +206,8 @@ impl Reg {
     }
 }
 
-#[derive(CustomTryInto, Debug, PartialEq, Eq)]
+#[derive(CustomTryInto, Debug, PartialEq, Eq, Display)]
+#[strum(serialize_all = "snake_case")]
 #[repr(u8)]
 #[rustfmt::skip]
 enum Op {
@@ -286,14 +293,18 @@ pub enum Status {
     Halt,
 }
 
-pub fn run(
+pub fn run<F>(
     regs: &mut RegBank,
     mem: &mut Memory,
     breakpoints: &Breakpoints,
     pause: &AtomicBool,
-) -> Result<Status, VmError> {
+    trace: &mut F,
+) -> Result<Status, VmError>
+where
+    F: Send + Sync + FnMut(Word),
+{
     while !pause.load(Ordering::Acquire) {
-        if run_next(regs, mem)? == Status::Halt {
+        if run_next(regs, mem, trace)? == Status::Halt {
             return Ok(Status::Halt);
         }
 
@@ -305,7 +316,10 @@ pub fn run(
     Ok(Status::Pause)
 }
 
-fn run_next(regs: &mut RegBank, mem: &mut Memory) -> Result<Status, VmError> {
+fn run_next<F>(regs: &mut RegBank, mem: &mut Memory, trace: &mut F) -> Result<Status, VmError>
+where
+    F: Send + Sync + FnMut(Word),
+{
     use self::Op::*;
 
     let instr_addr = regs.next_instr_addr();
@@ -315,6 +329,8 @@ fn run_next(regs: &mut RegBank, mem: &mut Memory) -> Result<Status, VmError> {
     let instr = mem
         .load_word(instr_addr)
         .map_err(|kind| VmError::at(instr_addr, kind))?;
+
+    trace(instr);
 
     let op = Op::from_word(instr).map_err(|kind| VmError::at(instr_addr, kind))?;
 
@@ -476,6 +492,72 @@ fn store(instr: Word, regs: &mut RegBank, mem: &mut Memory) -> Result<Status, Er
     mem.store_word(addr, regs[src])?;
 
     Ok(Status::Pause)
+}
+
+pub fn instr_to_string(instr: Word) -> Option<String> {
+    use self::Op::*;
+
+    let op = Op::from_word(instr).ok()?;
+
+    let string = match op {
+        Add | Sub | Mul | Div | And | Or | Xor | ShiftL | ShiftR | SignedShiftR => {
+            let dst = Reg::from_word(instr, RegPos::Dst).ok()?;
+            let lhs = Reg::from_word(instr, RegPos::Arg1).ok()?;
+            let rhs = Reg::from_word(instr, RegPos::Arg2).ok()?;
+            format!("{}: dst = {}, lhs = {}, rhs = {}", op, dst, lhs, rhs)
+        }
+        Not => {
+            let dst = Reg::from_word(instr, RegPos::Dst).ok()?;
+            let rhs = Reg::from_word(instr, RegPos::Arg1).ok()?;
+            format!("{}: dst = {}, rhs = {}", op, dst, rhs)
+        }
+        Copy => {
+            let dst = Reg::from_word(instr, RegPos::Dst).ok()?;
+            let src = Reg::from_word(instr, RegPos::Arg1).ok()?;
+            format!("{}: dst = {}, src = {}", op, dst, src)
+        }
+        Set => {
+            let reg = Reg::from_word(instr, RegPos::Dst).ok()?;
+            let value = immediate_from_instr(instr, 1);
+            format!("{}: reg = {}, value = {}", op, reg, value)
+        }
+        CmpEq | CmpGt | CmpGe => {
+            let lhs = Reg::from_word(instr, RegPos::Arg1).ok()?;
+            let rhs = Reg::from_word(instr, RegPos::Arg2).ok()?;
+            format!("{}: lhs = {}, rhs = {}", op, lhs, rhs)
+        }
+        Jmp | JmpIf => {
+            let addr = Reg::from_word(instr, RegPos::Arg1).ok()?;
+            format!("{}: addr = {}", op, addr)
+        }
+        JmpRel | JmpRelIf => {
+            let offset = immediate_from_instr_signed(instr, 0);
+            format!("{}: offset = {}", op, offset as i32)
+        }
+        Load => {
+            let dst = Reg::from_word(instr, RegPos::Dst).ok()?;
+            let src_addr = Reg::from_word(instr, RegPos::Arg1).ok()?;
+            let offset = immediate_from_instr(instr, 2);
+
+            format!(
+                "{}: dst = {}, src_addr = {}, offset = {}",
+                op, dst, src_addr, offset
+            )
+        }
+        Store => {
+            let dst_addr = Reg::from_word(instr, RegPos::Dst).ok()?;
+            let src = Reg::from_word(instr, RegPos::Arg1).ok()?;
+            let offset = immediate_from_instr(instr, 2);
+
+            format!(
+                "{}: dst_addr = {}, src = {}, offset = {}",
+                op, dst_addr, src, offset
+            )
+        }
+        NoOp | Halt => format!("{}", op),
+    };
+
+    Some(string)
 }
 
 /// Extracts an unsigned immediate from an `instr` with `num_reg_refs` number of

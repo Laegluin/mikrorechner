@@ -1,0 +1,189 @@
+type User = {
+    id: i32,
+    name: *str,
+}
+
+fn user -> User = {
+    User: 
+        id = 1,
+        name = "name",
+    
+}
+
+type SpecialFn = *fn i32, i32 -> i32;
+type NoReturnFn = *fn i32, i32 -> ();
+type ZeroArgFn = *fn -> i32;
+
+fn add_three first: i32, second: i32, third: i32 -> i32 = {
+    first + second + third
+}
+
+fn println msg: *str -> () = {
+
+}
+
+fn do_stuff -> () = {
+
+}
+
+fn get_stuff -> i32 = {
+    42
+}
+
+fn main -> () = {
+    let arg1 = 1;
+    let arg2 = 2;
+    let arg3 = 3;
+    
+    function_call: arg1, arg2, arg3;
+    named_args: arg1 = 1, arg2 = 2, arg3 = 3;
+
+    let user = user!;
+
+    user method_call: arg1, arg2;
+    let array: [i32; 3] = [1, 2, 3];
+
+    user zero_arg_method!;
+    zero_arg_function!;
+
+    // method chaining
+    open_file: "test.txt"
+        truncate: true
+        write: true
+        clear!
+        set_permissions: "rwx", "r-x", "r-x",
+        set_name: "changed.txt"
+        close!;
+
+    if is_open: "file" {
+        ret;
+    } else {
+        ret;
+    }
+
+    if 1 + 2 > 0 {
+        let three = 1 plus: 2 plus: 3;
+        let three = plus: (plus: 1, 2), 3
+    }
+
+    if !true && false || true {
+        zero_arg_function!;
+    }
+}
+
+type File = {
+    name: *str
+}
+
+fn open_file path = {
+    File: name = path
+}
+
+fn truncate file, _ = {
+    file
+}
+
+fn write file, _ = {
+    file
+}
+
+fn clear file = {
+    file
+}
+
+fn is_open path = {
+    true
+}
+
+fn set_permissions file, owner, group, all = {
+    file
+}
+
+fn set_name file: File, name: *str = {
+    file
+}
+
+fn close file: File -> () = {
+    ()
+}
+
+fn zero_arg_method user = {
+    ()
+}
+
+fn method_call user, a, b = {
+    ()
+}
+
+fn named_args arg1, arg2, arg3 = {
+    ()
+}
+
+fn zero_arg_function = {
+    ()
+}
+
+fn function_call x, y, z = {
+    ()
+}
+
+fn plus lhs: i32, rhs: i32 -> i32 = {
+    lhs + rhs
+}
+
+type Record = {
+    ptr_field: *mut i32,
+}
+
+fn dangling_ptr -> *mut Record = {
+    let mut some_record = Record: ptr_field = &mut 42;
+
+    let some_record_ptr: *mut Record = &mut some_record;
+    *some_record_ptr->ptr_field = 42;
+    *some_record.ptr_field = 13;
+    &mut some_record
+}
+
+fn inferred_args left, right -> u32 = {
+    left + right
+}
+
+fn inferred_return = {
+    1 + 2
+}
+
+fn inferred_everything arg1, arg2 = {
+    arg1 - arg2
+}
+
+fn casts = {
+    let int: i32 = 1;
+    let mut uint: u32 = int as u32;
+    let null = 0 as *u32;
+
+    let mut addr = &mut uint;
+    addr = 16 as *mut _;
+}
+
+fn loops = {
+    let mut i = 0;
+
+    // break and continue not supported right now
+    while i < 10 {
+        i = i + 1;
+        zero_arg_function!;
+    }
+}
+
+fn never = {
+    let a: i32 = ret true;
+    ret false;
+}
+
+fn block_expr -> bool = {
+    let truth = {
+        true
+    };
+
+    truth
+}

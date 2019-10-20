@@ -1,5 +1,7 @@
 # Tmp
 
+[![Build Status](https://travis-ci.com/Laegluin/mikrorechner.svg?branch=master)](https://travis-ci.com/Laegluin/mikrorechner)
+
 ## Registers
 
 - `r0` - `r31` (`000000-011111`): general purpose registers
@@ -194,20 +196,21 @@ halt: 0110 1*** **** **** **** **** **** ****
 ```text
 <R> ::= R1 | R2 | ... | R31 | null | offset
 <I> ::= -<X> | ... | <X>
-<X> ::= gültiger Immediatewert für entsprechenden Befehl
+<X> ::= 0b<Y> | 0x<Y> | Y
+<Y> ::= valid value in respect of the domain of command 
 ```
 ### Kommentare
 ```text
-Zeilenkommentare fangen mit # an.
+Line comments are initiated with #.
 ```
 
 ### Labels
 ```text
-Einführen von Labels: _<Labelname> hinter den Befehl (vor den Kommentar natürlich).
-Dann kann man mit
-jump to <Labelname>
-jump_if to <Labelname>
-zu den Labels springen.
+Naming convention                                 [A-Za-z0-9_-]
+Initiation of labels                              <command> _<label> #<comment>      
+Jumps                                             jump to <label>
+                                                  jump_if to <label>
+Store the adress of command or data in register   <R> = <label>        
 ```
 
 ### Arithmetic
@@ -259,9 +262,17 @@ jump_rel_if to <I>
 
 ```text
 load <R> + <I> to <R>
-load <R> - <I> to <R>
-store <R> + <I> to <R>
-store <R> - <I> to <R>
+store <R> to <R> + <I>
+```
+
+### Data
+
+```text
+Datastrings can be interpreted as Hex-, Binary or Decimal Numbers. 
+The necessary number of Bytes for storage is adapted accordingly.
+Hex-Strings: 0x<value>
+Bin-Strings: 0b<value>
+Decimal: <value>
 ```
 
 ### Miscellaneous
@@ -270,3 +281,7 @@ store <R> - <I> to <R>
 halt
 noop
 ```
+
+## License
+
+Licensed under MIT license ([LICENSE](LICENSE) or <http://opensource.org/licenses/MIT>).

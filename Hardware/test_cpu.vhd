@@ -20,7 +20,8 @@ architecture behavior of test_cpu is
     port
     (
         clk, sclk, reset : std_logic;
-		dec_enable, pc_enable : std_logic
+		enable, halt : std_logic;
+        dump : std_logic
     );
     
     end component cpu;
@@ -29,8 +30,9 @@ architecture behavior of test_cpu is
     signal clk   : std_logic;
     signal sclk  : std_logic;
     signal reset : std_logic;
-	signal dec_enable : std_logic;
-    signal pc_enable : std_logic;
+	signal enable: std_logic;
+    signal halt  : std_logic;
+    signal dump  : std_logic;
 
     -- outputs
 
@@ -41,8 +43,9 @@ begin
         clk   => clk,
         sclk  => sclk,
         reset => reset,
-		dec_enable => dec_enable,
-		pc_enable => pc_enable
+		enable => enable,
+        halt => halt,
+        dump => dump
     );
 
 
@@ -69,12 +72,13 @@ begin
     stim_proc: process
     begin
 
+        dump <= '0';
+        halt <= '0';
 		reset <= '1';
-		wait for 20 ns;
+		wait for 150 ns;
 		reset <= '0';
-		pc_enable <= '1';
-		dec_enable <= '1';
-		wait for 1000 ns;
+		enable <= '1';
+		wait;
 
         -- Testwerte
         

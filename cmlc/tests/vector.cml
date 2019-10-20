@@ -1,0 +1,45 @@
+type Vector = {
+    x: i32,
+    y: i32,
+}
+
+fn unit_vector = {
+    Vector: x = 1, y = 1
+}
+
+fn add lhs, rhs = {
+    Vector:
+        x = lhs.x + rhs.x,
+        y = lhs.y + rhs.y,
+}
+
+fn mul lhs, rhs = {
+    Vector:
+        x = lhs.x * rhs.x,
+        y = lhs.y * rhs.y,
+}
+
+fn eq lhs: *Vector, rhs: *Vector -> bool = {
+    lhs->x == rhs->x && lhs->y == rhs->y
+}
+
+fn main = {
+    let mut vec = unit_vector!;
+    
+    let mut i = 0;
+    while i < 10 {
+        let i_vec = Vector: x = i, y = i;
+        let squared = i_vec mul: i_vec;
+        vec = vec add: squared;
+
+        i = i + 1;
+    }
+
+    let result = if eq: &vec, (&Vector: 286, 286) { 
+        1 
+    } else {
+        0 
+    };
+
+    *(4000000000 as *mut _) = result;
+}

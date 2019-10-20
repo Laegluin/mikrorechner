@@ -1,0 +1,269 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "cml",
+    "patterns": [
+        {
+            "include": "#items"
+        }
+    ],
+    "repository": {
+        "items": {
+            "patterns": [
+                {
+                    "include": "#comments"
+                },
+                {
+                    "include": "#type-def"
+                },
+                {
+                    "include": "#function-def"
+                },
+                {
+                    "include": "#let-binding"
+                },
+                {
+                    "include": "#keywords"
+                },
+                {
+                    "include": "#control-keywords"
+                },
+                {
+                    "include": "#operators"
+                },
+                {
+                    "include": "#function-calls"
+                },
+                {
+                    "include": "#literals"
+                },
+                {
+                    "include": "#type-names"
+                },
+                {
+                    "include": "#variables"
+                }
+            ]
+        },
+        "literals": {
+            "patterns": [
+                {
+                    "match": "\\b(true|false)\\b",
+                    "name": "constant.language.boolean.cml"
+                },
+                {
+                    "match": "[0-9]+",
+                    "name": "constant.numeric.cml"
+                },
+                {
+                    "begin": "\"",
+                    "beginCaptures": {
+                        "0": {
+                            "name": "punctuation.definition.string.begin.cml"
+                        }
+                    },
+                    "name": "string.quoted.double.glu",
+                    "patterns": [
+                        {
+                            "match": "\\\\.",
+                            "name": "constant.character.escape.cml"
+                        }
+                    ],
+                    "end": "\"",
+                    "endCaptures": {
+                        "0": {
+                            "name": "punctuation.definition.string.end.cml"
+                        }
+                    }
+                }
+            ]
+        },
+        "comments": {
+            "patterns": [
+                {
+                    "match": "//.*$",
+                    "name": "comment.line.cml"
+                }
+            ]
+        },
+        "keywords": {
+            "patterns": [
+                {
+                    "match": "\\b(fn|type|let|mut)\\b",
+                    "name": "keyword.cml"
+                }
+            ]
+        },
+        "control-keywords": {
+            "patterns": [
+                {
+                    "match": "\\b(if|else|ret|while|break|continue)\\b",
+                    "name": "keyword.control.cml"
+                }
+            ]
+        },
+        "operators": {
+            "patterns": [
+                {
+                    "match": "\\+|-|\\*|/|&&|->|>=|<=|!=|=|<|>|&|!|\\|\\||\\bas\\b",
+                    "name": "keyword.operator.cml"
+                }
+            ]
+        },
+        "function-calls": {
+            "patterns": [
+                {
+                    "match": "[_a-zA-Z][_a-zA-Z0-9]*(:|!)",
+                    "captures": {
+                        "0": {
+                            "name": "entity.name.function.cml"
+                        },
+                        "1": {
+                            "name": "keyword.control.call.cml"
+                        }
+                    }
+                }
+            ]
+        },
+        "type-def": {
+            "patterns": [
+                {
+                    "begin": "\\b(type)\\s+([_a-zA-Z][_a-zA-Z0-9]*)\\s*(=)\\s*{",
+                    "beginCaptures": {
+                        "1": {
+                            "patterns": [
+                                {
+                                    "include": "#keywords"
+                                }
+                            ]
+                        },
+                        "2": {
+                            "name": "entity.name.type.cml"
+                        },
+                        "3": {
+                            "patterns": [
+                                {
+                                    "include": "#operators"
+                                }
+                            ]
+                        }
+                    },
+                    "end": "}",
+                    "patterns": [
+                        {
+                            "include": "#type-hint"
+                        }
+                    ]
+                }
+            ]
+        },
+        "function-def": {
+            "patterns": [
+                {
+                    "begin": "\\b(fn)\\s+([_a-zA-Z][_a-zA-Z0-9]*)([^=]*)(=)\\s*{",
+                    "beginCaptures": {
+                        "1": {
+                            "patterns": [
+                                {
+                                    "include": "#keywords"
+                                }
+                            ]
+                        },
+                        "2": {
+                            "name": "entity.name.function.cml"
+                        },
+                        "3": {
+                            "patterns": [
+                                {
+                                    "include": "#type-hint"
+                                }
+                            ]
+                        },
+                        "4": {
+                            "patterns": [
+                                {
+                                    "include": "#operators"
+                                }
+                            ]
+                        }
+                    },
+                    "end": "}",
+                    "patterns": [
+                        {
+                            "include": "#items"
+                        }
+                    ]
+                }
+            ]
+        },
+        "let-binding": {
+            "patterns": [
+                {
+                    "begin": "\\blet\\b",
+                    "beginCaptures": {
+                        "0": {
+                            "patterns": [
+                                {
+                                    "include": "#keywords"
+                                }
+                            ]
+                        }
+                    },
+                    "end": "=",
+                    "endCaptures": {
+                        "0": {
+                            "patterns": [
+                                {
+                                    "include": "#operators"
+                                }
+                            ]
+                        }
+                    },
+                    "patterns": [
+                        {
+                            "include": "#type-hint"
+                        }
+                    ]
+                }
+            ]
+        },
+        "type-hint": {
+            "patterns": [
+                {
+                    "include": "#keywords"
+                },
+                {
+                    "include": "#type-names"
+                },
+                {
+                    "include": "#variables"
+                },
+                {
+                    "include": "#literals"
+                },
+                {
+                    "include": "#operators"
+                }
+            ]
+        },
+        "type-names": {
+            "patterns": [
+                {
+                    "match": "\\b(str|i32|u32|bool)\\b",
+                    "name": "storage.type.core.cml"
+                },
+                {
+                    "match": "[A-Z][_a-zA-Z0-9]*",
+                    "name": "entity.name.type.cml"
+                }
+            ]
+        },
+        "variables": {
+            "patterns": [
+                {
+                    "match": "[_a-zA-Z][_a-zA-Z0-9]*"
+                }
+            ]
+        }
+    },
+    "scopeName": "source.cml"
+}

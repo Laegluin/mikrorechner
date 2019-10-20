@@ -44,7 +44,7 @@ impl Display for SimError {
 /// Immediately starts the simulation and blocks this thread until the VM halts.
 #[allow(unused)]
 pub fn run(mem: Memory, breakpoints: Breakpoints) -> Result<(RegBank, Memory), SimError> {
-    let handle = start(mem, breakpoints, false)?;
+    let handle = start(mem, breakpoints, false, |_| {})?;
     let mut c = 0;
 
     loop {
@@ -64,11 +64,15 @@ pub fn run(mem: Memory, breakpoints: Breakpoints) -> Result<(RegBank, Memory), S
     handle.join()
 }
 
-pub fn start(
+pub fn start<F>(
     mem: Memory,
     breakpoints: Breakpoints,
     start_paused: bool,
-) -> Result<SimHandle, SimError> {
+    trace: F,
+) -> Result<SimHandle, SimError>
+where
+    F: 'static + Send + Sync + FnMut(Word),
+{
     let signals = Arc::new(SimSignals {
         pause: AtomicBool::new(start_paused),
         is_running: AtomicBool::new(false),
@@ -84,7 +88,7 @@ pub fn start(
     }));
 
     let ctrl = CtrlHandle::new();
-    let sim_thread = SimThread::start(&ctrl, Arc::clone(&signals), Arc::clone(&state))?;
+    let sim_thread = SimThread::start(&ctrl, Arc::clone(&signals), Arc::clone(&state), trace)?;
     let ctrl_thread = CtrlThread::start(&ctrl, signals, state)?;
 
     Ok(SimHandle {
@@ -180,11 +184,15 @@ impl SimSignals {
 }
 
 impl SimThread {
-    fn start(
+    fn start<F>(
         ctrl: &CtrlHandle,
         signals: Arc<SimSignals>,
         state: Arc<Mutex<State>>,
-    ) -> Result<SimThread, SimError> {
+        mut trace: F,
+    ) -> Result<SimThread, SimError>
+    where
+        F: 'static + Send + Sync + FnMut(Word),
+    {
         let resp_sender = ctrl.resp_sender.clone();
 
         let handle = thread::Builder::new()
@@ -202,6 +210,7 @@ impl SimThread {
                         &mut state.mem,
                         &state.breakpoints,
                         &signals.pause,
+                        &mut trace,
                     );
 
                     signals.set_is_running(false);
@@ -438,6 +447,7 @@ impl Display for State {
 mod test {
     use super::*;
     use crate::asm;
+    use crate::memory::Access;
     use crate::vm::{ErrorKind, Reg};
     use std::io::Cursor;
 
@@ -448,7 +458,7 @@ mod test {
         asm::assemble(src, &mut img).unwrap();
 
         let mut mem = Memory::new();
-        mem.store(0, &img).unwrap();
+        mem.store(0, &img, Access::All).unwrap();
         let (regs, _) = run(mem, Breakpoints::new()).unwrap();
 
         assert_eq!(regs[Reg::R0], 500);
@@ -462,7 +472,7 @@ mod test {
         asm::assemble(src, &mut img).unwrap();
 
         let mut mem = Memory::new();
-        mem.store(0, &img).unwrap();
+        mem.store(0, &img, Access::All).unwrap();
 
         // place breakpoint inside of the loop
         let mut breaks = Breakpoints::new();
@@ -478,7 +488,7 @@ mod test {
         asm::assemble(src, &mut img).unwrap();
 
         let mut mem = Memory::new();
-        mem.store(0, &img).unwrap();
+        mem.store(0, &img, Access::All).unwrap();
 
         match run(mem, Breakpoints::new()) {
             Err(SimError::Vm(VmError {
@@ -497,7 +507,7 @@ mod test {
         asm::assemble(src, &mut img).unwrap();
 
         let mut mem = Memory::new();
-        mem.store(0, &img).unwrap();
+        mem.store(0, &img, Access::All).unwrap();
 
         run(mem, Breakpoints::new()).unwrap();
     }
