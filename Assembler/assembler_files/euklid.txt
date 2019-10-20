@@ -1,0 +1,23 @@
+#bekommt argumente in R0 und R1 übergeben, berechnet den ggt und gibt ihn in R31 zurück
+#wir nennen die Werte von R0 und R1 jeweils a und b und den algorithmus Euklid(a,b)
+
+R1 = 816           #b
+R0 = 2260          #a
+R2 = 0             #zum Zwischenspeichern
+offset = 0         #initialisieren des offset Registers
+
+compare R0 = null _schleife         #if a = 0
+jump_if to ende     #return b
+
+compare R1 > R0
+jump_if to b #..wenn a größer ist
+R0 = R0 - R1
+jump to schleife #euklid(a-b,b)
+
+R2 = R0 _b #... wenn b größer ist
+R0 = R1 - R0
+R1 = R2
+jump to schleife                    #euklid(b-a,b)
+
+R31 = R1 _ende
+halt

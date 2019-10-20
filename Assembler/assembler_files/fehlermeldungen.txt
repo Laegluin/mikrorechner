@@ -1,0 +1,30 @@
+#1) Führt der Pfad zu einer Textdatei?
+#2)
+    #Labels müssen eindeutig sein
+#R4 = 0  _label
+#R4 = 0  _label
+
+    #Datenstrings richtig angeben
+#0bFF
+
+#3)
+    #Hat der Befehl die richtige Form?
+#abcd efg =
+
+        #Hat er die richtige Form aber ist der Befehl unbekannt:
+#set R0 to R1
+
+        #Ist der Befehl richtig aber die Registerzahl ungültig?
+#R34 = 1
+
+        #Ist der Immediatewert ausserhalb des gültigen Bereiches?
+#R1 = 10000000000000000000000000000000000000000000000000000
+#R1 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+        #gültiger bereich: 21 bit (signed)
+#R4 = 0x10FFFFF
+        #negativste Zahl im Wertebereich
+#R4 = -1048576
+
+        #load ist unsigned: 15 bit
+#load R4 + 0bFFFF to R5
+#load R5 - 24 to R4
